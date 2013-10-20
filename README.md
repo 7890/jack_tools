@@ -51,10 +51,10 @@ Examples:
 
 ```
 
-jack_xlsp
----------
+jack_oscev
+----------
 
-send JACK events as OSC message
+send JACK events as OSC messages
 
 ```
 syntax: jack_oscev <osc local port> <osc remote host> <osc remote port>
