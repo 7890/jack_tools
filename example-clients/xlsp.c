@@ -64,13 +64,15 @@ show_usage (void)
 	fprintf (stderr, "Examples:\n");
 	fprintf (stderr, "  jack_xlsp\n");
 	fprintf (stderr, "  jack_xlsp -AclLpt | xmlstarlet fo\n");
-	fprintf (stderr, "  ... xmlstarlet sel -t -m '//connections' -v '../alias[1]' -o ':' -v 'count(connection)' -nl\n");
-	fprintf (stderr, "  ... xmlstarlet sel -t -m '//port/properties[@physical=\"1\"]' -c \"../.\" -nl\n");
-	fprintf (stderr, "  ... xmlstarlet sel -t -m '//port[starts-with(@name,\"fire\")]' -c . -nl\n");
-	fprintf (stderr, "  ... xmlstarlet sel -t -m '//port[@name=\"baudline:in_2\"]' -v \"properties/@input\" -nl\n");
+	fprintf (stderr, "  | xmlstarlet sel -t -m '//port[position()=2]' -v @name -nl\n");
+	fprintf (stderr, "  | xmlstarlet sel -t -m '//port/properties[@physical=\"1\"]' -c '../.' -nl\n");
+	fprintf (stderr, "  | xmlstarlet sel -t -m '//port[starts-with(@name,\"fire\") and playback_latency_frames/@min>0]' -v 'alias' -o ': ' -v 'playback_latency_frames/@min' -nl\n");
+	fprintf (stderr, "  | xmlstarlet sel -t -m '//port' -s D:T:L 'count(.//connection)' --if  'position()<10' -v '@name' -o ': ' -v 'count(.//connection)' -nl --else -b\n");
+
 	fprintf (stderr, "\n");
 	fprintf (stderr, "jack_xlsp source at https://github.com/7890/jack_tools\n\n");
 
+	//jack_xlsp -AclLpt | xmlstarlet sel -t -m '//port' -s D:T:L 'count(.//connection)' --if  'position()<10' -o '==[' -v '@name' -o ': ' -v 'count(.//connection)' -nl -m ".//connection" -o '  |__' -v . -nl  -b -nl --else -b
 
 }
 
@@ -179,7 +181,9 @@ main (int argc, char *argv[])
 
 	printf("<jack_xlsp>\n");
 
+
 	for (i = 0; ports && ports[i]; ++i) {
+
 
 		// skip over any that don't match ALL of the strings presented at command line
 		skip_port = 0;
@@ -190,7 +194,7 @@ main (int argc, char *argv[])
 		}
 		if (skip_port) continue;
 
-		printf ("<port name=\"%s\">\n", ports[i]);
+		printf ("<port index=\"%d\" name=\"%s\">\n", (i+1), ports[i]);
 		port = jack_port_by_name (client, ports[i]);
 
 		if (show_aliases) {
@@ -254,7 +258,7 @@ main (int argc, char *argv[])
 
 			if ((connections = jack_port_get_all_connections (client, jack_port_by_name(client, ports[i]))) != 0) {
 				for (j = 0; connections[j]; j++) {
-					printf ("<connection>%s</connection>\n", connections[j]);
+					printf ("<connection index=\"%d\">%s</connection>\n", (j+1), connections[j]);
 				}
 				free (connections);
 			}
