@@ -109,7 +109,7 @@ u: buffer underflow counter
 
 jack_audio_receive states:
 -waiting for audio (if no sender is currently active)
--receiving audio /offer fro sender
+-receiving audio /offer from sender
 -accepting transmission (if offered audio was compatible)
 -denying transmission (if offered audio was incompatible)
 -buffering (for the given --pre size in periods)
