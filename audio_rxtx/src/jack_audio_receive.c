@@ -831,7 +831,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//fill buffer
 		size_t fill_periods_count=buffer_periods-can_read_periods_count;
-		fprintf(stderr," -> FILL %" PRId64 " \n",fill_periods_count);
+		fprintf(stderr," -> FILL %lu\n",fill_periods_count);
 
 		pre_buffer_size=fill_periods_count;
 		pre_buffer_counter=0;
@@ -841,7 +841,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//do in process() (reader)
 		requested_drop_count+=can_read_periods_count-buffer_periods;
-		fprintf(stderr," -> DROP %" PRId64 "\n",requested_drop_count);
+		fprintf(stderr," -> DROP %lu\n",requested_drop_count);
 	}
 	
 	return 0;
