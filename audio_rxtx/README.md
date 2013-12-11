@@ -1,5 +1,7 @@
 ```
 
+uses liblo >= 0.27
+
 jack_audio_send & jack_audio_receive are jack clients
 allowing real-time uncompressed/unchanged ~native JACK 
 audio data transfer over the network using OSC messages. 
@@ -10,7 +12,7 @@ sampling rate, period size and bytes per sample.
 Please compare these tools to jack.trip, netjack and 
 similar while keeping in mind this is mostly a crude 
 prototype not caring about too much more than pumping out 
-messages and hope they will arrive at the receiver. 
+messages and hoping they will arrive at the receiver. 
 Nevertheless it works quite happily to a certain degree.
 
 Usage: jack_audio_send <Options> <Receiver host> <Receiver port>.
