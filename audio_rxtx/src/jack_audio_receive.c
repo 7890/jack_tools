@@ -901,7 +901,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//sending deny will tell sender to stop/quit
 		lo_send_message (loa, "/deny", msg);
 
-		fprintf(stderr,"denying transmission from %s:%s (incompatible jack settings).",
+		fprintf(stderr,"\ndenying transmission from %s:%s (incompatible jack settings).\n",
 			lo_address_get_hostname(loa),lo_address_get_port(loa)
 		);
 
