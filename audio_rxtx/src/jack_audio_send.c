@@ -33,7 +33,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.4;
+float version = 0.41;
 
 jack_client_t *client;
 
@@ -354,7 +354,7 @@ static void help (void)
 	fprintf (stderr, "Receiver port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel period.\n");
-	fprintf (stderr, "see http://github.com/7890/jack_tools\n\n");
+	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
 	//needs manpage
 	exit (1);
 }
@@ -513,7 +513,7 @@ main (int argc, char *argv[])
 	}
 	if (status & JackNameNotUnique) {
 		client_name = jack_get_client_name(client);
-		fprintf (stderr, "unique name `%s' assigned\n", client_name);
+		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
 	}
 
 	fprintf(stderr,"sending from osc port: %s\n",localPort);
