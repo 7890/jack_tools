@@ -487,8 +487,6 @@ main (int argc, char *argv[])
 		fprintf (stderr, "unique name `%s' assigned\n", client_name);
 	}
 
-	header();
-
 	fprintf(stderr,"listening on osc port: %s\n",listenPort);
 
 	sample_rate=jack_get_sample_rate(client);
