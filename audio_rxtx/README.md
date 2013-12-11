@@ -101,7 +101,7 @@ Legend
 i: input channel count (can dynamically change)
 f: buffer fill level: periods (for all channels)
 b: buffer fill level: bytes
-s: buffer fill level: milliseconds
+s: buffer fill level: seconds
 i: average time between messages: milliseconds
 r: remote xrun counter
 l: local xrun counter
