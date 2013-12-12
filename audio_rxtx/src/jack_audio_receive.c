@@ -121,6 +121,10 @@ int avg_calc_interval=100;
 //if the network cable is plugged out, this can sound awful
 int zero_on_underflow=1; //param
 
+//don't stress the terminal with too many fprintfs
+int update_display_every_nth_cycle=100;
+int relaxed_display_counter=0;
+
 //test_mode (--limit) is handy for testing purposes
 //if set to 1, program will terminate after receiving receive_max messages
 int test_mode=0;
@@ -222,6 +226,8 @@ process (jack_nframes_t nframes, void *arg)
 				ringbuffer_underflow_counter++;
 				time_interval_avg=0;
 				time_transmission_avg=0;
+
+				//possible channel shift
 			}
 
 			/*
@@ -230,15 +236,25 @@ process (jack_nframes_t nframes, void *arg)
 			);
 			*/
 
-			fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f",
-				message_number,
-				input_port_count,
-				(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
-				can_read_count,
-				(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate
-			);
+			if(relaxed_display_counter>=update_display_every_nth_cycle)
+			{
+				fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 " l: %" PRId64 " u: %" PRId64 "%s",
 
-			/*
+					message_number,
+					input_port_count,
+					(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
+					can_read_count,
+					(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
+					time_interval_avg*1000,
+					remote_xrun_counter,local_xrun_counter,
+					ringbuffer_underflow_counter/port_count,
+					"\033[0J"
+				);
+				relaxed_display_counter=0;
+			}
+			relaxed_display_counter++;
+
+/*
 			const char *alert="";
 			if(time_transmission_avg<0)
 			{
@@ -246,21 +262,14 @@ process (jack_nframes_t nframes, void *arg)
 				//best results when both hosts are using ntp
 				alert="!";
 			}
-			*/
-
 			fprintf(stderr," i: %.2f",// t: %.2f%s x: %.1f%s",
 				time_interval_avg*1000
 				//time_transmission_avg*1000,alert,
 				//time_interval_avg/time_transmission_avg,alert
 			);
 
-			fprintf(stderr," r: %" PRId64 " l: %" PRId64 
-				" u: %" PRId64 "",
-				remote_xrun_counter,local_xrun_counter,
-				ringbuffer_underflow_counter/port_count
-			);
-
 			fprintf(stderr,"%s", "\033[0J");
+*/
 
 		} // end if process enabled
 		//process not yet enabled, buffering
