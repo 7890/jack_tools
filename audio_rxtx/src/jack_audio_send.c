@@ -351,9 +351,9 @@ static void help (void)
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
 	fprintf (stderr, "  Limit totally sent messages: (off) --limit <number>\n");
 	fprintf (stderr, "Receiver host:   <string>\n");
-	fprintf (stderr, "Receiver port:   <integer>\n\n");
+	fprintf (stderr, "Receiver port:   <number>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
-	fprintf (stderr, "One message corresponds to one multi-channel period.\n");
+	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
 	//needs manpage
 	exit (1);
@@ -526,9 +526,16 @@ main (int argc, char *argv[])
 	fprintf(stderr, "bytes per sample: %d\n",bytes_per_sample);
 
 	period_size=jack_get_buffer_size(client);
-	fprintf(stderr, "period size: %d (%.4f sec)\n",period_size,(float)period_size/(float)sample_rate);
+	fprintf(stderr, "period size: %d samples (%.2f ms, %d bytes)\n",period_size,
+		1000*(float)period_size/(float)sample_rate,
+		period_size*bytes_per_sample
+	);
 
 	fprintf(stderr, "channels (capture): %d\n",input_port_count);
+
+	fprintf(stderr,"max. multi-channel period size: %d bytes\n",
+		input_port_count*period_size*bytes_per_sample
+	);
 
 	fprintf(stderr, "message rate: %.1f packets/s\n",
 		(float)sample_rate/(float)period_size

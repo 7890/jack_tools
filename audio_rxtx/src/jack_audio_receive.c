@@ -348,12 +348,12 @@ static void help (void)
 	fprintf (stderr, "  Number of playback channels:   (2) --out <number>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
-	fprintf (stderr, "  Initial buffer size:     (periods) --pre <number>\n");
+	fprintf (stderr, "  Initial buffer size:  (mc periods) --pre <number>\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit <number>\n");
 	fprintf (stderr, "Listening port:   <number>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --in 8 --connect --pre 200 1234\n");
-	fprintf (stderr, "One message corresponds to one multi-channel period.\n");
+	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
 	//needs manpage
 	exit (1);
@@ -510,11 +510,16 @@ main (int argc, char *argv[])
 	fprintf(stderr,"bytes per sample: %d\n",bytes_per_sample);
 
 	period_size=jack_get_buffer_size(client);
-	fprintf(stderr,"period size: %d (%.2f ms)\n",period_size,
-		1000*(float)period_size/(float)sample_rate
+	fprintf(stderr,"period size: %d samples (%.2f ms, %d bytes)\n",period_size,
+		1000*(float)period_size/(float)sample_rate,
+		period_size*bytes_per_sample
 	);
 
 	fprintf(stderr,"channels (playback): %d\n",output_port_count);
+
+	fprintf(stderr,"max. multi-channel period size: %d bytes\n",
+		output_port_count*period_size*bytes_per_sample
+	);
 
 	char *strat="fill with zero (silence)";
 	if(zero_on_underflow==0)
@@ -524,7 +529,7 @@ main (int argc, char *argv[])
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
-	fprintf(stderr,"initial buffer (periods): %lu (%.4f sec)\n",pre_buffer_size,
+	fprintf(stderr,"initial buffer: %lu mc periods (%.4f sec)\n",pre_buffer_size,
 		(float)pre_buffer_size*period_size/(float)sample_rate
 	);
 
@@ -536,7 +541,7 @@ main (int argc, char *argv[])
 	}
 
 	size_t rb_size=10*output_port_count*bytes_per_sample*period_size*factor;//*pre_buffer_size;
-	fprintf(stderr,"ringbuffer (bytes): %lu\n\n",rb_size);
+	fprintf(stderr,"ringbuffer: %lu bytes\n\n",rb_size);
 
 	//make a ringbuffer, large enough
 	rb = jack_ringbuffer_create (rb_size);
