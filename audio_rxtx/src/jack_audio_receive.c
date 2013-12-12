@@ -377,7 +377,7 @@ main (int argc, char *argv[])
 	static struct option long_options[] =
 	{
 		{"help",	no_argument,		0, 'h'},
-		{"out",		required_argument,	0, 'i'},
+		{"out",		required_argument, 	0, 'o'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
 		{"pre",		required_argument,	0, 'b'},//pre buffer
