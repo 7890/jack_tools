@@ -9,12 +9,12 @@ One blob per channel and period, one "multi-channel" period
 per message. All exchanging systems must share the same 
 sampling rate, period size and bytes per sample.
 
-Please compare these tools to jack.trip, netjack and 
-similar while keeping in mind this is mostly a crude 
-prototype not caring about too much more than pumping out 
-messages and hoping they will arrive at the receiver. 
-I know people who consider OSC unreasonable for doing that :)
-Nevertheless it works quite happily to a certain degree.
+Please don't compare these tools to jacktrip, netjack and 
+similar. This is mostly a crude prototype not caring about 
+too much more than pumping out messages and hoping they will 
+arrive at the receiver. I know people who consider OSC 
+unreasonable for doing that :) Nevertheless it works quite 
+happily to a certain degree.
 
 
 =====
@@ -27,7 +27,7 @@ Options:
   Jack client name:      (prg. name) --name <string>
   Limit totally sent messages: (off) --limit <number>
 Receiver host:   <string>
-Receiver port:   <integer>
+Receiver port:   <number>
 
 Example: jack_audio_send --in 8 10.10.10.3 1234
 
@@ -36,20 +36,21 @@ subnet, for instance:
 jack_audio_send 10.10.10.255 1234
 (This is not multicast)
 
-jack_audio_receive Example Output
+jack_audio_send Example Output
 ___________
-sending from osc port: 9990
-target host:port: localhost:6644
+sending from osc port: 3333
+target host:port: 10.10.10.111:4444
 sample rate: 44100
 bytes per sample: 4
-period size: 128 (0.0029 sec)
-channels (capture): 2
-message rate: 344.5 packets/s
-message length: 1072 bytes
-transfer length: 1114 bytes
-expected network data rate: 3070.5 kbit/s
+period size: 64 samples (1.45 ms, 256 bytes)
+channels (capture): 4
+max. multi-channel period size: 1024 bytes
+message rate: 689.1 packets/s
+message length: 1084 bytes
+transfer length: 1126 bytes (9.1 % overhead)
+expected network data rate: 6207.1 kbit/s
 
-# 3452 (00:00:10) xruns: 0 bytes tx: 3845668
+# 140862 (00:03:24) xruns: 0 bytes tx: 158610752
 ___________
 
 Legend
@@ -77,7 +78,8 @@ Options:
   Number of playback channels:   (2) --out <number>
   Autoconnect ports:           (off) --connect
   Jack client name:      (prg. name) --name <string>
-  Initial buffe sizer:     (periods) --pre <number>
+  Initial buffer size:(2 mc periods) --pre <number>
+  Re-use old data on underflow: (no) --nozero
   Limit processing count:      (off) --limit <number>
 Listening port:   <number>
 
@@ -85,15 +87,17 @@ Example: jack_audio_receive --in 8 --connect --pre 200 1234
 
 jack_audio_receive Example Output
 ___________
-listening on osc port: 6644
+listening on osc port: 6666
 sample rate: 44100
 bytes per sample: 4
-period size: 128 (2.90 ms)
+period size: 64 samples (1.45 ms, 256 bytes)
 channels (playback): 2
-initial buffer (periods): 1000 (2.9025 sec)
-ringbuffer (bytes): 10240000
+max. multi-channel period size: 512 bytes
+underflow strategy: fill with zero (silence)
+initial buffer: 4 mc periods (0.0058 sec)
+ringbuffer: 20480 bytes
 
-# 4478 i: 2 f: 1000.5 b: 1024512 s: 2.9039 i: 2.90 r: 0 l: 0 u: 0
+# 196273 i: 4 f: 5.5 b: 2816 s: 0.0080 i: 1.45 r: 0 l: 0 u: 4
 ___________
 
 Legend
