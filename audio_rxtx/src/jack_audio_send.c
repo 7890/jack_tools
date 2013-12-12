@@ -551,7 +551,10 @@ main (int argc, char *argv[])
 	transfer_size=14+28+msg_size;
 
 	fprintf(stderr,"message length: %d bytes\n", msg_size);
-	fprintf(stderr,"transfer length: %d bytes\n", transfer_size);
+	fprintf(stderr,"transfer length: %d bytes (%.1f %% overhead)\n", 
+		transfer_size,
+		100-100*(float)input_port_count*period_size*bytes_per_sample/(float)transfer_size
+	);
 
 	if(transfer_size>max_transfer_size)
 	{
