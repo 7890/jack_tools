@@ -311,11 +311,10 @@ process (jack_nframes_t nframes, void *arg)
 				*port_count*period_size*bytes_per_sample;
 
 			//create throw away buffer
-			void *membuf = malloc(drop_bytes_count);
-
-			jack_ringbuffer_read (rb, (char*)membuf, drop_bytes_count);
-
-			free(membuf);
+			//void *membuf = malloc(drop_bytes_count);
+			//jack_ringbuffer_read (rb, (char*)membuf, drop_bytes_count);
+			//free(membuf);
+			jack_ringbuffer_read_advance(rb,drop_bytes_count);
 
 			requested_drop_count=0;
 		}
