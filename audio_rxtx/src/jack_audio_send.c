@@ -33,7 +33,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.43;
+float version = 0.44;
 
 jack_client_t *client;
 
@@ -68,7 +68,8 @@ lo_server_thread st;
 lo_address loa;
 
 //for message numberings, 1-based
-uint64_t msg_send_counter=1;
+//will be reset to 1 on start of audio transmission
+uint64_t msg_sequence_number=1;
 
 int msg_size=0;
 int transfer_size=0;
@@ -91,10 +92,16 @@ float trip_time_interval_sum=0;
 float trip_time_interval_avg=0;
 float host_to_host_time_offset=0;
 
+//don't stress the terminal with too many fprintfs
+int update_display_every_nth_cycle=100;
+int relaxed_display_counter=0;
+
+//give lazy display a chance to output current value for last cycle
+int last_test_cycle=0;
+
 //test_mode (--limit) is handy for testing purposes
 //if set to 1, program will terminate after sending send_max messages
 int test_mode=0;
-//0=unlimited
 uint64_t send_max=10000;
 
 //ctrl+c etc
@@ -132,7 +139,7 @@ void trip();
 int message_size()
 {
 	lo_message msg=lo_message_new();
-	lo_message_add_int64(msg,msg_send_counter);
+	lo_message_add_int64(msg,msg_sequence_number);
 	lo_message_add_int64(msg,xrun_counter);
 
 	gettimeofday(&tv, NULL);
@@ -193,7 +200,7 @@ void offer_audio_to_receiver()
 	lo_message_add_float(msg,expected_network_data_rate);
 
 	//add message counter
-	lo_message_add_int64(msg,msg_send_counter);
+	lo_message_add_int64(msg,msg_sequence_number);
 
 	lo_send_message (loa, "/offer", msg);
 
@@ -229,15 +236,28 @@ process(jack_nframes_t nframes, void *arg)
 		{
 			offer_audio_to_receiver();
 
-			//print info "in-place" with \r
-			fprintf(stderr,"\r# %" PRId64 " offering audio to %s:%s...",
-				msg_send_counter,
-				lo_address_get_hostname(loa),
-				lo_address_get_port(loa)
-			);
+			if(relaxed_display_counter>=update_display_every_nth_cycle
+				|| last_test_cycle==1
+			)
+			{
+				//print info "in-place" with \r
+				fprintf(stderr,"\r# %" PRId64 " offering audio to %s:%s...",
+					msg_sequence_number,
+					lo_address_get_hostname(loa),
+					lo_address_get_port(loa)
+				);
+				relaxed_display_counter=0;
+			}
+			relaxed_display_counter++;
 
-			msg_send_counter++;
+			msg_sequence_number++;
+
 			return 0;
+		}//end if receiver not yet accepted
+
+		if(test_mode==1 && msg_sequence_number>=send_max)
+		{
+			last_test_cycle=1;
 		}
 
 //don't forget to update the dummy message in message_size()
@@ -255,7 +275,7 @@ process(jack_nframes_t nframes, void *arg)
 		lo_message msg=lo_message_new();
 
 		//add message counter
-		lo_message_add_int64(msg,msg_send_counter);
+		lo_message_add_int64(msg,msg_sequence_number);
 		//indicate how many xruns on sender
 		lo_message_add_int64(msg,xrun_counter);
 
@@ -294,31 +314,39 @@ process(jack_nframes_t nframes, void *arg)
 		}
 
 		//calculate elapsed time
-		size_t seconds_elapsed_total=msg_send_counter * period_size / sample_rate;
+		size_t seconds_elapsed_total=msg_sequence_number * period_size / sample_rate;
 		size_t hours_elapsed_total=seconds_elapsed_total / 3600;
 		size_t minutes_elapsed_total=seconds_elapsed_total / 60;
 
 		size_t minutes_elapsed=minutes_elapsed_total % 60;
 		size_t seconds_elapsed=seconds_elapsed_total % 60;
 
-		//print info "in-place" with \r
-		fprintf(stderr,"\r# %" PRId64 
-			" (%02lu:%02lu:%02lu) xruns: %" PRId64 " bytes tx: %" PRId64 "",
-			msg_send_counter,hours_elapsed_total,minutes_elapsed,seconds_elapsed,
-			xrun_counter,
-			transfer_size*msg_send_counter+140 //140: minimal offer/accept
-		);
-
-		if(test_mode==1 && msg_send_counter>=send_max && msg_send_counter>0)
+		if(relaxed_display_counter>=update_display_every_nth_cycle
+			|| last_test_cycle==1
+		)
 		{
-			fprintf(stderr,"\ntest finished after %" PRId64 " messages\n",msg_send_counter);
-			shutdown_in_progress=1;
-			return 0;
+			//print info "in-place" with \r
+			fprintf(stderr,"\r# %" PRId64 
+				" (%02lu:%02lu:%02lu) xruns: %" PRId64 " bytes tx: %" PRId64 "",
+				msg_sequence_number,hours_elapsed_total,minutes_elapsed,seconds_elapsed,
+				xrun_counter,
+				transfer_size*msg_sequence_number+140 //140: minimal offer/accept
+			);
+			relaxed_display_counter=0;
 		}
+		relaxed_display_counter++;
 
-		msg_send_counter++;
+		msg_sequence_number++;
 
 	} //end process enabled
+
+	if(last_test_cycle==1)
+	{
+		fprintf(stderr,"\ntest finished after %" PRId64 " messages\n",msg_sequence_number-1);
+		fprintf(stderr,"(waiting and buffering messages not included)\n");
+
+		shutdown_in_progress=1;
+	}
 
 	return 0;
 } //end process()
@@ -452,7 +480,7 @@ main (int argc, char *argv[])
 				break;
 
 			case 't':
-				send_max=(uint64_t)atoll(optarg);
+				send_max=fmax(1,(uint64_t)atoll(optarg));
 				test_mode=1;
 				fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",send_max);
 
@@ -743,7 +771,7 @@ int accept_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	}
 
 	receiver_accepted=1;
-	msg_send_counter=1;
+	msg_sequence_number=1;
 	return 0;
 }
 
@@ -773,6 +801,6 @@ int pause_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	fprintf(stderr,"\nreceiver requested pause\n");
 	receiver_accepted=-1;
-	msg_send_counter=1;
+	msg_sequence_number=1;
 	return 0;
 }

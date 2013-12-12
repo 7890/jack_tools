@@ -34,7 +34,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.43;
+float version = 0.44;
 
 jack_client_t *client;
 
@@ -125,6 +125,9 @@ int zero_on_underflow=1; //param
 int update_display_every_nth_cycle=100;
 int relaxed_display_counter=0;
 
+//give lazy display a chance to output current value for last cycle
+int last_test_cycle=0;
+
 //test_mode (--limit) is handy for testing purposes
 //if set to 1, program will terminate after receiving receive_max messages
 int test_mode=0;
@@ -196,6 +199,16 @@ process (jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+	if(process_enabled==1)
+	{
+		process_cycle_counter++;
+
+		if(process_cycle_counter>receive_max-1 && test_mode==1)
+		{
+			last_test_cycle=1;
+		}
+	}
+
 	size_t cnt=0;
 	size_t can_read_count=0;
 
@@ -236,7 +249,10 @@ process (jack_nframes_t nframes, void *arg)
 			);
 			*/
 
-			if(relaxed_display_counter>=update_display_every_nth_cycle)
+			//this is per channel, not per cycle. *port_count
+			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
+				|| last_test_cycle==1
+			)
 			{
 				fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 " l: %" PRId64 " u: %" PRId64 "%s",
 
@@ -275,17 +291,27 @@ process (jack_nframes_t nframes, void *arg)
 		//process not yet enabled, buffering
 		else
 		{
-			//only for init
-			if((int)message_number<=0 && starting_transmission==0)
+			//this is per channel, not per cycle. *port_count
+			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
+				|| last_test_cycle==1
+			)
 			{
-				fprintf(stderr,"\rwaiting for audio input data...");
+				//only for init
+				if((int)message_number<=0 && starting_transmission==0)
+				{
+					fprintf(stderr,"\rwaiting for audio input data...");
+				}
+				else
+				{
+					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %lu",
+						message_number,pre_buffer_size-pre_buffer_counter
+					);
+				}
+
+				relaxed_display_counter=0;
 			}
-			else
-			{
-				fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %lu",
-					message_number,pre_buffer_size-pre_buffer_counter
-				);
-			}
+			relaxed_display_counter++;
+
 			//set output buffer silent
 			memset ( o1, 0, port_count*bytes_per_sample*nframes );
 		}
@@ -303,16 +329,6 @@ process (jack_nframes_t nframes, void *arg)
 
 	if(process_enabled==1)
 	{
-		process_cycle_counter++;
-
-		if(process_cycle_counter>=receive_max && test_mode==1)
-		{
-			fprintf(stderr,"\ntest finished after %" PRId64 " process cycles\n",process_cycle_counter);
-
-			shutdown_in_progress=1;
-			return 0;
-		}
-
 		//requested via /buffer, for test purposes (make buffer "tight")
 		if(requested_drop_count>0)
 		{
@@ -328,6 +344,15 @@ process (jack_nframes_t nframes, void *arg)
 			requested_drop_count=0;
 		}
 	}
+
+	if(last_test_cycle==1)
+	{
+		fprintf(stderr,"\ntest finished after %" PRId64 " process cycles\n",process_cycle_counter);
+		fprintf(stderr,"(waiting and buffering cycles not included)\n");
+
+		shutdown_in_progress=1;
+	}
+
 	return 0;
 } //end process()
 
@@ -447,12 +472,11 @@ main (int argc, char *argv[])
 				break;
 
 			case 'b':
-				pre_buffer_size=(uint64_t)atoll(optarg);
+				pre_buffer_size=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
-
 			case 't':
-				receive_max=(uint64_t)atoll(optarg);
+				receive_max=fmax(1,(uint64_t)atoll(optarg));
 				test_mode=1;
 				fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",receive_max);
 
