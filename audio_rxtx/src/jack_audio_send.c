@@ -33,7 +33,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.41;
+float version = 0.43;
 
 jack_client_t *client;
 
@@ -336,7 +336,7 @@ jack_shutdown (void *arg)
 
 static void header (void)
 {
-	fprintf (stderr, "\njack_audio_send v%.1f\n", version);
+	fprintf (stderr, "\njack_audio_send v%.2f\n", version);
 	fprintf (stderr, "(C) 2013 Thomas Brand  <tom@trellis.ch>\n");
 }
 

@@ -34,7 +34,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.41;
+float version = 0.43;
 
 jack_client_t *client;
 
@@ -64,7 +64,7 @@ int period_size=512;
 int bytes_per_sample=4;
 
 //fill n periods to buffer before processing (sending to jack)
-size_t pre_buffer_size=100; //param
+size_t pre_buffer_size=4; //param
 size_t pre_buffer_counter=0;
 
 //indicating how many periods to drop (/buffer)
@@ -273,7 +273,7 @@ process (jack_nframes_t nframes, void *arg)
 			}
 			else
 			{
-				fprintf(stderr,"\r# %" PRId64 " buffering... periods to go: %lu",
+				fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %lu",
 					message_number,pre_buffer_size-pre_buffer_counter
 				);
 			}
@@ -336,7 +336,7 @@ jack_shutdown (void *arg)
 
 static void header (void)
 {
-	fprintf (stderr, "\njack_audio_receive v%.1f\n", version);
+	fprintf (stderr, "\njack_audio_receive v%.2f\n", version);
 	fprintf (stderr, "(C) 2013 Thomas Brand  <tom@trellis.ch>\n");
 }
 
@@ -348,7 +348,7 @@ static void help (void)
 	fprintf (stderr, "  Number of playback channels:   (2) --out <number>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
-	fprintf (stderr, "  Initial buffer size:  (mc periods) --pre <number>\n");
+	fprintf (stderr, "  Initial buffer size:(2 mc periods) --pre <number>\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit <number>\n");
 	fprintf (stderr, "Listening port:   <number>\n\n");
