@@ -116,6 +116,11 @@ float time_transmission_avg=0;
 //reset avg sum very 100 periods (avoid "slow" comeback)
 int avg_calc_interval=100;
 
+//if no data is available to give to jack, fill with zero (silence)
+//if set to 0, the current wavetable will be used
+//if the network cable is plugged out, this can sound awful
+int zero_on_underflow=1; //param
+
 //test_mode (--limit) is handy for testing purposes
 //if set to 1, program will terminate after receiving receive_max messages
 int test_mode=0;
@@ -209,11 +214,12 @@ process (jack_nframes_t nframes, void *arg)
 			}
 			else
 			{
-				//////////////////
-				//skip for now (!) and set output buffer silent
-				memset ( o1, 0, bytes_per_sample*nframes );
+				if(zero_on_underflow==1)
+				{
+					//skip for now (!) and set output buffer silent
+					memset ( o1, 0, bytes_per_sample*nframes );
+				}
 				ringbuffer_underflow_counter++;
-
 				time_interval_avg=0;
 				time_transmission_avg=0;
 			}
@@ -343,6 +349,7 @@ static void help (void)
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
 	fprintf (stderr, "  Initial buffer size:     (periods) --pre <number>\n");
+	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit <number>\n");
 	fprintf (stderr, "Listening port:   <number>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --in 8 --connect --pre 200 1234\n");
@@ -374,6 +381,7 @@ main (int argc, char *argv[])
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
 		{"pre",		required_argument,	0, 'b'},//pre buffer
+		{"nozero",	no_argument,	&zero_on_underflow, 'z'},
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
 		{0, 0, 0, 0}
 	};
@@ -507,6 +515,14 @@ main (int argc, char *argv[])
 	);
 
 	fprintf(stderr,"channels (playback): %d\n",output_port_count);
+
+	char *strat="fill with zero (silence)";
+	if(zero_on_underflow==0)
+	{
+		strat="re-use last available period";
+	}
+
+	fprintf(stderr,"underflow strategy: %s\n",strat);
 
 	fprintf(stderr,"initial buffer (periods): %lu (%.4f sec)\n",pre_buffer_size,
 		(float)pre_buffer_size*period_size/(float)sample_rate
