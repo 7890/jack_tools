@@ -149,13 +149,13 @@ static void signal_handler(int sig)
 		lo_message_free(msg);
 	}
 
-	fprintf(stderr,"cleaning up...",sig);
+	fprintf(stderr,"cleaning up...");
 
 	jack_client_close(client);
 	lo_server_thread_free(st);
 	jack_ringbuffer_free(rb);
 
-	fprintf(stderr,"done.\n",sig);
+	fprintf(stderr,"done.\n");
 
 	exit(0);
 }
