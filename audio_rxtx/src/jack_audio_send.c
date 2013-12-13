@@ -567,7 +567,7 @@ main (int argc, char *argv[])
 
 	fprintf(stderr, "channels (capture): %d\n",input_port_count);
 
-	fprintf(stderr,"max. multi-channel period size: %d bytes\n",
+	fprintf(stderr,"multi-channel period size: %d bytes\n",
 		input_port_count*period_size*bytes_per_sample
 	);
 
