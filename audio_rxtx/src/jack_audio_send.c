@@ -33,7 +33,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.44;
+float version = 0.5;
 
 jack_client_t *client;
 
@@ -92,7 +92,18 @@ float trip_time_interval_sum=0;
 float trip_time_interval_avg=0;
 float host_to_host_time_offset=0;
 
-//don't stress the terminal with too many fprintfs
+//store after how many frames all work is done in process()
+int frames_since_cycle_start=0;
+int frames_since_cycle_start_sum=0;
+int frames_since_cycle_start_avg=0;
+
+//reset fscs avg sum every 88. cycle
+int fscs_avg_calc_interval=88;
+
+//temporary counter (will be reset for avg calc)
+int fscs_avg_counter=0;
+
+//don't stress the terminal with too many fprintfs in process()
 int update_display_every_nth_cycle=99;
 int relaxed_display_counter=0;
 
@@ -235,6 +246,20 @@ process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+
+	//init to 0. increment before use
+	fscs_avg_counter++;
+
+	frames_since_cycle_start_sum+=frames_since_cycle_start;
+	frames_since_cycle_start_avg=frames_since_cycle_start_sum/fscs_avg_counter;
+
+	//check and reset after use
+	if(fscs_avg_calc_interval>=fscs_avg_counter)
+	{
+		fscs_avg_counter=0;
+		frames_since_cycle_start_sum=0; 
+	}
+
 	if(process_enabled==1)
 	{
 		//no answer from receiver yet
@@ -333,10 +358,12 @@ process(jack_nframes_t nframes, void *arg)
 		{
 			//print info "in-place" with \r
 			fprintf(stderr,"\r# %" PRId64 
-				" (%02lu:%02lu:%02lu) xruns: %" PRId64 " bytes tx: %" PRId64 "",
+				" (%02lu:%02lu:%02lu) xruns: %" PRId64 " bytes tx: %" PRId64 " p: %.1f %s",
 				msg_sequence_number,hours_elapsed_total,minutes_elapsed,seconds_elapsed,
 				xrun_counter,
-				transfer_size*msg_sequence_number+140 //140: minimal offer/accept
+				transfer_size*msg_sequence_number+140, //140: minimal offer/accept
+				(float)frames_since_cycle_start_avg/(float)period_size,
+				"\033[0J"
 			);
 			relaxed_display_counter=0;
 		}
@@ -353,6 +380,11 @@ process(jack_nframes_t nframes, void *arg)
 
 		shutdown_in_progress=1;
 	}
+
+	//simulate long cycle process duration
+	//usleep(1000);
+
+	frames_since_cycle_start=jack_frames_since_cycle_start(client);
 
 	return 0;
 } //end process()

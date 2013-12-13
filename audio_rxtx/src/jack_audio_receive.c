@@ -34,7 +34,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.44;
+float version = 0.5;
 
 jack_client_t *client;
 
@@ -85,15 +85,13 @@ uint64_t message_number=0;
 //to detect gaps
 uint64_t message_number_prev=0;
 
-//temporary counter (will be reset for avg calc)
-uint64_t msg_received_counter=0;
-
 //count what we process
 uint64_t process_cycle_counter=0;
 
 uint64_t remote_xrun_counter=0;
 uint64_t local_xrun_counter=0;
-uint64_t ringbuffer_underflow_counter=0;
+//uint64_t ringbuffer_underflow_counter=0;
+uint64_t multi_channel_drop_counter=0;
 
 int shutdown_in_progress=0;
 int starting_transmission=0;
@@ -102,7 +100,7 @@ int starting_transmission=0;
 struct timeval tv;
 lo_timetag tt_prev;
 
-//misc measurement
+//misc measurements ins audio_handler()
 //seconds
 float time_interval=0;
 float time_transmission=0;
@@ -113,20 +111,34 @@ float time_interval_avg=0;
 double time_transmission_sum=0;
 float time_transmission_avg=0;
 
-//reset avg sum very 100 periods (avoid "slow" comeback)
-int avg_calc_interval=100;
+//reset avg sum every 76. cycle (avoid "slow" comeback)
+int avg_calc_interval=76;
+
+//temporary counter (will be reset for avg calc)
+uint64_t msg_received_counter=0;
 
 //if no data is available to give to jack, fill with zero (silence)
 //if set to 0, the current wavetable will be used
 //if the network cable is plugged out, this can sound awful
 int zero_on_underflow=1; //param
 
-//don't stress the terminal with too many fprintfs
+//don't stress the terminal with too many fprintfs in process()
 int update_display_every_nth_cycle=99;
 int relaxed_display_counter=0;
 
 //give lazy display a chance to output current value for last cycle
 int last_test_cycle=0;
+
+//store after how many frames all work is done in process()
+int frames_since_cycle_start=0;
+int frames_since_cycle_start_sum=0;
+int frames_since_cycle_start_avg=0;
+
+//reset fscs avg sum every 88. cycle
+int fscs_avg_calc_interval=88;
+
+//temporary counter (will be reset for avg calc)
+int fscs_avg_counter=0;
 
 //test_mode (--limit) is handy for testing purposes
 //if set to 1, program will terminate after receiving receive_max messages
@@ -139,6 +151,7 @@ static void signal_handler(int sig)
 	fprintf(stderr,"\nterminate signal %d received, telling sender to pause.\n",sig);
 
 	shutdown_in_progress=1;
+	process_enabled=0;
 
 	lo_address loa = lo_address_new(sender_host,sender_port);
 	if(loa!=NULL)
@@ -184,6 +197,35 @@ int xrun()
 	return 0;
 }
 
+void print_info()
+{
+	size_t can_read_count=jack_ringbuffer_read_space(rb);
+
+	//this is per channel, not per cycle. *port_count
+	if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
+		|| last_test_cycle==1
+	)
+	{
+		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 " l: %" PRId64 " d: %" PRId64 " p: %.1f %s",
+
+			message_number,
+			input_port_count,
+			(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
+			can_read_count,
+			(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
+			time_interval_avg*1000,
+			remote_xrun_counter,local_xrun_counter,
+			//ringbuffer_underflow_counter/port_count,
+			multi_channel_drop_counter,
+			(float)frames_since_cycle_start_avg/(float)period_size,
+			"\033[0J"
+		);
+		relaxed_display_counter=0;
+	}
+	relaxed_display_counter++;
+}//end print_info
+
+
 /**
  * The process callback for this JACK application is called in a
  * special realtime thread once for each audio cycle.
@@ -192,7 +234,7 @@ int xrun()
 int
 process (jack_nframes_t nframes, void *arg)
 {
-	//if shutting down, fill buffers with 0 
+	//if shutting down fill buffers with 0 and return
 	if(shutdown_in_progress==1)
 	{
 		int i;
@@ -202,6 +244,35 @@ process (jack_nframes_t nframes, void *arg)
 			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (outputPortArray[i], nframes);
 			memset ( o1, 0, bytes_per_sample*nframes );
 		}
+		return 0;
+	}
+
+	//if no data for this cycle (all channels) 
+	//is available (!), fill buffers with 0 or re-use old buffers and return
+	if(jack_ringbuffer_read_space(rb) < port_count * bytes_per_sample*nframes
+			&& process_enabled==1
+	)
+	{
+
+		int i;
+		for( i=0; i < output_port_count; i++ )
+		{
+			if(zero_on_underflow==1)
+			{
+				jack_default_audio_sample_t *o1;
+				o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (outputPortArray[i], nframes);
+				memset ( o1, 0, bytes_per_sample*nframes );
+			}
+			print_info();
+		}
+
+		multi_channel_drop_counter++;
+
+		//reset avg calculation
+		time_interval_avg=0;
+		time_transmission_avg=0;
+		msg_received_counter=0;
+		fscs_avg_counter=0;
 
 		return 0;
 	}
@@ -214,6 +285,19 @@ process (jack_nframes_t nframes, void *arg)
 		{
 			last_test_cycle=1;
 		}
+	}
+
+	//init to 0. increment before use
+	fscs_avg_counter++;
+
+	frames_since_cycle_start_sum+=frames_since_cycle_start;
+	frames_since_cycle_start_avg=frames_since_cycle_start_sum/fscs_avg_counter;
+
+	//check and reset after use
+	if(fscs_avg_calc_interval>=fscs_avg_counter)
+	{
+		fscs_avg_counter=0;
+		frames_since_cycle_start_sum=0;	
 	}
 
 	size_t cnt=0;
@@ -231,24 +315,11 @@ process (jack_nframes_t nframes, void *arg)
 			//how many periods still ready to read in the buffer
 			can_read_count = jack_ringbuffer_read_space(rb);
 
-			if(can_read_count >=
-					bytes_per_sample*nframes)
-			{
-				cnt=jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
-			}
-			else
-			{
-				if(zero_on_underflow==1)
-				{
-					//skip for now (!) and set output buffer silent
-					memset ( o1, 0, bytes_per_sample*nframes );
-				}
-				ringbuffer_underflow_counter++;
-				time_interval_avg=0;
-				time_transmission_avg=0;
-
-				//possible channel shift
-			}
+			//always true since checked at beginning of cycle for all channels
+			//if(can_read_count >= bytes_per_sample*nframes)
+			//{
+			cnt=jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+			//}
 
 			/*
 			fprintf(stderr,"receiving from %s:%s",
@@ -256,26 +327,7 @@ process (jack_nframes_t nframes, void *arg)
 			);
 			*/
 
-			//this is per channel, not per cycle. *port_count
-			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
-				|| last_test_cycle==1
-			)
-			{
-				fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 " l: %" PRId64 " u: %" PRId64 "%s",
-
-					message_number,
-					input_port_count,
-					(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
-					can_read_count,
-					(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
-					time_interval_avg*1000,
-					remote_xrun_counter,local_xrun_counter,
-					ringbuffer_underflow_counter/port_count,
-					"\033[0J"
-				);
-				relaxed_display_counter=0;
-			}
-			relaxed_display_counter++;
+			print_info();
 
 /*
 			const char *alert="";
@@ -359,6 +411,11 @@ process (jack_nframes_t nframes, void *arg)
 
 		shutdown_in_progress=1;
 	}
+
+	//simulate long cycle process duration
+	//usleep(1000);
+
+	frames_since_cycle_start=jack_frames_since_cycle_start(client);
 
 	return 0;
 } //end process()
@@ -589,7 +646,7 @@ main (int argc, char *argv[])
 	   there is work to be done.
 	*/
 	//NULL could be config/data struct
-	jack_set_process_callback (client, process, NULL);
+	jack_set_process_callback(client, process, NULL);
 
 	jack_set_xrun_callback(client, xrun, NULL);
 
@@ -978,6 +1035,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		return 0;
 	}
 
+	//init to 0, increment before use
 	msg_received_counter++;
 
 	gettimeofday(&tv, NULL);
@@ -994,7 +1052,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		*/
 	}
 
-	//the messages are numbered sequentially
+	//the messages are numbered sequentially. first msg is numberd 1
 	message_number=argv[0]->h;
 
 	if(message_number_prev>message_number)
@@ -1032,12 +1090,12 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	tt_prev=tt;
 
-	//reset avg calc
+	//reset avg calc, check and reset after use
 	if(msg_received_counter>=avg_calc_interval)
 	{
-		msg_received_counter=1;
-		time_interval_sum=time_interval;
-		time_transmission_sum=time_transmission;
+		msg_received_counter=0;
+		time_interval_sum=0;
+		time_transmission_sum=0;
 	}
 
 	//first blob is at data_offset+1 (one-based)
@@ -1087,85 +1145,3 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	return 0;
 }//end audio_handler
 
-//some docs
-/*
-
-size_t jack_ringbuffer_write 	( 	jack_ringbuffer_t *  	rb,
-		const char *  	src,
-		size_t  	cnt	 
-	) 			
-
-Write data into the ringbuffer.
-
-Parameters:
-    	rb 	a pointer to the ringbuffer structure.
-    	src 	a pointer to the data to be written to the ringbuffer.
-    	cnt 	the number of bytes to write.
-
-
-memcpy
-
-void * memcpy ( void * destination, const void * source, size_t num );
-
-Copy block of memory
-Copies the values of num bytes from the location pointed by source directly to the memory block pointed by destination.
-
-The underlying type of the objects pointed by both the source and destination pointers are irrelevant for this function; The result is a binary copy of the data.
-
-The function does not check for any terminating null character in source - it always copies exactly num bytes.
-
-To avoid overflows, the size of the arrays pointed by both the destination and source parameters, shall be at least num bytes, and should not overlap (for overlapping memory blocks, memmove is a safer approach).
-
-Parameters
-
-destination
-    Pointer to the destination array where the content is to be copied, type-casted to a pointer of type void*.
-source
-    Pointer to the source of data to be copied, type-casted to a pointer of type const void*.
-num
-    Number of bytes to copy.
-    size_t is an unsigned integral type.
-
-
-Return Value
-destination is returned.
-
-
-memset
-
-void * memset ( void * ptr, int value, size_t num );
-
-Fill block of memory
-Sets the first num bytes of the block of memory pointed by ptr to the specified value (interpreted as an unsigned char).
-
-Parameters
-
-ptr
-    Pointer to the block of memory to fill.
-value
-    Value to be set. The value is passed as an int, but the function fills the block of memory using the unsigned char conversion of this value.
-num
-    Number of bytes to be set to the value.
-    size_t is an unsigned integral type.
-
-
-Return Value
-ptr is returned.
-
-
-EXPORT size_t jack_ringbuffer_read 	( 	jack_ringbuffer_t *  	rb,
-		char *  	dest,
-		size_t  	cnt	 
-	) 			
-
-Read data from the ringbuffer.
-
-Parameters:
-    	rb 	a pointer to the ringbuffer structure.
-    	dest 	a pointer to a buffer where data read from the ringbuffer will go.
-    	cnt 	the number of bytes to read.
-
-Returns:
-    the number of bytes read, which may range from 0 to cnt. 
-
-*/
