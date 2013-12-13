@@ -93,7 +93,7 @@ float trip_time_interval_avg=0;
 float host_to_host_time_offset=0;
 
 //don't stress the terminal with too many fprintfs
-int update_display_every_nth_cycle=100;
+int update_display_every_nth_cycle=99;
 int relaxed_display_counter=0;
 
 //give lazy display a chance to output current value for last cycle
@@ -107,9 +107,15 @@ uint64_t send_max=10000;
 //ctrl+c etc
 static void signal_handler(int sig)
 {
+	fprintf(stderr, "\nterminate signal %d received. cleaning up...",sig);
+
+	shutdown_in_progress=1;
+
 	jack_client_close(client);
 	lo_server_thread_free(st);
-	fprintf(stderr, "\nterminate signal %d received. exit now\n\n",sig);
+
+	fprintf(stderr,"done\n");
+
 	exit(0);
 }
 

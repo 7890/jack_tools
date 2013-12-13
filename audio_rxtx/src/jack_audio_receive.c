@@ -122,7 +122,7 @@ int avg_calc_interval=100;
 int zero_on_underflow=1; //param
 
 //don't stress the terminal with too many fprintfs
-int update_display_every_nth_cycle=100;
+int update_display_every_nth_cycle=99;
 int relaxed_display_counter=0;
 
 //give lazy display a chance to output current value for last cycle
@@ -136,6 +136,10 @@ uint64_t receive_max=10000;
 //ctrl+c etc
 static void signal_handler(int sig)
 {
+	fprintf(stderr,"\nterminate signal %d received, telling sender to pause.\n",sig);
+
+	shutdown_in_progress=1;
+
 	lo_address loa = lo_address_new(sender_host,sender_port);
 	if(loa!=NULL)
 	{
@@ -145,10 +149,13 @@ static void signal_handler(int sig)
 		lo_message_free(msg);
 	}
 
+	fprintf(stderr,"cleaning up...",sig);
+
 	jack_client_close(client);
 	lo_server_thread_free(st);
 	jack_ringbuffer_free(rb);
-	fprintf(stderr,"\nterminate signal %d received, exit now.\n\n",sig);
+
+	fprintf(stderr,"done.\n",sig);
 
 	exit(0);
 }
@@ -837,7 +844,6 @@ void error(int num, const char *msg, const char *path)
 int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-	//don't accept if shutdown is ongoing
 	if(shutdown_in_progress==1)
 	{
 		return 0;
@@ -869,7 +875,6 @@ int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-	//don't accept if shutdown is ongoing
 	if(shutdown_in_progress==1)
 	{
 		return 0;
@@ -907,8 +912,6 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-
-	//don't accept if shutdown is ongoing
 	if(shutdown_in_progress==1)
 	{
 		return 0;
@@ -940,6 +943,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		strcpy(sender_port,lo_address_get_port(loa));
 
 		//sending accept will tell the sender to start transmission
+
 		lo_send_message (loa, "/accept", msg);
 
 		/*
@@ -969,8 +973,6 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-
-	//don't handle if shutdown is ongoing
 	if(shutdown_in_progress==1)
 	{
 		return 0;
