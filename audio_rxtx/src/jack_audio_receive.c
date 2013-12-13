@@ -34,7 +34,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.5;
+float version = 0.51;
 
 jack_client_t *client;
 
@@ -103,13 +103,9 @@ lo_timetag tt_prev;
 //misc measurements ins audio_handler()
 //seconds
 float time_interval=0;
-float time_transmission=0;
 
 double time_interval_sum=0;
 float time_interval_avg=0;
-
-double time_transmission_sum=0;
-float time_transmission_avg=0;
 
 //reset avg sum every 76. cycle (avoid "slow" comeback)
 int avg_calc_interval=76;
@@ -270,7 +266,6 @@ process (jack_nframes_t nframes, void *arg)
 
 		//reset avg calculation
 		time_interval_avg=0;
-		time_transmission_avg=0;
 		msg_received_counter=0;
 		fscs_avg_counter=0;
 
@@ -329,23 +324,6 @@ process (jack_nframes_t nframes, void *arg)
 
 			print_info();
 
-/*
-			const char *alert="";
-			if(time_transmission_avg<0)
-			{
-				//this happens if the sender's clock is late
-				//best results when both hosts are using ntp
-				alert="!";
-			}
-			fprintf(stderr," i: %.2f",// t: %.2f%s x: %.1f%s",
-				time_interval_avg*1000
-				//time_transmission_avg*1000,alert,
-				//time_interval_avg/time_transmission_avg,alert
-			);
-
-			fprintf(stderr,"%s", "\033[0J");
-*/
-
 		} // end if process enabled
 		//process not yet enabled, buffering
 		else
@@ -401,6 +379,7 @@ process (jack_nframes_t nframes, void *arg)
 			jack_ringbuffer_read_advance(rb,drop_bytes_count);
 
 			requested_drop_count=0;
+			multi_channel_drop_counter=0;
 		}
 	}
 
@@ -447,6 +426,7 @@ static void help (void)
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
 	fprintf (stderr, "  Initial buffer size:(2 mc periods) --pre <number>\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
+	fprintf (stderr, "  Update info every nth cycle   (99) --update <number>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit <number>\n");
 	fprintf (stderr, "Listening port:   <number>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --in 8 --connect --pre 200 1234\n");
@@ -479,6 +459,7 @@ main (int argc, char *argv[])
 		{"name",	required_argument,	0, 'n'},
 		{"pre",		required_argument,	0, 'b'},//pre buffer
 		{"nozero",	no_argument,	&zero_on_underflow, 'z'},
+		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
 		{0, 0, 0, 0}
 	};
@@ -537,6 +518,10 @@ main (int argc, char *argv[])
 
 			case 'b':
 				pre_buffer_size=fmax(1,(uint64_t)atoll(optarg));
+				break;
+
+			case 'u':
+				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
 			case 't':
@@ -1073,20 +1058,9 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
 
 	time_interval=msg_time-msg_time_prev;
-	time_transmission=time_now-msg_time;
 
 	time_interval_sum+=time_interval;
 	time_interval_avg=(float)time_interval_sum/msg_received_counter;
-
-	time_transmission_sum+=time_transmission;
-	time_transmission_avg=(float)time_transmission_sum/msg_received_counter;
-
-	/*
-	fprintf(stderr," tdiff ms avg: %.2f %.2f %.2f",
-		time_interval_avg*1000, time_transmission_avg*1000,
-		time_interval_avg/time_transmission_avg
-	);
-	*/
 
 	tt_prev=tt;
 
@@ -1095,7 +1069,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		msg_received_counter=0;
 		time_interval_sum=0;
-		time_transmission_sum=0;
 	}
 
 	//first blob is at data_offset+1 (one-based)

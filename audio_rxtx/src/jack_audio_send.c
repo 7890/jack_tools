@@ -33,7 +33,7 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.5;
+float version = 0.51;
 
 jack_client_t *client;
 
@@ -415,6 +415,7 @@ static void help (void)
 	fprintf (stderr, "  Number of capture channels:    (2) --in <number>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
 	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
+	fprintf (stderr, "  Update info every nth cycle   (99) --update <number>\n");
 	fprintf (stderr, "  Limit totally sent messages: (off) --limit <number>\n");
 	fprintf (stderr, "Receiver host:   <string>\n");
 	fprintf (stderr, "Receiver port:   <number>\n\n");
@@ -449,6 +450,7 @@ main (int argc, char *argv[])
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
+		{"update",      required_argument,      0, 'u'},
 		{"limit",	required_argument,	0, 't'},
 		{0, 0, 0, 0}
 	};
@@ -515,6 +517,10 @@ main (int argc, char *argv[])
 
 			case 'n':
 				client_name=optarg;
+				break;
+
+			case 'u':
+				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
 			case 't':
@@ -753,9 +759,9 @@ void trip()
 	for(i=0;i<100;i++)
 	{
 		gettimeofday(&tv, NULL);
-	        lo_timetag tt;
-	        tt.sec=tv.tv_sec;
-	        tt.frac=tv.tv_usec;
+		lo_timetag tt;
+		tt.sec=tv.tv_sec;
+		tt.frac=tv.tv_usec;
 
 	       	lo_message msg=lo_message_new();
 		lo_message_add_int32(msg,i);
@@ -778,7 +784,7 @@ int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		return 0;
 	}
-        gettimeofday(&tv, NULL);
+	gettimeofday(&tv, NULL);
 
 	int id=argv[0]->i;
 	lo_timetag tt_sent=argv[1]->t;
@@ -786,10 +792,10 @@ int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	double sent_time=tt_sent.sec+(double)tt_sent.frac/1000000;
 	double received_on_receiver_time=tt_received_on_receiver.sec+(double)tt_received_on_receiver.frac/1000000;
-        double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
+	double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
 
 	trip_time_interval=time_now-sent_time;
-        trip_time_interval_sum+=trip_time_interval;
+	trip_time_interval_sum+=trip_time_interval;
 	trip_time_interval_avg=(float)trip_time_interval_sum/id+1;
 
 	host_to_host_time_offset=received_on_receiver_time-sent_time+((float)trip_time_interval_avg/2);

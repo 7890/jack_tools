@@ -25,6 +25,7 @@ Options:
   Number of capture channels:    (2) --in <number>
   Autoconnect ports:           (off) --connect
   Jack client name:      (prg. name) --name <string>
+  Update info every nth cycle   (99) --update <number>
   Limit totally sent messages: (off) --limit <number>
 Receiver host:   <string>
 Receiver port:   <number>
@@ -50,7 +51,7 @@ message length: 1084 bytes
 transfer length: 1126 bytes (9.1 % overhead)
 expected network data rate: 6207.1 kbit/s
 
-# 140862 (00:03:24) xruns: 0 bytes tx: 158610752
+# 140862 (00:03:24) xruns: 0 bytes tx: 158610752 p: 0.3
 ___________
 
 Legend
@@ -58,6 +59,7 @@ Legend
 (HH:MM:SS): time corresponding to message number
 xruns: local xrun counter
 bytes tx: expected total network traffic sum at receiver
+p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_sender states:
 -offering audio to given host
@@ -80,6 +82,7 @@ Options:
   Jack client name:      (prg. name) --name <string>
   Initial buffer size:(2 mc periods) --pre <number>
   Re-use old data on underflow: (no) --nozero
+  Update info every nth cycle   (99) --update <number>
   Limit processing count:      (off) --limit <number>
 Listening port:   <number>
 
@@ -97,7 +100,7 @@ underflow strategy: fill with zero (silence)
 initial buffer: 4 mc periods (0.0058 sec)
 ringbuffer: 20480 bytes
 
-# 196273 i: 4 f: 5.5 b: 2816 s: 0.0080 i: 1.45 r: 0 l: 0 u: 4
+# 196273 i: 4 f: 5.5 b: 2816 s: 0.0080 i: 1.45 r: 0 l: 0 d: 4 p: 0.2
 ___________
 
 Legend
@@ -109,7 +112,8 @@ s: buffer fill level: seconds
 i: average time between messages: milliseconds
 r: remote xrun counter
 l: local xrun counter
-u: buffer underflow counter
+d: dropped multi-channel periods (buffer underflow)
+p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_receive states:
 -waiting for audio (if no sender is currently active)
