@@ -2,6 +2,8 @@
 
 audio_rxtx uses liblo >= 0.27
 
+** not for production use -- experimental **
+
 jack_audio_send & jack_audio_receive are jack clients
 allowing real-time uncompressed/unchanged ~native JACK 
 audio data transfer over the network using OSC messages. 
@@ -24,7 +26,7 @@ Options:
   Local port:                 (9990) --lport <number>
   Number of capture channels:    (2) --in <number>
   Autoconnect ports:           (off) --connect
-  Jack client name:      (prg. name) --name <string>
+  Jack client name:           (send) --name <string>
   Update info every nth cycle   (99) --update <number>
   Limit totally sent messages: (off) --limit <number>
 Receiver host:   <string>
@@ -39,26 +41,26 @@ jack_audio_send 10.10.10.255 1234
 
 jack_audio_send Example Output
 ___________
-sending from osc port: 3333
-target host:port: 10.10.10.111:4444
+sending from osc port: 4433
+target host:port: localhost:4444
 sample rate: 44100
 bytes per sample: 4
-period size: 64 samples (1.45 ms, 256 bytes)
+period size: 256 samples (5.805 ms, 1024 bytes)
 channels (capture): 4
-max. multi-channel period size: 1024 bytes
-message rate: 689.1 packets/s
-message length: 1084 bytes
-transfer length: 1126 bytes (9.1 % overhead)
-expected network data rate: 6207.1 kbit/s
+multi-channel period size: 4096 bytes
+message rate: 172.3 packets/s
+message length: 4156 bytes
+transfer length: 4198 bytes (2.4 % overhead)
+expected network data rate: 5785.4 kbit/s (0.72 mb/s)
 
-# 140862 (00:03:24) xruns: 0 bytes tx: 158610752 p: 0.3
+# 15093 (00:01:27) xruns: 0 tx: 63360554 bytes (63.36 mb) p: 0.1
 ___________
 
 Legend
 #: sequential message number since start of program
 (HH:MM:SS): time corresponding to message number
 xruns: local xrun counter
-bytes tx: expected total network traffic sum at receiver
+tx: expected total network traffic sum
 p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_sender states:
@@ -79,8 +81,9 @@ Options:
   Display this text:                 --help
   Number of playback channels:   (2) --out <number>
   Autoconnect ports:           (off) --connect
-  Jack client name:      (prg. name) --name <string>
-  Initial buffer size:(2 mc periods) --pre <number>
+  Jack client name:        (receive) --name <string>
+  Initial buffer size:(4 mc periods) --pre <number>
+  Max buffer size >= init:    (auto) --mbuff <number>
   Re-use old data on underflow: (no) --nozero
   Update info every nth cycle   (99) --update <number>
   Limit processing count:      (off) --limit <number>
@@ -90,17 +93,18 @@ Example: jack_audio_receive --in 8 --connect --pre 200 1234
 
 jack_audio_receive Example Output
 ___________
-listening on osc port: 6666
+listening on osc port: 4444
 sample rate: 44100
 bytes per sample: 4
-period size: 64 samples (1.45 ms, 256 bytes)
+period size: 256 samples (5.805 ms, 1024 bytes)
 channels (playback): 2
-max. multi-channel period size: 512 bytes
+multi-channel period size: 2048 bytes
 underflow strategy: fill with zero (silence)
-initial buffer: 4 mc periods (0.0058 sec)
-ringbuffer: 20480 bytes
+free memory: 5651 mb
+initial buffer size: 4 mc periods (23.220 ms, 8192 bytes, 0.01 mb)
+allocated buffer size: 91 mc periods (528.254 ms, 186368 bytes, 0.19 mb)
 
-# 196273 i: 4 f: 5.5 b: 2816 s: 0.0080 i: 1.45 r: 0 l: 0 d: 4 p: 0.2
+# 1384 i: 4 f: 4.5 b: 9216 s: 0.0261 i: 5.82 r: 0 l: 0 d: 0 o: 0 p: 0.1
 ___________
 
 Legend
@@ -113,6 +117,7 @@ i: average time between messages: milliseconds
 r: remote xrun counter
 l: local xrun counter
 d: dropped multi-channel periods (buffer underflow)
+o: buffer overflows (lost audio)
 p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_receive states:
