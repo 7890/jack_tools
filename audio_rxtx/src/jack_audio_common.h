@@ -40,13 +40,13 @@ extern int fscs_avg_calc_interval;
 
 extern int fscs_avg_counter;
 
-extern struct timeval tv;
-
 extern int process_enabled;
 
 //=======
 
+#ifndef __APPLE__
 uint64_t get_free_mem(void);
+#endif
 
 void print_header(char *prgname);
 

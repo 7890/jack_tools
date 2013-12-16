@@ -70,6 +70,8 @@ float trip_time_interval_sum=0;
 float trip_time_interval_avg=0;
 float host_to_host_time_offset=0;
 
+struct timeval tv;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {

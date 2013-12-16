@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=`pkg-config --libs --cflags jack liblo`
+CFLAGS=`pkg-config --libs --cflags jack liblo` -Wall -D_GNU_SOURCE
 SRC=src
 
 all: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c

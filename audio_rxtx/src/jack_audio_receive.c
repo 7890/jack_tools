@@ -27,6 +27,9 @@
 
 #include "jack_audio_common.h"
 
+//asprintf is a GNU extensions that is only declared when __GNU_SOURCE is set
+#define __GNU_SOURCE
+
 //tb/130427/131206//131211//131216
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
 
@@ -96,6 +99,7 @@ uint64_t msg_received_counter=0;
 size_t requested_drop_count=0;
 
 //to capture current time
+struct timeval tv;
 lo_timetag tt_prev;
 
 //helper
@@ -564,7 +568,9 @@ main (int argc, char *argv[])
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
+#ifndef __APPLE__
 	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
+#endif
 
 	char buf[64];
 	format_seconds(buf,(float)pre_buffer_size*period_size/(float)sample_rate);
@@ -611,12 +617,14 @@ main (int argc, char *argv[])
 	);
 	buf[0] = '\0';
 
+#ifndef __APPLE__
 	if(rb_size > get_free_mem())
 	{
 		fprintf(stderr,"not enough memory to create the ringbuffer.\n");
 		fprintf(stderr,"try --mbuff <smaller size>.\n");
 		exit(1);
 	}
+#endif
 
 	//====================================
 	rb = jack_ringbuffer_create (rb_size);
