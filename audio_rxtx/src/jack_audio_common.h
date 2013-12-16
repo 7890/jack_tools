@@ -32,13 +32,13 @@ extern int test_mode;
 
 int last_test_cycle;
 
-extern frames_since_cycle_start;
-extern frames_since_cycle_start_sum;
-extern frames_since_cycle_start_avg;
+extern int frames_since_cycle_start;
+extern int frames_since_cycle_start_sum;
+extern int frames_since_cycle_start_avg;
 
-extern fscs_avg_calc_interval;
+extern int fscs_avg_calc_interval;
 
-extern fscs_avg_counter;
+extern int fscs_avg_counter;
 
 extern struct timeval tv;
 
