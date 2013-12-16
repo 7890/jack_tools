@@ -24,6 +24,8 @@
 #include <sys/time.h>
 #include <getopt.h>
 
+#include "jack_audio_common.h"
+
 //tb/130427/131206//131211
 //gcc -o jack_audio_send jack_audio_send.c `pkg-config --cflags --libs jack liblo`
 
@@ -33,45 +35,26 @@
 //http://www.labbookpages.co.uk/audio/files/saffireLinux/inOut.c
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
-float version = 0.51;
-
-jack_client_t *client;
-
-//Array of pointers to input ports
-jack_port_t **inputPortArray;
-
-// Array of pointers to input buffers
-jack_default_audio_sample_t **inputBufferArray;
+int input_port_count=2; //param
 
 //local xrun counter (since start of this jack client)
 uint64_t xrun_counter=0;
 
-//connect output to first n physical channels on startup
-int autoconnect=0; //param
-
-//this is a theoretical limit
-int max_channel_count=64;
-
-//default values
-//sample_rate, period_size and bytes_per_sample must be
-//THE SAME on sender and receiver
-int input_port_count=2; //param
-int sample_rate=44100;
-int period_size=512;
-int bytes_per_sample=4;
-
-//will be enabled when pre_buffer filled
-int process_enabled=0;
-
-//osc
-lo_server_thread st;
-lo_address loa;
+//osc receiver address
+lo_address loa; //param
 
 //for message numberings, 1-based
 //will be reset to 1 on start of audio transmission
 uint64_t msg_sequence_number=1;
 
+//limit messages sent
+//"signaling" not included
+uint64_t send_max=10000; //param
+
+//osc message size in bytes
 int msg_size=0;
+
+//msg_size + more
 int transfer_size=0;
 int max_transfer_size=32000;
 
@@ -81,39 +64,11 @@ float expected_network_data_rate=0;
 //0: receiver denied  1: receiver accepted
 int receiver_accepted=-1;
 
-int shutdown_in_progress=0;
-
-//to capture current time
-struct timeval tv;
-
 //for misc measurements
 float trip_time_interval=0;
 float trip_time_interval_sum=0;
 float trip_time_interval_avg=0;
 float host_to_host_time_offset=0;
-
-//store after how many frames all work is done in process()
-int frames_since_cycle_start=0;
-int frames_since_cycle_start_sum=0;
-int frames_since_cycle_start_avg=0;
-
-//reset fscs avg sum every 88. cycle
-int fscs_avg_calc_interval=88;
-
-//temporary counter (will be reset for avg calc)
-int fscs_avg_counter=0;
-
-//don't stress the terminal with too many fprintfs in process()
-int update_display_every_nth_cycle=99;
-int relaxed_display_counter=0;
-
-//give lazy display a chance to output current value for last cycle
-int last_test_cycle=0;
-
-//test_mode (--limit) is handy for testing purposes
-//if set to 1, program will terminate after sending send_max messages
-int test_mode=0;
-uint64_t send_max=10000;
 
 //ctrl+c etc
 static void signal_handler(int sig)
@@ -123,7 +78,7 @@ static void signal_handler(int sig)
 	shutdown_in_progress=1;
 
 	jack_client_close(client);
-	lo_server_thread_free(st);
+	lo_server_thread_free(lo_st);
 
 	fprintf(stderr,"done\n");
 
@@ -133,8 +88,8 @@ static void signal_handler(int sig)
 //osc handler
 void error(int num, const char *msg, const char *path)
 {
-	//just print, don't exit for now
-	fprintf(stderr,"\nliblo server error %d in path %s: %s\n", num, path, msg);
+	fprintf(stderr,"\nliblo server error %d: %s\n", num, msg);
+	exit(1);
 }
 
 int accept_handler(const char *path, const char *types, lo_arg **argv, int argc,
@@ -246,7 +201,6 @@ process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
-
 	//init to 0. increment before use
 	fscs_avg_counter++;
 
@@ -327,7 +281,7 @@ process(jack_nframes_t nframes, void *arg)
 			jack_default_audio_sample_t *o1;
 
 			//get "the" buffer
-			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (inputPortArray[i],nframes);
+			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i],nframes);
 
 			//fill blob from buffer
 			blob[i]=lo_blob_new(bytes_per_sample*nframes,o1);
@@ -344,27 +298,24 @@ process(jack_nframes_t nframes, void *arg)
 			lo_blob_free(blob[i]);
 		}
 
-		//calculate elapsed time
-		size_t seconds_elapsed_total=msg_sequence_number * period_size / sample_rate;
-		size_t hours_elapsed_total=seconds_elapsed_total / 3600;
-		size_t minutes_elapsed_total=seconds_elapsed_total / 60;
-
-		size_t minutes_elapsed=minutes_elapsed_total % 60;
-		size_t seconds_elapsed=seconds_elapsed_total % 60;
-
 		if(relaxed_display_counter>=update_display_every_nth_cycle
 			|| last_test_cycle==1
 		)
 		{
+			char hms[16];
+			periods_to_HMS(hms,msg_sequence_number);
+
 			//print info "in-place" with \r
 			fprintf(stderr,"\r# %" PRId64 
-				" (%02lu:%02lu:%02lu) xruns: %" PRId64 " bytes tx: %" PRId64 " p: %.1f %s",
-				msg_sequence_number,hours_elapsed_total,minutes_elapsed,seconds_elapsed,
+				" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f mb) p: %.1f%s",
+				msg_sequence_number,hms,
 				xrun_counter,
 				transfer_size*msg_sequence_number+140, //140: minimal offer/accept
+				(float)(transfer_size*msg_sequence_number+140)/1000/1000,
 				(float)frames_since_cycle_start_avg/(float)period_size,
 				"\033[0J"
 			);
+
 			relaxed_display_counter=0;
 		}
 		relaxed_display_counter++;
@@ -396,17 +347,11 @@ process(jack_nframes_t nframes, void *arg)
 void
 jack_shutdown (void *arg)
 {
-	lo_server_thread_free(st);
+	lo_server_thread_free(lo_st);
 	exit (1);
 }
 
-static void header (void)
-{
-	fprintf (stderr, "\njack_audio_send v%.2f\n", version);
-	fprintf (stderr, "(C) 2013 Thomas Brand  <tom@trellis.ch>\n");
-}
-
-static void help (void)
+static void print_help (void)
 {
 	fprintf (stderr, "Usage: jack_audio_send <Options> <Receiver host> <Receiver port>.\n");
 	fprintf (stderr, "Options:\n");
@@ -414,7 +359,7 @@ static void help (void)
 	fprintf (stderr, "  Local port:                 (9990) --lport <number>\n");
 	fprintf (stderr, "  Number of capture channels:    (2) --in <number>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
-	fprintf (stderr, "  Jack client name:      (prg. name) --name <string>\n");
+	fprintf (stderr, "  Jack client name:           (send) --name <string>\n");
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <number>\n");
 	fprintf (stderr, "  Limit totally sent messages: (off) --limit <number>\n");
 	fprintf (stderr, "Receiver host:   <string>\n");
@@ -450,13 +395,13 @@ main (int argc, char *argv[])
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
-		{"update",      required_argument,      0, 'u'},
+		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},
 		{0, 0, 0, 0}
 	};
 
 	//print program header
-	header();
+	print_header("jack_audio_send");
 
 	if (argc - optind < 1)
 	{
@@ -487,18 +432,9 @@ main (int argc, char *argv[])
 			{
 				break;
 			}
-/*
-			printf ("option %s", long_options[option_index].name);
-			if (optarg)
-			{
-				printf (" with arg %s", optarg);
-				printf ("\n");
-				break;
-			}
-*/
 
 			case 'h':
-				help();
+				print_help();
 				break;
 
 			case 'p':
@@ -532,7 +468,7 @@ main (int argc, char *argv[])
 
 			case '?': //invalid commands
 				/* getopt_long already printed an error message. */
-				fprintf (stderr, "Weird arguments, try --help.\n\n");
+				fprintf (stderr, "Wrong arguments, try --help.\n\n");
 				exit(1);
 
 				break;
@@ -545,7 +481,7 @@ main (int argc, char *argv[])
 	//remaining non optional parameters target host, port
 	if(argc-optind != 2)
 	{
-		fprintf (stderr, "Weird arguments, try --help.\n\n");
+		fprintf (stderr, "Wrong arguments, try --help.\n\n");
 		exit(1);
 	}
 
@@ -553,22 +489,22 @@ main (int argc, char *argv[])
 	sendToPort=argv[++optind];
 
 	//osc server
-	st = lo_server_thread_new(localPort, error);
+	lo_st = lo_server_thread_new(localPort, error);
 
 	//destination address
 	loa = lo_address_new(sendToHost, sendToPort);
 
-	lo_server_thread_add_method(st, "/accept", "", accept_handler, NULL);
-	lo_server_thread_add_method(st, "/deny", "", deny_handler, NULL);
-	lo_server_thread_add_method(st, "/pause", "", pause_handler, NULL);
-	lo_server_thread_add_method(st, "/trip", "itt", trip_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/accept", "", accept_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/deny", "", deny_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/pause", "", pause_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/trip", "itt", trip_handler, NULL);
 
 	//create an array of input ports
-	inputPortArray = (jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
+	ioPortArray = (jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
 
 	//create an array of audio sample pointers
 	//each pointer points to the start of an audio buffer, one for each capture channel
-	inputBufferArray = (jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
+	ioBufferArray = (jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//open a client connection to the JACK server
 	client = jack_client_open (client_name, options, &status, server_name);
@@ -591,17 +527,8 @@ main (int argc, char *argv[])
 	fprintf(stderr,"sending from osc port: %s\n",localPort);
 	fprintf(stderr,"target host:port: %s:%s\n",sendToHost,sendToPort);
 
-	sample_rate=jack_get_sample_rate(client);
-	fprintf(stderr, "sample rate: %d\n",sample_rate);
-
-	bytes_per_sample = sizeof(jack_default_audio_sample_t);
-	fprintf(stderr, "bytes per sample: %d\n",bytes_per_sample);
-
-	period_size=jack_get_buffer_size(client);
-	fprintf(stderr, "period size: %d samples (%.2f ms, %d bytes)\n",period_size,
-		1000*(float)period_size/(float)sample_rate,
-		period_size*bytes_per_sample
-	);
+	read_jack_properties();
+	print_common_jack_properties();
 
 	fprintf(stderr, "channels (capture): %d\n",input_port_count);
 
@@ -638,8 +565,9 @@ main (int argc, char *argv[])
 		* transfer_size
 		* 8 / 1000;
 
-	fprintf(stderr, "expected network data rate: %.1f kbit/s\n\n",
-		expected_network_data_rate
+	fprintf(stderr, "expected network data rate: %.1f kbit/s (%.2f mb/s)\n\n",
+		expected_network_data_rate,
+		(float)expected_network_data_rate/1000/8
 	);
 
 	/* tell the JACK server to call `process()' whenever 
@@ -668,8 +596,8 @@ main (int argc, char *argv[])
 		}
 
 		// Register the output port
-		inputPortArray[port] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
-		if (inputPortArray[port] == NULL) {
+		ioPortArray[port] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsInput, 0);
+		if (ioPortArray[port] == NULL) {
 			fprintf(stderr, "Could not create input port %d\n", (port+1));
 			exit(1);
 		}
@@ -703,8 +631,8 @@ main (int argc, char *argv[])
 		int i;
 		for(i=0;i<connection_port_count;i++)
 		{
-			if (jack_connect (client, ports[i],jack_port_name(inputPortArray[i]))) {
-				fprintf (stderr, "cannot connect input port %s\n",jack_port_name(inputPortArray[i]));
+			if (jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) {
+				fprintf (stderr, "cannot connect input port %s\n",jack_port_name(ioPortArray[i]));
 			}
 		}
 	}
@@ -724,7 +652,7 @@ main (int argc, char *argv[])
 #endif
 
 	//start the osc server
-	lo_server_thread_start(st);
+	lo_server_thread_start(lo_st);
 
 	//trip();
 
@@ -763,7 +691,7 @@ void trip()
 		tt.sec=tv.tv_sec;
 		tt.frac=tv.tv_usec;
 
-	       	lo_message msg=lo_message_new();
+		lo_message msg=lo_message_new();
 		lo_message_add_int32(msg,i);
 
 		lo_message_add_timetag(msg,tt);
