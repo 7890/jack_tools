@@ -5,8 +5,8 @@ audio_rxtx uses liblo >= 0.27
 ** not for production use -- experimental **
 
 jack_audio_send & jack_audio_receive are jack clients
-allowing real-time uncompressed/unchanged ~native JACK 
-audio data transfer over the network using OSC messages. 
+allowing uncompressed/unchanged ~native JACK 
+audio data transfer over a LAN using OSC messages. 
 One blob per channel and period, one "multi-channel" period
 per message. All exchanging systems must share the same 
 sampling rate, period size and bytes per sample.
