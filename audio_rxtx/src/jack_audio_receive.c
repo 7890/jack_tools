@@ -114,17 +114,13 @@ static void signal_handler(int sig)
 {
 	fprintf(stderr,"\nterminate signal %d received, telling sender to pause.\n",sig);
 
+	lo_address loa = lo_address_new(sender_host,sender_port);
+	lo_message msg=lo_message_new();
+	lo_send_message (loa, "/pause", msg);
+	lo_message_free(msg);
+
 	shutdown_in_progress=1;
 	process_enabled=0;
-
-	lo_address loa = lo_address_new(sender_host,sender_port);
-	if(loa!=NULL)
-	{
-		//tell sender to pause
-		lo_message msg=lo_message_new();
-		lo_send_message (loa, "/pause", msg);
-		lo_message_free(msg);
-	}
 
 	fprintf(stderr,"cleaning up...");
 
@@ -916,8 +912,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	//check if compatible with sender
 	//could check more stuff (channel count, data rate, sender host/port, ...)
 	if(
-		loa!=NULL
-		&& offered_sample_rate==sample_rate
+		offered_sample_rate==sample_rate
 		&& offered_bytes_per_sample==bytes_per_sample
 		&& offered_period_size==period_size
 	)
@@ -970,14 +965,11 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 /*
 	lo_address loa = lo_message_get_source(data);
-	if(loa!=NULL)
-	{
-		strcpy(sender_host,lo_address_get_hostname(loa));
-		strcpy(sender_port,lo_address_get_port(loa));
-		fprintf(stderr,"receiving from %s:%s",
-			lo_address_get_hostname(loa),lo_address_get_port(loa)
-		);
-	}
+	strcpy(sender_host,lo_address_get_hostname(loa));
+	strcpy(sender_port,lo_address_get_port(loa));
+	fprintf(stderr,"receiving from %s:%s",
+		lo_address_get_hostname(loa),lo_address_get_port(loa)
+	);
 */
 
 	//the messages are numbered sequentially. first msg is numberd 1
@@ -1080,13 +1072,10 @@ int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	lo_address loa = lo_message_get_source(data);
 	lo_message msg=lo_message_new();
 
-	if(loa!=NULL)
-	{
-		lo_message_add_int32(msg,argv[0]->i);
-		lo_message_add_timetag(msg,argv[1]->t);
-		lo_message_add_timetag(msg,tt);
-		lo_send_message (loa, "/trip", msg);
-	}
+	lo_message_add_int32(msg,argv[0]->i);
+	lo_message_add_timetag(msg,argv[1]->t);
+	lo_message_add_timetag(msg,tt);
+	lo_send_message (loa, "/trip", msg);
 
 	lo_message_free(msg);
 
