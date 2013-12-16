@@ -134,9 +134,11 @@ jack_audio_receive states:
 Absolutely no resampling involved for now.
 
 Experimental buffer control via OSC
-Send: /buffer i <target buffer fill>
+Send: /buffer ii <buffer pre-fill> <buffer size max>
 to receiver to either fill (playback will pause)
 or drop (lost audio samples) the buffer to match desired 
 fill level
+if <buffer size max> is not the same as --mbuff / auto,
+a new buffer will be created and filled with <buffer pre-fill>
 
 ```
