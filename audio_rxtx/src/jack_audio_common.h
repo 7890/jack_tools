@@ -30,7 +30,7 @@ extern int relaxed_display_counter;
 
 extern int test_mode;
 
-int last_test_cycle;
+extern int last_test_cycle;
 
 extern int frames_since_cycle_start;
 extern int frames_since_cycle_start_sum;
