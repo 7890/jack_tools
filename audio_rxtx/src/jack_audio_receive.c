@@ -111,7 +111,7 @@ char sender_port[10];
 
 //insert(copy last): positive number
 //drop samples: negative number
-float sample_drift_per_second=-0.6;
+float sample_drift_per_second=0;
 float sample_drift_per_cycle=0;
 float sample_drift_sum=0;
 
@@ -276,29 +276,7 @@ process (jack_nframes_t nframes, void *arg)
 
 		if(process_enabled==1)
 		{
-			//time to insert(copy) a sample
-			if(sample_drift_sum>=1)
-			{
-				sample_drift_sum--;
-				//read one sample less
-				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample* (nframes-1));
-				//copy second last sample to last position in out buffer (!)
-				o1[(nframes-1)]=o1[(nframes-2)];
-			}
-			//time to drop a sample
-			else if(sample_drift_sum<=-1)
-			{
-				sample_drift_sum++;
-				//ignore one sample (!)
-				jack_ringbuffer_read_advance(rb,bytes_per_sample);
-
-				//then continue as normal
-				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
-			}
-			else
-			{
-				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
-			}
+			jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
 
 			/*
 			fprintf(stderr,"\rreceiving from %s:%s",
@@ -403,7 +381,7 @@ static void print_help (void)
 	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre      <integer>\n");
 	fprintf (stderr, "  Max buffer size >= init:    (auto) --mbuff    <integer>\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
-	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
+//	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
 	fprintf (stderr, "  Update info every nth cycle   (99) --update   <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit    <integer>\n");
 	fprintf (stderr, "Listening port:   <integer>\n\n");
