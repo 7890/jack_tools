@@ -30,7 +30,7 @@
 //asprintf is a GNU extensions that is only declared when __GNU_SOURCE is set
 #define __GNU_SOURCE
 
-//tb/130427/131206//131211//131216
+//tb/130427/131206//131211//131216/131229
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
 
 //inspired by several examples
@@ -109,6 +109,12 @@ int starting_transmission=0;
 char sender_host[255];
 char sender_port[10];
 
+//insert(copy last): positive number
+//drop samples: negative number
+float sample_drift_per_second=-0.6;
+float sample_drift_per_cycle=0;
+float sample_drift_sum=0;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
@@ -166,7 +172,7 @@ void print_info()
 	)
 	{
 		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 
-			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",
+			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f d: %.1f%s",
 
 			message_number,
 			input_port_count,
@@ -178,6 +184,7 @@ void print_info()
 			multi_channel_drop_counter,
 			buffer_overflow_counter,
 			(float)frames_since_cycle_start_avg/(float)period_size,
+			sample_drift_sum,
 			"\033[0J"
 		);
 		relaxed_display_counter=0;
@@ -243,6 +250,8 @@ process (jack_nframes_t nframes, void *arg)
 		{
 			last_test_cycle=1;
 		}
+
+		sample_drift_sum+=sample_drift_per_cycle;
 	}
 
 	//init to 0. increment before use
@@ -258,9 +267,6 @@ process (jack_nframes_t nframes, void *arg)
 		frames_since_cycle_start_sum=0;	
 	}
 
-	size_t cnt=0;
-	size_t can_read_count=0;
-
 	//if sender sends more channels than we have output channels, ignore them
 	int i;
 	for( i=0; i < port_count; i++ )
@@ -270,14 +276,29 @@ process (jack_nframes_t nframes, void *arg)
 
 		if(process_enabled==1)
 		{
-			//how many periods still ready to read in the buffer
-			can_read_count = jack_ringbuffer_read_space(rb);
+			//time to insert(copy) a sample
+			if(sample_drift_sum>=1)
+			{
+				sample_drift_sum--;
+				//read one sample less
+				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample* (nframes-1));
+				//copy second last sample to last position in out buffer (!)
+				o1[(nframes-1)]=o1[(nframes-2)];
+			}
+			//time to drop a sample
+			else if(sample_drift_sum<=-1)
+			{
+				sample_drift_sum++;
+				//ignore one sample (!)
+				jack_ringbuffer_read_advance(rb,bytes_per_sample);
 
-			//always true since checked at beginning of cycle for all channels
-			//if(can_read_count >= bytes_per_sample*nframes)
-			//{
-			cnt=jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
-			//}
+				//then continue as normal
+				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+			}
+			else
+			{
+				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+			}
 
 			/*
 			fprintf(stderr,"\rreceiving from %s:%s",
@@ -376,15 +397,16 @@ static void print_help (void)
 	fprintf (stderr, "Usage: jack_audio_receive <Options> <Listening port>.\n");
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text:                 --help\n");
-	fprintf (stderr, "  Number of playback channels:   (2) --out <number>\n");
+	fprintf (stderr, "  Number of playback channels:   (2) --out      <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
-	fprintf (stderr, "  Jack client name:        (receive) --name <string>\n");
-	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre <number>\n");
-	fprintf (stderr, "  Max buffer size >= init:    (auto) --mbuff <number>\n");
+	fprintf (stderr, "  Jack client name:        (receive) --name     <string>\n");
+	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre      <integer>\n");
+	fprintf (stderr, "  Max buffer size >= init:    (auto) --mbuff    <integer>\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
-	fprintf (stderr, "  Update info every nth cycle   (99) --update <number>\n");
-	fprintf (stderr, "  Limit processing count:      (off) --limit <number>\n");
-	fprintf (stderr, "Listening port:   <number>\n\n");
+	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
+	fprintf (stderr, "  Update info every nth cycle   (99) --update   <integer>\n");
+	fprintf (stderr, "  Limit processing count:      (off) --limit    <integer>\n");
+	fprintf (stderr, "Listening port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --in 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
@@ -416,6 +438,7 @@ main (int argc, char *argv[])
 		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
 		{"mbuff",	required_argument,	0, 'm'},//max (allocate) buffer
 		{"nozero",	no_argument,	&zero_on_underflow, 'z'},
+		{"drift",	required_argument,	0, 'd'},
 		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
 		{0, 0, 0, 0}
@@ -481,6 +504,10 @@ main (int argc, char *argv[])
 				max_buffer_size=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
+			case 'd':
+				sample_drift_per_second=(float)atof(optarg);
+				break;
+
 			case 'u':
 				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
@@ -543,6 +570,8 @@ main (int argc, char *argv[])
 		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
 	}
 
+	sample_drift_per_cycle=(float)sample_drift_per_second/((float)sample_rate/(float)period_size);
+
 	//print startup info
 
 	fprintf(stderr,"listening on osc port: %s\n",listenPort);
@@ -561,6 +590,8 @@ main (int argc, char *argv[])
 	{
 		strat="re-use last available period";
 	}
+
+	fprintf(stderr,"sample drift: %.1f samples per second\n", sample_drift_per_second);
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
@@ -1038,7 +1069,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
 
 		size_t can_write_count=jack_ringbuffer_write_space(rb);
-		//if(can_write_count < port_count*period_size*bytes_per_sample)
 
 		//write to ringbuffer
 		//==========================================
