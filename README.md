@@ -8,11 +8,19 @@ see http://jackaudio.org for more information on the JACK Audio Connection Kit
 Install on Linux
 ----------------
 ```
+  cd example-clients
   gcc -o jack_xlsp xlsp.c `pkg-config --libs jack`
   gcc -o jack_oscev oscev.c `pkg-config --libs liblo` `pkg-config --libs jack`
 
+  #test only
+  gcc -o jack_midi_tunnel_send_osc midi_tunnel_send_osc.c  `pkg-config --libs jack liblo`
+  gcc -o jack_midi_tunnel_receive_osc midi_tunnel_receive_osc.c  `pkg-config --libs jack liblo`
+
   #sudo cp jack_xlsp /usr/bin
   #sudo cp jack_oscev /usr/bin
+
+  #see also audio_rxtx
+
 ```
 
 jack_xlsp
@@ -74,4 +82,10 @@ messages sent by jack_oscev (example content):
   /oscev/client/unregistered s "meter"
 
 ```
+
+jack_midi_tunnel_send_osc and jack_midi_tunnel_receive_osc
+----------------------------------------------------------
+
+Start both programs and connect ports (i.e. in patchage).
+Proof of concept to send OSC messages over Jack MIDI infrastructure.
 
