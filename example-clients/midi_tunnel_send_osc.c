@@ -1,9 +1,9 @@
-#include <jack/jack.h>
-#include <jack/midiport.h>
 #include <stdio.h>
 #include <signal.h>
-#include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
+#include <jack/jack.h>
+#include <jack/midiport.h>
 
 #include <lo/lo.h>
 
@@ -15,74 +15,77 @@
 //gcc -o jack_midi_tunnel_send_osc midi_tunnel_send_osc.c  `pkg-config --libs jack liblo`
 
 jack_client_t *client;
-jack_port_t *output_port;
-
+jack_port_t *port_out;
 char const default_name[] = "midi_tunnel_send_osc";
-jack_nframes_t nframes;
 char const * client_name;
+
+int counter=1;
+
+void* buffer_out;
+
+int msgsPerCycle=10;
+
+int printEveryNthCycle=100;
+int printCounter=-1;
 
 int strcmp();
 
 static void signal_handler(int sig)
 {
 	jack_client_close(client);
-	fprintf(stderr, "signal received, exiting ...\n");
+	fprintf(stdout, "signal received, exiting ...\n");
 	exit(0);
 }
 
-static int process(jack_nframes_t nframes, void *arg)
+static int process(jack_nframes_t frames, void *arg)
 {
-	void* port_buf = jack_port_get_buffer(output_port, nframes);
-	jack_midi_clear_buffer(port_buf);
+	buffer_out = jack_port_get_buffer(port_out, frames);
+	assert (buffer_out);
 
-	//size_t jack_midi_max_event_size (void * port_buffer) 
-	fprintf(stderr,"===\njack_midi_max_event_size: %lu\n",jack_midi_max_event_size(port_buf));
+	jack_midi_clear_buffer(buffer_out);
 
-	//create osc message
-	lo_message msg=lo_message_new();
-	lo_message_add_int32(msg,1234);
-	lo_message_add_float(msg,1.234);
-	lo_message_add_string(msg,"here comes the string & some chars <àéè>");
+	//size_t jack_midi_max_event_size (void * buffer_outfer) 
+	//fprintf(stdout,"===\njack_midi_max_event_size: %lu\n",jack_midi_max_event_size(buffer_out));
 
-	size_t size;
-	void *pointer;
+	int i;
+	for(i=1;i<=msgsPerCycle;i++)
+	{
 
-/*
-	void* lo_message_serialise ( 
-		lo_message 	m,
-		const char * 	path,
-		void * 		to,
-		size_t * 	size 
-	) 
-*/
-	//some magic happens here
-	pointer=lo_message_serialise(msg,"/hello/jack/midi",NULL,&size);
-	fprintf(stderr,"osc message (1) size: %lu\n",size);
+		//create osc message
+		lo_message msg=lo_message_new();
+		lo_message_add_int32(msg,counter);
+		lo_message_add_int32(msg,i);
+		lo_message_add_float(msg,1.234);
+		lo_message_add_string(msg,"here comes the string & some chars <àéè>");
+
+		size_t size;
+		void *pointer;
 
 /*
-	int jack_midi_event_write ( 
-		void * 		port_buffer,
-		jack_nframes_t 	time,
-		const jack_midi_data_t * data,
-		size_t 		data_size 
-	)
+		void* lo_message_serialise ( 
+			lo_message 	m,
+			const char * 	path,
+			void * 		to,
+			size_t * 	size 
+		) 
 */
-	//write the serialized osc message to the midi buffer
-	jack_midi_event_write(port_buf,0,pointer,size);
-	//important to free resources
-	lo_message_free(msg);
+		//some magic happens here
+		pointer=lo_message_serialise(msg,"/hello/jack/midi",NULL,&size);
 
-	//create and add a second message
-	lo_message msg2=lo_message_new();
-	lo_message_add_int32(msg2,9876);
-	lo_message_add_float(msg2,9.876);
-	lo_message_add_string(msg2,"the second msg");
+		if(printCounter>=printEveryNthCycle || printCounter==-1)
+		{
+			fprintf(stdout,"osc message [%i %i/%i] size: %lu\n",counter,i,msgsPerCycle,size);
+			printCounter=0;
+		}
+		//write the serialized osc message to the midi buffer
+		jack_midi_event_write(buffer_out,0,pointer,size);
+		//important to free resources
+		lo_message_free(msg);
+		free(pointer);
+	}
 
-	pointer=lo_message_serialise(msg2,"/another/message",NULL,&size);
-	fprintf(stderr,"osc message (2) size: %lu\n",size);
-
-	jack_midi_event_write(port_buf,0,pointer,size);
-	lo_message_free(msg2);
+	counter++;
+	printCounter++;
 
 	return 0;
 }
@@ -95,13 +98,23 @@ int main(int argc, char* argv[])
 	if (client == NULL) 
 	{
 		fprintf (stderr, "Could not create JACK client.\n");
-		exit(1);
+		return 1;
 	}
 
 	jack_set_process_callback (client, process, 0);
 
-	output_port = jack_port_register (client, "midi_osc_output", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
-	nframes = jack_get_buffer_size(client);
+	port_out = jack_port_register (client, "midi_osc_output", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+
+        if (port_out == NULL) 
+        {
+                fprintf (stderr, "Could not register port.\n");
+                return 1;
+        }
+        else
+        {
+                fprintf (stdout, "Registered JACK port.\n");
+
+        }
 
 	if (jack_activate(client))
 	{
@@ -122,6 +135,5 @@ int main(int argc, char* argv[])
 	};
 
     	jack_client_close(client);
-	//exit (0);
 	return 0;
 }

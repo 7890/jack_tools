@@ -14,61 +14,96 @@
 
 //gcc -o jack_midi_tunnel_receive_osc midi_tunnel_receive_osc.c `pkg-config --libs jack liblo`
 
-static jack_port_t* port;
 jack_client_t* client;
+jack_port_t* port_in;
 char const default_name[] = "midi_tunnel_receive_osc";
 char const * client_name;
 
+void* buffer_in;
+char description[256];
+int msgCount=0;
+char* path;
+char* types;
+
+int msgsPerCycle=10;
+
+int printEveryNthCycle=100;
+int printCounter=-1;
+
+int doPrint=0;
+
 int strcmp();
+
+static void signal_handler(int sig)
+{
+        jack_client_close(client);
+        fprintf(stdout, "signal received, exiting ...\n");
+        exit(0);
+}
 
 static int process (jack_nframes_t frames, void* arg)
 {
-	void* buffer;
-	jack_nframes_t N;
-	jack_nframes_t i;
-	char description[256];
+	buffer_in = jack_port_get_buffer (port_in, frames);
+	assert (buffer_in);
 
-	buffer = jack_port_get_buffer (port, frames);
-	assert (buffer);
+	msgCount = jack_midi_get_event_count (buffer_in);
 
-	N = jack_midi_get_event_count (buffer);
 
-	if(N>0)
+	if(printCounter>=printEveryNthCycle || printCounter==-1)
 	{
-		fprintf(stderr,"===\nreceived midi osc events, count: %d\n",N);
+		doPrint=1;
+		printCounter=0;
+	}
+	else
+	{
+		doPrint=0;
 	}
 
+	if(msgCount>0 && doPrint==1)
+	{
+		fprintf(stdout,"\nreceived midi osc events, count: %d\n",msgCount);
+	}
+
+	int i;
 	//iterate over encapsulated osc messages
-	for (i = 0; i < N; ++i) 
+	for (i = 0; i < msgCount; ++i) 
 	{
 		jack_midi_event_t event;
 		int r;
 
-		r = jack_midi_event_get (&event, buffer, i);
-		if (r == 0) 
+		r = jack_midi_event_get (&event, buffer_in, i);
+		if (r == 0)
 		{
+
+			path=lo_get_path(event.buffer,event.size);
+
 			int result;
 			//some magic happens here
 			lo_message msg = lo_message_deserialise(event.buffer, event.size, &result);
-			fprintf(stderr,"osc message (%i) size: %lu argc: %d\n",i+1,event.size,lo_message_get_argc(msg));
+//			fprintf(stdout,"osc message (%i) size: %lu argc: %d\n",i+1,event.size,lo_message_get_argc(msg));
+
+			types=lo_message_get_types(msg);
 
 			lo_arg **argv = lo_message_get_argv(msg);
-			fprintf(stderr,"test: parameter 1 (int) is: %i \n",argv[0]->i);
-			fprintf(stderr,"test: parameter 2 (float) is: %f \n",argv[1]->f);
-			fprintf(stderr,"test: parameter 3 (string) is: %s \n",&argv[2]->s);
+/*
+			fprintf(stdout,"test: parameter 1 (int) is: %i \n",argv[0]->i);
+			fprintf(stdout,"test: parameter 2 (int) is: %i \n",argv[1]->i);
+			fprintf(stdout,"test: parameter 3 (float) is: %f \n",argv[2]->f);
+			fprintf(stdout,"test: parameter 4 (string) is: %s \n",&argv[3]->s);
+
+*/
+			if(doPrint==1)
+			{
+				fprintf(stdout,"[%i %i] ",argv[0]->i,argv[1]->i);
+			}
 
 			lo_message_free(msg);
 		}
 	}
 
-	return 0;
-}
+	printCounter++;
 
-static void signal_handler(int sig)
-{
-        jack_client_close(client);
-        fprintf(stderr, "signal received, exiting ...\n");
-        exit(0);
+	return 0;
 }
 
 int main (int argc, char* argv[])
@@ -79,36 +114,36 @@ int main (int argc, char* argv[])
 	if (client == NULL) 
 	{
 		fprintf (stderr, "Could not create JACK client.\n");
-		exit (EXIT_FAILURE);
+		return 1;
 	}
 
 	jack_set_process_callback (client, process, 0);
 
-	port = jack_port_register (client, "midi_osc_input", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
-	if (port == NULL) 
+	port_in = jack_port_register (client, "midi_osc_input", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
+
+	if (port_in == NULL) 
 	{
 		fprintf (stderr, "Could not register port.\n");
-		exit (EXIT_FAILURE);
+		return 1;
 	}
 	else
 	{
-		fprintf (stderr, "Registered JACK port.\n");
-		fprintf (stderr, "Don't forget to connect input port with midi_tunnel_send_osc output port.\n");
+		fprintf (stdout, "Registered JACK port.\n");
+		fprintf (stdout, "Don't forget to connect input port with midi_tunnel_send_osc output port.\n");
 
 	}
 
-	int r = jack_activate (client);
-	if (r != 0) 
+	if (jack_activate(client))
 	{
-		fprintf (stderr, "Could not activate client.\n");
-		exit (EXIT_FAILURE);
+		fprintf (stderr, "cannot activate client");
+		return 1;
 	}
 
 	/* install a signal handler to properly quits jack client */
 	signal(SIGQUIT, signal_handler);
-        signal(SIGTERM, signal_handler);
-        signal(SIGHUP, signal_handler);
-        signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGHUP, signal_handler);
+	signal(SIGINT, signal_handler);
 
 	/* run until interrupted */
 	while (1) 
@@ -117,7 +152,6 @@ int main (int argc, char* argv[])
 	};
 
 	jack_client_close(client);
-	//exit(0);
 	return 0;
 }
 
