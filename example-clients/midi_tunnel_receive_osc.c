@@ -20,7 +20,6 @@ char const default_name[] = "midi_tunnel_receive_osc";
 char const * client_name;
 
 void* buffer_in;
-char description[256];
 int msgCount=0;
 char* path;
 char* types;
