@@ -12,12 +12,13 @@ Install on Linux
   gcc -o jack_xlsp xlsp.c `pkg-config --libs jack`
   gcc -o jack_oscev oscev.c `pkg-config --libs liblo` `pkg-config --libs jack`
 
-  #test only
-  gcc -o jack_midi_tunnel_send_osc midi_tunnel_send_osc.c  `pkg-config --libs jack liblo`
-  gcc -o jack_midi_tunnel_receive_osc midi_tunnel_receive_osc.c  `pkg-config --libs jack liblo`
-
   #sudo cp jack_xlsp /usr/bin
   #sudo cp jack_oscev /usr/bin
+
+  #test only
+  gcc -o jack_osc_bridge_in osc_bridge_in.c `pkg-config --libs jack liblo`
+  gcc -o jack_osc_bridge_out osc_bridge_out.c `pkg-config --libs jack liblo`
+  gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
   #see also audio_rxtx
 
