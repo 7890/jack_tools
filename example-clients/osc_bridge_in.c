@@ -57,6 +57,8 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 		return 1;
 	}
 
+	free(msg_ptr);
+
 	return 0;
 }
 
