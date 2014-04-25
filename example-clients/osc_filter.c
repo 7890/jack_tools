@@ -216,10 +216,10 @@ int main (int argc, char* argv[])
 	fprintf(stderr,"change with: /match_path s \"<pattern>\"\n");
 	fprintf(stderr,"placeholders:\n");
 	fprintf(stderr,"[*]: %s\n",s1_star);
-	fprintf(stderr,"[*]: %s\n",s2_plus);
-	fprintf(stderr,"[*]: %s\n",s3_questionmark);
-	fprintf(stderr,"[*]: %s\n",s4_hash);
-	fprintf(stderr,"[*]: %s\n",s5_percent);
+	fprintf(stderr,"[+]: %s\n",s2_plus);
+	fprintf(stderr,"[?]: %s\n",s3_questionmark);
+	fprintf(stderr,"[#]: %s\n",s4_hash);
+	fprintf(stderr,"[%%]: %s\n",s5_percent);
 	fprintf(stderr,"[&]: JACK client name\n");
 	fprintf(stderr,"\nexample: /match_path s \"^/[&]/[*]$\"\n");
 
