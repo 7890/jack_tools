@@ -12,13 +12,13 @@
 
 //test filter (receive, analyze, modify, (re-)send)
 //set path regex filter: /match_path s "pattern"
-//the placeholders [*], [+], [?], [#], [%] will be substituted, see below
-//placeholder [&] is the jack client name
 
 //gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
+//midi ports
 static jack_port_t* port_in;
-static jack_port_t* port_out;
+static jack_port_t* port_out_positive;
+static jack_port_t* port_out_negative;
 jack_client_t* client;
 char const client_name[32] = "osc_filter";
 
@@ -31,15 +31,8 @@ void* buffer_in;
 char* path;
 char* types;
 
-void* buffer_out;
-
-/*
-int nextReceived=0;
-int nextRequested=0;
-int processing=0;
-int basketAvailable=0;
-int ancestorNextRequested=0;
-*/
+void* buffer_out_positive;
+void* buffer_out_negative;
 
 //regex patterns
 char* s1_star = "[a-zA-Z0-9/_.-]*"; //[*]
@@ -48,29 +41,32 @@ char* s3_questionmark = "[a-zA-Z0-9_.-]"; //[?]
 char* s4_hash = "[0-9]+"; //[#]
 char* s5_percent = "[0-9]*[.][0-9]*"; //[%]
 
-//set with /match_path s "pattern"
 //default match all
 char path_match_pattern[255]="[*]";
+char *path_match_pattern_expanded;
+
 //example: ^/a/b[#]/[*]x[?]$ ...
 
-int forward_matches=1;
-int forward_non_matches=0;
-
+char * expand_regex(char *pat);
 int easyregex(char *pat,char *str);
 char * str_replace (const char *string, const char *substr, const char *replacement);
 
 static int process (jack_nframes_t frames, void* arg)
 {
-//prepare receive
+//prepare receive buffer
 
 	buffer_in = jack_port_get_buffer (port_in, frames);
 	assert (buffer_in);
 
-//prepare send
+//prepare send buffers
 
-	buffer_out = jack_port_get_buffer(port_out, frames);
-	assert (buffer_out);
-	jack_midi_clear_buffer(buffer_out);
+	buffer_out_positive = jack_port_get_buffer(port_out_positive, frames);
+	assert (buffer_out_positive);
+	jack_midi_clear_buffer(buffer_out_positive);
+
+	buffer_out_negative = jack_port_get_buffer(port_out_negative, frames);
+	assert (buffer_out_negative);
+	jack_midi_clear_buffer(buffer_out_negative);
 
 //receive
 	int msgCount = jack_midi_get_event_count (buffer_in);
@@ -95,15 +91,15 @@ static int process (jack_nframes_t frames, void* arg)
 					lo_arg **argv = lo_message_get_argv(msg);
 
 					strncpy(path_match_pattern,&argv[0]->s,sizeof(path_match_pattern)- 1);
-					
-					printf("path match set to %s\n",path_match_pattern);
+					path_match_pattern_expanded=expand_regex(path_match_pattern);
+					printf("path regex filter pattern set to %s\n%s\n",path_match_pattern,path_match_pattern_expanded);
 				}
 
 				lo_message_free(msg);
 				continue;
 			}
 
-			int retval=easyregex(path_match_pattern,path);
+			int retval=regex(path_match_pattern_expanded,path);
 			if(!retval)
 			{
 				printf("regex match! %s\n",path);
@@ -149,17 +145,29 @@ static int process (jack_nframes_t frames, void* arg)
 
 			pointer=lo_message_serialise(msg,path,NULL,&msg_size);
 
-			if(msg_size <= jack_midi_max_event_size(buffer_out))
+			if(!retval)
 			{
-				//write the serialized osc message to the midi buffer
-				if(!retval && forward_matches || forward_non_matches)
+				if(msg_size <= jack_midi_max_event_size(buffer_out_positive))
 				{
-					jack_midi_event_write(buffer_out,0,pointer,msg_size);
+					//write the serialized osc message to the midi buffer
+					jack_midi_event_write(buffer_out_positive,0,pointer,msg_size);
+				}
+				else
+				{
+					fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
 				}
 			}
-			else
+			else 
 			{
-				fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
+				if(msg_size <= jack_midi_max_event_size(buffer_out_negative))
+				{
+				//write the serialized osc message to the midi buffer
+				jack_midi_event_write(buffer_out_negative,0,pointer,msg_size);
+				}
+				else
+				{
+					fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
+				}
 			}
 
 			//free resources
@@ -189,9 +197,10 @@ int main (int argc, char* argv[])
 	jack_set_process_callback (client, process, 0);
 
 	port_in = jack_port_register (client, "midi_osc_input", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
-	port_out = jack_port_register (client, "midi_osc_output", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_out_positive = jack_port_register (client, "midi_osc_output_positive", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_out_negative = jack_port_register (client, "midi_osc_output_negative", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
 
-	if (port_in == NULL || port_out == NULL) 
+	if (port_in == NULL || port_out_positive == NULL || port_out_negative == NULL) 
 	{
 		fprintf (stderr, "could not register port\n");
 		return 1;
@@ -200,6 +209,21 @@ int main (int argc, char* argv[])
 	{
 		printf ("registered JACK ports\n");
 	}
+
+	path_match_pattern_expanded=expand_regex(path_match_pattern);
+
+	fprintf(stderr,"path regex filter pattern: %s\n",path_match_pattern);
+	fprintf(stderr,"change with: /match_path s \"<pattern>\"\n");
+	fprintf(stderr,"placeholders:\n");
+	fprintf(stderr,"[*]: %s\n",s1_star);
+	fprintf(stderr,"[*]: %s\n",s2_plus);
+	fprintf(stderr,"[*]: %s\n",s3_questionmark);
+	fprintf(stderr,"[*]: %s\n",s4_hash);
+	fprintf(stderr,"[*]: %s\n",s5_percent);
+	fprintf(stderr,"[&]: JACK client name\n");
+	fprintf(stderr,"\nexample: /match_path s \"^/[&]/[*]$\"\n");
+
+	fprintf(stderr,"[&] is the jack client name\n");
 
 	int r = jack_activate (client);
 	if (r != 0) 
@@ -259,19 +283,13 @@ char * str_replace (const char *string, const char *substr, const char *replacem
 
 int easyregex(char *pat,char *str)
 {
-	//create legal regex of simplified "regex" string
-	char* s1 = str_replace(pat, "[*]", s1_star);
-	char* s2 = str_replace(s1, "[+]", s2_plus);
-	char* s3 = str_replace(s2, "[?]", s3_questionmark);
-	char* s4 = str_replace(s3, "[#]", s4_hash);
-	char* s5 = str_replace(s4, "[%]", s5_percent);
+	return regex(expand_regex(pat),str);
+}
 
-	char* s6 = str_replace(s5, "[&]", jack_get_client_name (client));
-
-	//printf("regex: %s extended: %s\n",pat,s5);
-
+int regex(char *pat,char *str)
+{
 	regex_t regex;
-	int retval = regcomp(&regex, s6, REG_EXTENDED);
+	int retval = regcomp(&regex, pat, REG_EXTENDED);
 
 	if(retval)
 	{
@@ -281,15 +299,23 @@ int easyregex(char *pat,char *str)
 
 	//execute regex
 	retval = regexec(&regex, str, 0, NULL, 0);
-
 	regfree(&regex);
+	return retval;
+}
+
+char * expand_regex(char *pat)
+{
+	//create legal regex of simplified "regex" string
+	char* s1 = str_replace(pat, "[*]", s1_star);
+	char* s2 = str_replace(s1, "[+]", s2_plus);
+	char* s3 = str_replace(s2, "[?]", s3_questionmark);
+	char* s4 = str_replace(s3, "[#]", s4_hash);
+	char* s5 = str_replace(s4, "[%]", s5_percent);
+	char* s6 = str_replace(s5, "[&]", jack_get_client_name (client));
 	free(s1);
 	free(s2);
 	free(s3);
 	free(s4);
 	free(s5);
-	free(s6);
-
-
-	return retval;
+	return s6;
 }
