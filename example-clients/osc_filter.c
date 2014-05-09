@@ -15,16 +15,21 @@
 
 //gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
+//different styles of messages
+//	messages directed to filter (iternal settings)
+//		example: set filter pattern /match_path, /<osc_client_id>/match_path
+//		example: shutdown /quit, /<osc_client_id>/quit
+//	messages that are filtered/forwarded for adjacent filters
+
 //midi ports
 static jack_port_t* port_in;
 static jack_port_t* port_out_positive;
 static jack_port_t* port_out_negative;
 jack_client_t* client;
 char const client_name[32] = "osc_filter";
+char osc_client_id[32] = "/osc_filter";
 
 int strcmp();
-
-int counter=0;
 
 void* buffer_in;
 
@@ -42,6 +47,7 @@ char* s4_hash = "[0-9]+"; //[#]
 char* s5_percent = "[0-9]*[.][0-9]*"; //[%]
 
 //default match all
+
 char path_match_pattern[255]="[*]";
 char *path_match_pattern_expanded;
 
@@ -50,6 +56,30 @@ char *path_match_pattern_expanded;
 char * expand_regex(char *pat);
 int easyregex(char *pat,char *str);
 char * str_replace (const char *string, const char *substr, const char *replacement);
+
+int starts_with(const char *str, const char *prefix)
+{
+	if(strncmp(str, prefix, strlen(prefix)) == 0)
+	{
+		return 1;
+	}
+	return 0;
+}
+
+int ends_with(char const * str, char const * suffix)//, int lenstr, int lensuf)
+{
+    	if( ! str && ! suffix )
+	{
+		return 1;
+	}
+    	if( ! str || ! suffix )
+	{
+		return 0;
+	}
+	int lenstr = strlen(str);
+	int lensuf = strlen(suffix);
+	return strcmp(str + lenstr - lensuf, suffix) == 0;
+}
 
 static int process (jack_nframes_t frames, void* arg)
 {
@@ -80,7 +110,15 @@ static int process (jack_nframes_t frames, void* arg)
 		{
 			path=lo_get_path(event.buffer,event.size);
 
-			if(!strcmp(path,"/match_path"))
+			int len;
+
+			if(
+				!strcmp(path,"/match_path") || 
+				(
+					starts_with(path,osc_client_id) &&
+					ends_with(path,"/match_path")
+				)
+			)
 			{
 				lo_message msg = lo_message_deserialise(event.buffer, event.size, NULL);
 				types=lo_message_get_types(msg);
@@ -193,6 +231,12 @@ int main (int argc, char* argv[])
 		printf ("could not create JACK client\n");
 		return 1;
 	}
+
+	strcpy(osc_client_id,"/");
+	strcat(osc_client_id,jack_get_client_name (client));
+	strcat(osc_client_id,"/");
+
+	printf("jack osc client id is: %s\n",osc_client_id);
 
 	jack_set_process_callback (client, process, 0);
 
