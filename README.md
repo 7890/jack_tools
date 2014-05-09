@@ -83,10 +83,3 @@ messages sent by jack_oscev (example content):
   /oscev/client/unregistered s "meter"
 
 ```
-
-jack_midi_tunnel_send_osc and jack_midi_tunnel_receive_osc
-----------------------------------------------------------
-
-Start both programs and connect ports (i.e. in patchage).
-Proof of concept to send OSC messages over Jack MIDI infrastructure.
-
