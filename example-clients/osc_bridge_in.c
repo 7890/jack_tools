@@ -1,16 +1,25 @@
 #include <stdio.h>
+#include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <assert.h>
 #include <jack/jack.h>
-#include <jack/midiport.h>
 #include <jack/ringbuffer.h>
+#include <jack/metadata.h>
+#include "meta/jackey.h"
+#include "meta/jack_osc.h"
 #include <lo/lo.h>
 
-//tb/140112/140421
+//tb/140112/140421/140509
 
-//receive osc messages from any osc sender and feed it into the jack ecosystem as midi osc events
+//receive osc messages from any osc sender and feed it into the jack ecosystem as osc events
+//trying out new (as of LAC2014) jack osc port type, metadata api
 //gcc -o jack_osc_bridge_in osc_bridge_in.c `pkg-config --libs jack liblo`
+
+//urls of interest:
+//http://jackaudio.org/metadata
+//https://github.com/drobilla/jackey
+//https://github.com/ventosus/jack_osc
 
 jack_client_t *client;
 jack_port_t *port_out;
@@ -24,11 +33,13 @@ lo_server_thread lo_st;
 
 char * default_port="3344";
 
-int strcmp();
-
 void error(int num, const char *msg, const char *path)
 {
 	fprintf(stderr,"liblo server error %d: %s\n", num, msg);
+	if(num==9904)
+	{
+		fprintf(stderr,"try starting with another port:\njack_osc_bridge_in <alternative port>\n");
+	}
 	exit(1);
 }
 
@@ -75,7 +86,7 @@ static int process(jack_nframes_t frames, void *arg)
 	buffer_out = jack_port_get_buffer(port_out, frames);
 	assert (buffer_out);
 
-	jack_midi_clear_buffer(buffer_out);
+	jack_osc_clear_buffer(buffer_out);
 
 	while(jack_ringbuffer_read_space(rb)>sizeof(size_t))
 	{	
@@ -103,15 +114,15 @@ static int process(jack_nframes_t frames, void *arg)
 		lo_message_free(m);
 */
 
-		if(msg_size <= jack_midi_max_event_size(buffer_out))
+		if(msg_size <= jack_osc_max_event_size(buffer_out))
 		{
 			//write osc message to output buffer
-			jack_midi_event_write(buffer_out,0,buffer,msg_size);
+			jack_osc_event_write(buffer_out,0,buffer,msg_size);
 			printf("-");
 		}
 		else
 		{
-			fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
+			fprintf(stderr,"available jack osc buffer size was too small! message lost\n");
 		}
 		free(buffer);
 	}
@@ -145,7 +156,7 @@ int main(int argc, char* argv[])
 
 	jack_set_process_callback (client, process, 0);
 
-	port_out = jack_port_register (client, "midi_osc_output", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_out = jack_port_register (client, "out", JACK_DEFAULT_OSC_TYPE, JackPortIsOutput, 0);
 
 	if (port_out == NULL) 
 	{
@@ -157,6 +168,10 @@ int main(int argc, char* argv[])
 		printf ("registered JACK port\n");
 
 	}
+
+	jack_uuid_t uuid = jack_port_uuid(port_out);
+	jack_set_property(client, uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
 
 	if (jack_activate(client))
 	{
@@ -175,18 +190,20 @@ int main(int argc, char* argv[])
 
 	if(argc>1)
 	{
+		printf("trying to start osc server on port: %s\n",argv[1]);
 		lo_st = lo_server_thread_new(argv[1], error);
-		printf("osc port: %s\n",argv[1]);
 	}
 	else
 	{
+		printf("trying to start osc server on port: %s\n",default_port);
 		lo_st = lo_server_thread_new(default_port, error);
-		printf("osc port: %s\n",default_port);
 	}
 
 	//match any path, any types
 	lo_server_thread_add_method(lo_st, NULL, NULL, default_msg_handler, NULL);
 	lo_server_thread_start(lo_st);
+
+	printf("ready\n");
 
 	/* run until interrupted */
 	while (1) 

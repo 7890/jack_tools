@@ -4,24 +4,24 @@
 #include <string.h>
 #include <assert.h>
 #include <jack/jack.h>
-#include <jack/midiport.h>
+#include "meta/jackey.h"
+#include "meta/jack_osc.h"
 #include <lo/lo.h>
 #include <regex.h>
 
-//tb/140421//tb/140424
+//tb/140421/140424/140509
 
 //test filter (receive, analyze, modify, (re-)send)
-//set path regex filter: /match_path s "pattern"
-
+//set path regex filter: /<client name>/match_path s "pattern"
+//trying out new (as of LAC2014) jack osc port type, metadata api
 //gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
-//different styles of messages
-//	messages directed to filter (iternal settings)
-//		example: set filter pattern /match_path, /<osc_client_id>/match_path
-//		example: shutdown /quit, /<osc_client_id>/quit
-//	messages that are filtered/forwarded for adjacent filters
+//urls of interest:
+//http://jackaudio.org/metadata
+//https://github.com/drobilla/jackey
+//https://github.com/ventosus/jack_osc
 
-//midi ports
+//osc ports
 static jack_port_t* port_in;
 static jack_port_t* port_out_positive;
 static jack_port_t* port_out_negative;
@@ -47,7 +47,6 @@ char* s4_hash = "[0-9]+"; //[#]
 char* s5_percent = "[0-9]*[.][0-9]*"; //[%]
 
 //default match all
-
 char path_match_pattern[255]="[*]";
 char *path_match_pattern_expanded;
 
@@ -92,20 +91,20 @@ static int process (jack_nframes_t frames, void* arg)
 
 	buffer_out_positive = jack_port_get_buffer(port_out_positive, frames);
 	assert (buffer_out_positive);
-	jack_midi_clear_buffer(buffer_out_positive);
+	jack_osc_clear_buffer(buffer_out_positive);
 
 	buffer_out_negative = jack_port_get_buffer(port_out_negative, frames);
 	assert (buffer_out_negative);
-	jack_midi_clear_buffer(buffer_out_negative);
+	jack_osc_clear_buffer(buffer_out_negative);
 
 //receive
-	int msgCount = jack_midi_get_event_count (buffer_in);
+	int msgCount = jack_osc_get_event_count (buffer_in);
 	int i;
 	//iterate over encapsulated osc messages
 	for (i = 0; i < msgCount; ++i) 
 	{
-		jack_midi_event_t event;
-		int r = jack_midi_event_get (&event, buffer_in, i);
+		jack_osc_event_t event;
+		int r = jack_osc_event_get (&event, buffer_in, i);
 		if (r == 0) 
 		{
 			path=lo_get_path(event.buffer,event.size);
@@ -179,32 +178,32 @@ static int process (jack_nframes_t frames, void* arg)
 			void *pointer;
 
 			//rewrite path
-			//pointer=lo_message_serialise(msg,"/hello/jack/midi",NULL,&msg_size);
+			//pointer=lo_message_serialise(msg,"/hello/jack/osc",NULL,&msg_size);
 
 			pointer=lo_message_serialise(msg,path,NULL,&msg_size);
 
 			if(!retval)
 			{
-				if(msg_size <= jack_midi_max_event_size(buffer_out_positive))
+				if(msg_size <= jack_osc_max_event_size(buffer_out_positive))
 				{
-					//write the serialized osc message to the midi buffer
-					jack_midi_event_write(buffer_out_positive,0,pointer,msg_size);
+					//write the serialized osc message to the osc buffer
+					jack_osc_event_write(buffer_out_positive,0,pointer,msg_size);
 				}
 				else
 				{
-					fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
+					fprintf(stderr,"available jack osc buffer size was too small! message lost\n");
 				}
 			}
 			else 
 			{
-				if(msg_size <= jack_midi_max_event_size(buffer_out_negative))
+				if(msg_size <= jack_osc_max_event_size(buffer_out_negative))
 				{
-				//write the serialized osc message to the midi buffer
-				jack_midi_event_write(buffer_out_negative,0,pointer,msg_size);
+				//write the serialized osc message to the osc buffer
+				jack_osc_event_write(buffer_out_negative,0,pointer,msg_size);
 				}
 				else
 				{
-					fprintf(stderr,"available jack midi buffer size was too small! message lost\n");
+					fprintf(stderr,"available jack osc buffer size was too small! message lost\n");
 				}
 			}
 
@@ -236,13 +235,11 @@ int main (int argc, char* argv[])
 	strcat(osc_client_id,jack_get_client_name (client));
 	strcat(osc_client_id,"/");
 
-	printf("jack osc client id is: %s\n",osc_client_id);
-
 	jack_set_process_callback (client, process, 0);
 
-	port_in = jack_port_register (client, "midi_osc_input", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
-	port_out_positive = jack_port_register (client, "midi_osc_output_positive", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
-	port_out_negative = jack_port_register (client, "midi_osc_output_negative", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_in = jack_port_register (client, "in", JACK_DEFAULT_OSC_TYPE, JackPortIsInput, 0);
+	port_out_positive = jack_port_register (client, "out_pos", JACK_DEFAULT_OSC_TYPE, JackPortIsOutput, 0);
+	port_out_negative = jack_port_register (client, "out_neg", JACK_DEFAULT_OSC_TYPE, JackPortIsOutput, 0);
 
 	if (port_in == NULL || port_out_positive == NULL || port_out_negative == NULL) 
 	{
@@ -254,20 +251,16 @@ int main (int argc, char* argv[])
 		printf ("registered JACK ports\n");
 	}
 
-	path_match_pattern_expanded=expand_regex(path_match_pattern);
+	jack_uuid_t uuid_in = jack_port_uuid(port_in);
+	jack_set_property(client, uuid_in, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
-	fprintf(stderr,"path regex filter pattern: %s\n",path_match_pattern);
-	fprintf(stderr,"change with: /match_path s \"<pattern>\"\n");
-	fprintf(stderr,"placeholders:\n");
-	fprintf(stderr,"[*]: %s\n",s1_star);
-	fprintf(stderr,"[+]: %s\n",s2_plus);
-	fprintf(stderr,"[?]: %s\n",s3_questionmark);
-	fprintf(stderr,"[#]: %s\n",s4_hash);
-	fprintf(stderr,"[%%]: %s\n",s5_percent);
-	fprintf(stderr,"[&]: JACK client name\n");
-	fprintf(stderr,"\nexample: /match_path s \"^/[&]/[*]$\"\n");
+	jack_uuid_t uuid_out_pos = jack_port_uuid(port_out_positive);
+	jack_set_property(client, uuid_out_pos, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
-	fprintf(stderr,"[&] is the jack client name\n");
+	jack_uuid_t uuid_out_neg = jack_port_uuid(port_out_negative);
+	jack_set_property(client, uuid_out_neg, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+
+	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
 
 	int r = jack_activate (client);
 	if (r != 0) 
@@ -281,6 +274,23 @@ int main (int argc, char* argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
+
+	path_match_pattern_expanded=expand_regex(path_match_pattern);
+
+	fprintf(stderr,"path regex filter pattern: %s\n",path_match_pattern);
+	fprintf(stderr,"change with: (/<client name>)/match_path s \"<pattern>\"\n");
+	fprintf(stderr,"placeholders:\n");
+	fprintf(stderr,"[*]: %s\n",s1_star);
+	fprintf(stderr,"[+]: %s\n",s2_plus);
+	fprintf(stderr,"[?]: %s\n",s3_questionmark);
+	fprintf(stderr,"[#]: %s\n",s4_hash);
+	fprintf(stderr,"[%%]: %s\n",s5_percent);
+	fprintf(stderr,"[&]: JACK client name\n");
+	fprintf(stderr,"\nexample: /match_path s \"^/[&]/[*]$\"\n");
+
+	fprintf(stderr,"jack client name: %s\n",jack_get_client_name (client));
+
+	printf("ready\n");
 
 	/* run until interrupted */
 	while (1) 
