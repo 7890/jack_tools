@@ -9,10 +9,11 @@
 #include <lo/lo.h>
 #include <regex.h>
 
-//tb/140421/140424/140509
+//tb/140421/140424/140509/140510
 
 //test filter (receive, analyze, modify, (re-)send)
 //set path regex filter: /<client name>/match_path s "pattern"
+//set typetag regex filter: /<client name>/match_types s "pattern"
 //trying out new (as of LAC2014) jack osc port type, metadata api
 //gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
@@ -27,7 +28,7 @@ static jack_port_t* port_out_positive;
 static jack_port_t* port_out_negative;
 jack_client_t* client;
 char const client_name[32] = "osc_filter";
-char osc_client_id[32] = "/osc_filter";
+char osc_client_id[32] = "/osc_filter/";
 
 int strcmp();
 
@@ -50,6 +51,9 @@ char* s5_percent = "[0-9]*[.][0-9]*"; //[%]
 char path_match_pattern[255]="[*]";
 char *path_match_pattern_expanded;
 
+char typetag_match_pattern[255]="[*]";
+char *typetag_match_pattern_expanded;
+
 //example: ^/a/b[#]/[*]x[?]$ ...
 
 char * expand_regex(char *pat);
@@ -67,11 +71,11 @@ int starts_with(const char *str, const char *prefix)
 
 int ends_with(char const * str, char const * suffix)//, int lenstr, int lensuf)
 {
-    	if( ! str && ! suffix )
+	if( ! str && ! suffix )
 	{
 		return 1;
 	}
-    	if( ! str || ! suffix )
+	if( ! str || ! suffix )
 	{
 		return 0;
 	}
@@ -109,7 +113,10 @@ static int process (jack_nframes_t frames, void* arg)
 		{
 			path=lo_get_path(event.buffer,event.size);
 
-			int len;
+			lo_message msg = lo_message_deserialise(event.buffer, event.size, NULL);
+			//printf("osc message (%i) size: %lu argc: %d\n",i+1,event.size,lo_message_get_argc(msg));
+			types=lo_message_get_types(msg);
+			//printf("types %s path %s\n",types,path);
 
 			if(
 				!strcmp(path,"/match_path") || 
@@ -119,9 +126,6 @@ static int process (jack_nframes_t frames, void* arg)
 				)
 			)
 			{
-				lo_message msg = lo_message_deserialise(event.buffer, event.size, NULL);
-				types=lo_message_get_types(msg);
-
 				//check types
 				if(!strcmp(types,"s"))
 				{
@@ -135,11 +139,34 @@ static int process (jack_nframes_t frames, void* arg)
 				lo_message_free(msg);
 				continue;
 			}
-
-			int retval=regex(path_match_pattern_expanded,path);
-			if(!retval)
+			else if(
+				!strcmp(path,"/match_types") || 
+				(
+					starts_with(path,osc_client_id) &&
+					ends_with(path,"/match_types")
+				)
+			)
 			{
-				printf("regex match! %s\n",path);
+				//check types
+				if(!strcmp(types,"s"))
+				{
+					lo_arg **argv = lo_message_get_argv(msg);
+
+					strncpy(typetag_match_pattern,&argv[0]->s,sizeof(typetag_match_pattern)- 1);
+					typetag_match_pattern_expanded=expand_regex(typetag_match_pattern);
+					printf("typetag regex filter pattern set to %s\n%s\n",typetag_match_pattern,typetag_match_pattern_expanded);
+				}
+
+				lo_message_free(msg);
+				continue;
+			}
+
+			int retval1=regex(path_match_pattern_expanded,path);
+			int retval2=regex(typetag_match_pattern_expanded,types);
+
+			if(!retval1 && !retval2)
+			{
+				printf("regex match! %s %s\n",path,types);
 			}
 
 			//path comparison match
@@ -147,12 +174,6 @@ static int process (jack_nframes_t frames, void* arg)
 			{
 				////
 			}
-
-			lo_message msg = lo_message_deserialise(event.buffer, event.size, NULL);
-			//printf("osc message (%i) size: %lu argc: %d\n",i+1,event.size,lo_message_get_argc(msg));
-
-			types=lo_message_get_types(msg);
-			//printf("types %s path %s\n",types,path);
 
 			/*match types
 			if(!strcmp(types,"fis"))
@@ -182,7 +203,7 @@ static int process (jack_nframes_t frames, void* arg)
 
 			pointer=lo_message_serialise(msg,path,NULL,&msg_size);
 
-			if(!retval)
+			if(!retval1 && !retval2)
 			{
 				if(msg_size <= jack_osc_max_event_size(buffer_out_positive))
 				{
@@ -276,9 +297,13 @@ int main (int argc, char* argv[])
 	signal(SIGINT, signal_handler);
 
 	path_match_pattern_expanded=expand_regex(path_match_pattern);
+	typetag_match_pattern_expanded=expand_regex(typetag_match_pattern);
 
-	fprintf(stderr,"path regex filter pattern: %s\n",path_match_pattern);
+	fprintf(stderr,"\npath regex filter pattern: %s\n",path_match_pattern);
 	fprintf(stderr,"change with: (/<client name>)/match_path s \"<pattern>\"\n");
+	fprintf(stderr,"types regex filter pattern: %s\n",typetag_match_pattern);
+	fprintf(stderr,"change with: (/<client name>)/match_types s \"<pattern>\"\n\n");
+
 	fprintf(stderr,"placeholders:\n");
 	fprintf(stderr,"[*]: %s\n",s1_star);
 	fprintf(stderr,"[+]: %s\n",s2_plus);
