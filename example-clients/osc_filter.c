@@ -30,13 +30,10 @@ jack_client_t* client;
 char const client_name[32] = "osc_filter";
 char osc_client_id[32] = "/osc_filter/";
 
-int strcmp();
-
-void* buffer_in;
-
 char* path;
 char* types;
 
+void* buffer_in;
 void* buffer_out_positive;
 void* buffer_out_negative;
 
