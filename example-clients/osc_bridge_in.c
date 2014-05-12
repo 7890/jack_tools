@@ -10,7 +10,7 @@
 #include "meta/jack_osc.h"
 #include <lo/lo.h>
 
-//tb/140112/140421/140509
+//tb/140112/140421/140509/140512
 
 //receive osc messages from any osc sender and feed it into the jack ecosystem as osc events
 //trying out new (as of LAC2014) jack osc port type, metadata api
@@ -53,10 +53,16 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 	size_t can_write=jack_ringbuffer_write_space(rb);
 	//printf("size %lu (+%lu bytes delim) can write %lu\n",size,sizeof(size_t),can_write);
 
-	if(size+sizeof(size_t)<=can_write)
+	jack_nframes_t frames_since_cycle_start=jack_frames_since_cycle_start(client);
+
+	//printf("arrival at sample (since cycle start): %d\n",frames_since_cycle_start);
+
+	if(size+sizeof(jack_nframes_t)+sizeof(size_t)<=can_write)
 	{
+		//write position in cycle as samples since start of cycle
+		int cnt=jack_ringbuffer_write(rb, &frames_since_cycle_start, sizeof(jack_nframes_t));
 		//write size of message
-		int cnt=jack_ringbuffer_write(rb, &size, sizeof(size_t));
+		cnt=jack_ringbuffer_write(rb, &size, sizeof(size_t));
 		//write message
 		cnt+=jack_ringbuffer_write(rb, (void *) msg_ptr, size );
 		//printf("%i\n",cnt);
@@ -88,10 +94,13 @@ static int process(jack_nframes_t frames, void *arg)
 
 	jack_osc_clear_buffer(buffer_out);
 
-	while(jack_ringbuffer_read_space(rb)>sizeof(size_t))
+	while(jack_ringbuffer_read_space(rb)>sizeof(jack_nframes_t)+sizeof(size_t))
 	{	
-		size_t can_read = jack_ringbuffer_read_space(rb);
+		//size_t can_read = jack_ringbuffer_read_space(rb);
 		//printf("can read %lu\n",can_read);
+
+		jack_nframes_t pos;
+		jack_ringbuffer_read (rb, &pos, sizeof(jack_nframes_t));
 
 		size_t msg_size;
 		jack_ringbuffer_read (rb, &msg_size, sizeof(size_t));
@@ -117,7 +126,7 @@ static int process(jack_nframes_t frames, void *arg)
 		if(msg_size <= jack_osc_max_event_size(buffer_out))
 		{
 			//write osc message to output buffer
-			jack_osc_event_write(buffer_out,0,buffer,msg_size);
+			jack_osc_event_write(buffer_out,pos,buffer,msg_size);
 			printf("-");
 		}
 		else
@@ -184,7 +193,6 @@ int main(int argc, char* argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
-
 
 	rb=jack_ringbuffer_create (100000);
 
