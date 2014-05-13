@@ -13,7 +13,7 @@
 //tb/140511/140513
 //test tone signal generator
 //control via jack osc (use jack_osc_bridge_in or similar)
-//gcc -o jack_gen gen.c `pkg-config --libs jack liblo`
+//gcc -o jack_gen gen.c `pkg-config --libs jack liblo` -lm
 
 /*
 urls of interest:
@@ -923,7 +923,7 @@ void print_all_properties()
 	fprintf(stderr,"bpm: %f\n",freq.beats_per_minute);
 	fprintf(stderr,"nth cycle: %f\n",freq.nth_cycle);
 	fprintf(stderr,"period duration [ms]: %f\n",freq.period_duration);
-	fprintf(stderr,"* wavelength [mm]: \n",freq.wavelength);
+	fprintf(stderr,"(dummy) wavelength [mm]: \n");//,freq.wavelength);
 
 	fprintf(stderr,"status: %d\n",gen.status);
 	fprintf(stderr,"pulse length: %f\n",gen.pulse_length);
