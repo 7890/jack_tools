@@ -108,6 +108,9 @@ static int process (jack_nframes_t frames, void* arg)
 		int r = jack_osc_event_get (&event, buffer_in, i);
 		if (r == 0) 
 		{
+			//check if osc data, skip if other
+			if(*event.buffer!='/'){continue;}
+
 			path=lo_get_path(event.buffer,event.size);
 
 			lo_message msg = lo_message_deserialise(event.buffer, event.size, NULL);
