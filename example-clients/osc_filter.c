@@ -37,6 +37,10 @@ void* buffer_in;
 void* buffer_out_positive;
 void* buffer_out_negative;
 
+jack_uuid_t osc_port_in_uuid;
+jack_uuid_t osc_port_out1_uuid;
+jack_uuid_t osc_port_out2_uuid;
+
 //regex patterns
 char* s1_star = "[a-zA-Z0-9/_.-]*"; //[*]
 char* s2_plus = "[a-zA-Z0-9_.-]*"; //[+]
@@ -238,6 +242,9 @@ static int process (jack_nframes_t frames, void* arg)
 
 static void signal_handler(int sig)
 {
+	jack_remove_property(client, osc_port_in_uuid, JACKEY_EVENT_TYPES);
+	jack_remove_property(client, osc_port_out1_uuid, JACKEY_EVENT_TYPES);
+	jack_remove_property(client, osc_port_out2_uuid, JACKEY_EVENT_TYPES);
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);
@@ -272,14 +279,16 @@ int main (int argc, char* argv[])
 		printf ("registered JACK ports\n");
 	}
 
-	jack_uuid_t uuid_in = jack_port_uuid(port_in);
-	jack_set_property(client, uuid_in, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+	osc_port_in_uuid = jack_port_uuid(port_in);
+	jack_set_property(client, osc_port_in_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
-	jack_uuid_t uuid_out_pos = jack_port_uuid(port_out_positive);
-	jack_set_property(client, uuid_out_pos, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+	//pos
+	osc_port_out1_uuid = jack_port_uuid(port_out_positive);
+	jack_set_property(client, osc_port_out1_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
-	jack_uuid_t uuid_out_neg = jack_port_uuid(port_out_negative);
-	jack_set_property(client, uuid_out_neg, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+	//neg
+	osc_port_out2_uuid = jack_port_uuid(port_out_negative);
+	jack_set_property(client, osc_port_out2_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
 	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
 

@@ -36,6 +36,8 @@ char * default_port="3345";
 char * default_target_host="localhost";
 char * default_target_port="3346";
 
+jack_uuid_t osc_port_uuid;
+
 void error(int num, const char *msg, const char *path)
 {
 	fprintf(stderr,"liblo server error %d: %s\n", num, msg);
@@ -43,11 +45,13 @@ void error(int num, const char *msg, const char *path)
 	{
 		fprintf(stderr,"try starting with another port:\njack_osc_bridge_out <alternative port>\n");
 	}
+	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
 	exit(1);
 }
 
 static void signal_handler(int sig)
 {
+	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);
@@ -135,9 +139,8 @@ int main(int argc, char* argv[])
 		printf ("registered JACK port\n");
 	}
 
-	jack_uuid_t uuid = jack_port_uuid(port_in);
-	jack_set_property(client, uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
-	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
+	osc_port_uuid = jack_port_uuid(port_in);
+	jack_set_property(client, osc_port_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
 	if (jack_activate(client))
 	{

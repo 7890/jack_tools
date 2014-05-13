@@ -111,6 +111,7 @@ char* types;
 jack_position_t pos;
 jack_transport_state_t tstate;
 
+jack_uuid_t osc_port_uuid;
 
 //==================================================================
 void exit(int err);
@@ -726,9 +727,8 @@ int main (int argc, char* argv[])
 		printf ("registered JACK ports\n");
 	}
 
-	jack_uuid_t uuid_in = jack_port_uuid(port_in);
-	jack_set_property(client, uuid_in, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
-	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
+	osc_port_uuid = jack_port_uuid(port_in);
+	jack_set_property(client, osc_port_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
 	setup();
 	print_all_properties();
@@ -1011,6 +1011,7 @@ void clear_buffer(jack_nframes_t frames,jack_default_audio_sample_t* buff)
 
 static void signal_handler(int sig)
 {
+	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);
