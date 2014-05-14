@@ -1,3 +1,4 @@
+//#define HAS_JACK_METADATA_API
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
@@ -13,6 +14,9 @@
 //tb/140511/140513
 //test tone signal generator
 //control via jack osc (use jack_osc_bridge_in or similar)
+//jack1
+//gcc -o jack_gen gen.c -DHAS_JACK_METADATA_API `pkg-config --libs jack liblo` -lm
+//jack2
 //gcc -o jack_gen gen.c `pkg-config --libs jack liblo` -lm
 
 /*
@@ -727,8 +731,10 @@ int main (int argc, char* argv[])
 		printf ("registered JACK ports\n");
 	}
 
+#ifdef HAS_JACK_METADATA_API
 	osc_port_uuid = jack_port_uuid(port_in);
 	jack_set_property(client, osc_port_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+#endif
 
 	setup();
 	print_all_properties();
@@ -1011,7 +1017,9 @@ void clear_buffer(jack_nframes_t frames,jack_default_audio_sample_t* buff)
 
 static void signal_handler(int sig)
 {
+#ifdef HAS_JACK_METADATA_API
 	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
+#endif
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);

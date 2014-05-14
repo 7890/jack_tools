@@ -1,3 +1,4 @@
+//#define HAS_JACK_METADATA_API
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
@@ -5,15 +6,16 @@
 #include <assert.h>
 #include <jack/jack.h>
 #include <jack/ringbuffer.h>
-#include <jack/metadata.h>
 #include "meta/jackey.h"
 #include "meta/jack_osc.h"
 #include <lo/lo.h>
 
 //tb/140112/140421/140509/140512
-
 //receive osc messages from any osc sender and feed it into the jack ecosystem as osc events
 //trying out new (as of LAC2014) jack osc port type, metadata api
+//jack1
+//gcc -o jack_osc_bridge_in osc_bridge_in.c -DHAS_JACK_METADATA_API `pkg-config --libs jack liblo`
+//jack2
 //gcc -o jack_osc_bridge_in osc_bridge_in.c `pkg-config --libs jack liblo`
 
 //urls of interest:
@@ -42,7 +44,9 @@ void error(int num, const char *msg, const char *path)
 	{
 		fprintf(stderr,"try starting with another port:\njack_osc_bridge_in <alternative port>\n");
 	}
+#ifdef HAS_JACK_METADATA_API
 	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
+#endif
 	exit(1);
 }
 
@@ -84,7 +88,9 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 
 static void signal_handler(int sig)
 {
+#ifdef HAS_JACK_METADATA_API
 	jack_remove_property(client, osc_port_uuid, JACKEY_EVENT_TYPES);
+#endif
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);
@@ -181,8 +187,10 @@ int main(int argc, char* argv[])
 
 	}
 
+#ifdef HAS_JACK_METADATA_API
 	osc_port_uuid = jack_port_uuid(port_out);
 	jack_set_property(client, osc_port_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
+#endif
 
 	if (jack_activate(client))
 	{

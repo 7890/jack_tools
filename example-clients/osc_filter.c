@@ -1,3 +1,4 @@
+//#define HAS_JACK_METADATA_API
 #include <stdio.h>
 #include <signal.h>
 #include <unistd.h>
@@ -15,6 +16,9 @@
 //set path regex filter: /<client name>/match_path s "pattern"
 //set typetag regex filter: /<client name>/match_types s "pattern"
 //trying out new (as of LAC2014) jack osc port type, metadata api
+//jack1
+//gcc -o jack_osc_filter osc_filter.c -DHAS_JACK_METADATA_API `pkg-config --libs jack liblo`
+//jack2
 //gcc -o jack_osc_filter osc_filter.c `pkg-config --libs jack liblo`
 
 //urls of interest:
@@ -242,9 +246,11 @@ static int process (jack_nframes_t frames, void* arg)
 
 static void signal_handler(int sig)
 {
+#ifdef HAS_JACK_METADATA_API
 	jack_remove_property(client, osc_port_in_uuid, JACKEY_EVENT_TYPES);
 	jack_remove_property(client, osc_port_out1_uuid, JACKEY_EVENT_TYPES);
 	jack_remove_property(client, osc_port_out2_uuid, JACKEY_EVENT_TYPES);
+#endif
 	jack_client_close(client);
 	printf("signal received, exiting ...\n");
 	exit(0);
@@ -279,6 +285,7 @@ int main (int argc, char* argv[])
 		printf ("registered JACK ports\n");
 	}
 
+#ifdef HAS_JACK_METADATA_API
 	osc_port_in_uuid = jack_port_uuid(port_in);
 	jack_set_property(client, osc_port_in_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 
@@ -289,8 +296,7 @@ int main (int argc, char* argv[])
 	//neg
 	osc_port_out2_uuid = jack_port_uuid(port_out_negative);
 	jack_set_property(client, osc_port_out2_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
-
-	//jack_remove_property(client, uuid, JACKEY_EVENT_TYPES);
+#endif
 
 	int r = jack_activate (client);
 	if (r != 0) 
