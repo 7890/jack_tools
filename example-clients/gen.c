@@ -73,8 +73,8 @@ basic control:
 #	/gen/restart_on_freq_change i	#automatically restart signal on req change 0: off 1: on
 #	/gen/restart_on_pulse_length_change i	#automatically restart signal on pulse length change 0: off 1: on
 
-	/gen/loop_enable	#0: off 1: on
-	/gen/loop_gap f		#samples to wait before looping after duration elapsed
+	/gen/loop_enable i	#0: off 1: on
+	/gen/loop_gap i		#samples to wait before looping after duration elapsed
 
 minimal processing:
 	/gen/amplify f		#multiplication, linear (-1 to invert)
