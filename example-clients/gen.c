@@ -742,13 +742,6 @@ int main (int argc, char* argv[])
 	print_all_properties();
 	//minimal_test();
 
-	int r = jack_activate (client);
-	if (r != 0) 
-	{
-		fprintf (stderr, "could not activate client\n");
-		return 1;
-	}
-
 	/* install a signal handler to properly quits jack client */
 	signal(SIGQUIT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -756,6 +749,12 @@ int main (int argc, char* argv[])
 	signal(SIGINT, signal_handler);
 
 	fprintf(stderr,"jack client name: %s\n",jack_get_client_name (client));
+
+	if (jack_activate (client))
+	{
+		fprintf (stderr, "could not activate client\n");
+		return 1;
+	}
 
 	printf("ready\n");
 

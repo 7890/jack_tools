@@ -300,13 +300,6 @@ int main (int argc, char* argv[])
 	jack_set_property(client, osc_port_out2_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 #endif
 
-	int r = jack_activate (client);
-	if (r != 0) 
-	{
-		fprintf (stderr, "could not activate client\n");
-		return 1;
-	}
-
 	/* install a signal handler to properly quits jack client */
 	signal(SIGQUIT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -331,6 +324,12 @@ int main (int argc, char* argv[])
 	fprintf(stderr,"\nexample: /match_path s \"^/[&]/[*]$\"\n");
 
 	fprintf(stderr,"jack client name: %s\n",jack_get_client_name (client));
+
+	if (jack_activate (client)) 
+	{
+		fprintf (stderr, "could not activate client\n");
+		return 1;
+	}
 
 	printf("ready\n");
 

@@ -154,12 +154,6 @@ int main(int argc, char* argv[])
 	jack_set_property(client, osc_port_uuid, JACKEY_EVENT_TYPES, JACK_EVENT_TYPE__OSC, NULL);
 #endif
 
-	if (jack_activate(client))
-	{
-		fprintf (stderr, "cannot activate client");
-		return 1;
-	}
-
 	/* install a signal handler to properly quits jack client */
 	signal(SIGQUIT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -190,6 +184,12 @@ int main(int argc, char* argv[])
 	}
 
 	lo_server_thread_start(lo_st);
+
+	if (jack_activate(client))
+	{
+		fprintf (stderr, "cannot activate client");
+		return 1;
+	}
 
 	printf("ready\n");
 
