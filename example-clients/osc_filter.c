@@ -41,9 +41,11 @@ void* buffer_in;
 void* buffer_out_positive;
 void* buffer_out_negative;
 
+#ifdef HAS_JACK_METADATA_API
 jack_uuid_t osc_port_in_uuid;
 jack_uuid_t osc_port_out1_uuid;
 jack_uuid_t osc_port_out2_uuid;
+#endif
 
 //regex patterns
 char* s1_star = "[a-zA-Z0-9/_.-]*"; //[*]

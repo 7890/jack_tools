@@ -35,7 +35,9 @@ lo_server_thread lo_st;
 
 char * default_port="3344";
 
+#ifdef HAS_JACK_METADATA_API
 jack_uuid_t osc_port_uuid;
+#endif
 
 void error(int num, const char *msg, const char *path)
 {

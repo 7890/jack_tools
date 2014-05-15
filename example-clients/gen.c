@@ -115,7 +115,9 @@ char* types;
 jack_position_t pos;
 jack_transport_state_t tstate;
 
+#ifdef HAS_JACK_METADATA_API
 jack_uuid_t osc_port_uuid;
+#endif
 
 //==================================================================
 void exit(int err);

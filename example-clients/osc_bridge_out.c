@@ -40,7 +40,9 @@ char * default_port="3345";
 char * default_target_host="localhost";
 char * default_target_port="3346";
 
+#ifdef HAS_JACK_METADATA_API
 jack_uuid_t osc_port_uuid;
+#endif
 
 void error(int num, const char *msg, const char *path)
 {
