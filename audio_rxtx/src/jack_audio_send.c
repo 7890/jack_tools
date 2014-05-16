@@ -635,14 +635,14 @@ main (int argc, char *argv[])
 		{
 			if (ports[i]!=NULL && jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) 
 			{
-				fprintf (stderr, "autoconnect: failed: %s to %s\n",
-                                                jack_port_name(ioPortArray[i]),ports[i]
+				fprintf (stderr, "autoconnect: failed: %s -> %s\n",
+                                                ports[i],jack_port_name(ioPortArray[i])
                                 );
                         }
                         else if(ports[i]!=NULL)
                         {
-                                fprintf (stderr, "autoconnect: %s to %s\n",
-                                                jack_port_name(ioPortArray[i]),ports[i]
+                                fprintf (stderr, "autoconnect: %s -> %s\n",
+                                                ports[i],jack_port_name(ioPortArray[i])
                                 );
                         }
 		}

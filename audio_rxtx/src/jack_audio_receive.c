@@ -711,13 +711,13 @@ main (int argc, char *argv[])
 		{
 			if (ports[i]!=NULL && jack_connect (client, jack_port_name(ioPortArray[i]), ports[i])) 
 			{
-				fprintf (stderr, "autoconnect: failed: %s to %s\n",
+				fprintf (stderr, "autoconnect: failed: %s -> %s\n",
 						jack_port_name(ioPortArray[i]),ports[i]
 				);
 			}
 			else if(ports[i]!=NULL)
 			{
-				fprintf (stderr, "autoconnect: %s to %s\n",
+				fprintf (stderr, "autoconnect: %s -> %s\n",
 						jack_port_name(ioPortArray[i]),ports[i]
 				);
 			}
