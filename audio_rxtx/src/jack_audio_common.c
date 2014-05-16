@@ -9,7 +9,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.61;
+float version = 0.62;
 
 lo_server_thread lo_st;
 
@@ -77,7 +77,7 @@ uint64_t get_free_mem(void)
 void print_header (char *prgname)
 {
 	fprintf (stderr, "\n%s v%.2f\n", prgname,version);
-	fprintf (stderr, "(C) 2013 Thomas Brand  <tom@trellis.ch>\n");
+	fprintf (stderr, "(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>\n");
 }
 
 void periods_to_HMS(char *buf, uint64_t periods)
