@@ -759,7 +759,7 @@ int deny_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	}
 
 	process_enabled=0;
-	fprintf(stderr,"\nreceiver did not accept audio.\n");
+	fprintf(stderr,"\nreceiver did not accept audio (incompatible jack settings on receiver). \n");
 	shutdown_in_progress=1;
 	return 0;
 }

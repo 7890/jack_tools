@@ -171,7 +171,7 @@ void print_info()
 		|| last_test_cycle==1
 	)
 	{
-		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %lu s: %.4f i: %.2f r: %" PRId64 
+		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
 			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f d: %.1f%s",
 
 			message_number,
@@ -302,7 +302,7 @@ process (jack_nframes_t nframes, void *arg)
 				}
 				else
 				{
-					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %lu%s",
+					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %zu%s",
 						message_number,
 						pre_buffer_size-pre_buffer_counter,
 						"\033[0J"
@@ -385,7 +385,7 @@ static void print_help (void)
 	fprintf (stderr, "  Update info every nth cycle   (99) --update   <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit    <integer>\n");
 	fprintf (stderr, "Listening port:   <integer>\n\n");
-	fprintf (stderr, "Example: jack_audio_receive --in 8 --connect --pre 200 1234\n");
+	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
 	//needs manpage
@@ -573,7 +573,7 @@ main (int argc, char *argv[])
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
-#ifndef __APPLE__
+#if 0 //ndef __APPLE__
 	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
 #endif
 
@@ -582,7 +582,7 @@ main (int argc, char *argv[])
 
 	size_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
 
-	fprintf(stderr,"initial buffer size: %lu mc periods (%s, %lu bytes, %.2f mb)\n",
+	fprintf(stderr,"initial buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n",
 		pre_buffer_size,
 		buf,
 		rb_size_pre,
@@ -614,7 +614,7 @@ main (int argc, char *argv[])
 	max_buffer_size=max_buffer_mc_periods;
 
 	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
-	fprintf(stderr,"allocated buffer size: %lu mc periods (%s, %lu bytes, %.2f mb)\n\n",
+	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n\n",
 		max_buffer_size,
 		buf,
 		rb_size,
@@ -622,7 +622,7 @@ main (int argc, char *argv[])
 	);
 	buf[0] = '\0';
 
-#ifndef __APPLE__
+#if 0//ndef __APPLE__
 	if(rb_size > get_free_mem())
 	{
 		fprintf(stderr,"not enough memory to create the ringbuffer.\n");
@@ -707,9 +707,13 @@ main (int argc, char *argv[])
 		{
 			if (jack_connect (client, jack_port_name(ioPortArray[i]), ports[i])) 
 			{
-				fprintf (stderr, "cannot connect output port %s\n",
+				fprintf (stderr, "autoconnect: could not connect output port %d to %s\n",i,
 						jack_port_name(ioPortArray[i])
 				);
+			}
+			else
+			{
+				fprintf (stderr, "autoconnect: output port %d connected to %s\n",i,jack_port_name(ioPortArray[i]));
 			}
 		}
 
@@ -944,11 +948,12 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//sending deny will tell sender to stop/quit
 		lo_send_message (loa, "/deny", msg);
 
-		fprintf(stderr,"\ndenying transmission from %s:%s (incompatible jack settings).\n",
-			lo_address_get_hostname(loa),lo_address_get_port(loa)
+		fprintf(stderr,"\ndenying transmission from %s:%s (incompatible jack settings on sender: SR: %d period size %d). telling sender to stop.\n",
+			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_sample_rate,offered_period_size
 		);
 
-		shutdown_in_progress=1;
+		//shutting down is not a good strategy for the receiver in this case
+		//shutdown_in_progress=1;
 	}
 
 	lo_message_free(msg);
@@ -1114,7 +1119,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		char buf[64];
 		format_seconds(buf,(float)max_buffer_periods*period_size/(float)sample_rate);
 
-		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %lu bytes, %.2f mb)\n",
+		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %zu bytes, %.2f mb)\n",
 			max_buffer_periods,
 			buf,
 			rb_size,
@@ -1135,7 +1140,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//fill buffer
 		size_t fill_periods_count=pre_buffer_periods-can_read_periods_count;
-		fprintf(stderr,"-> FILL %lu\n",fill_periods_count);
+		fprintf(stderr,"-> FILL %zu\n",fill_periods_count);
 
 		pre_buffer_size=fill_periods_count;
 		pre_buffer_counter=0;
@@ -1145,7 +1150,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//do in process() (reader)
 		requested_drop_count+=can_read_periods_count-pre_buffer_periods;
-		fprintf(stderr," -> DROP %lu\n",requested_drop_count);
+		fprintf(stderr," -> DROP %zu\n",requested_drop_count);
 	}
 	
 	return 0;
