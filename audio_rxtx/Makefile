@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=`pkg-config --libs --cflags jack liblo rubberband` -D_GNU_SOURCE -lm
+CFLAGS=`pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm
 SRC=src
 
 all: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
