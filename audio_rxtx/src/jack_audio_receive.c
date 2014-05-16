@@ -111,9 +111,11 @@ char sender_port[10];
 
 //insert(copy last): positive number
 //drop samples: negative number
+/*
 float sample_drift_per_second=0;
 float sample_drift_per_cycle=0;
 float sample_drift_sum=0;
+*/
 
 //ctrl+c etc
 static void signal_handler(int sig)
@@ -172,7 +174,7 @@ void print_info()
 	)
 	{
 		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
-			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f d: %.1f%s",
+			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",/* d: %.1f%s",*/
 
 			message_number,
 			input_port_count,
@@ -184,7 +186,7 @@ void print_info()
 			multi_channel_drop_counter,
 			buffer_overflow_counter,
 			(float)frames_since_cycle_start_avg/(float)period_size,
-			sample_drift_sum,
+			/*sample_drift_sum,*/
 			"\033[0J"
 		);
 		relaxed_display_counter=0;
@@ -251,7 +253,7 @@ process (jack_nframes_t nframes, void *arg)
 			last_test_cycle=1;
 		}
 
-		sample_drift_sum+=sample_drift_per_cycle;
+		//sample_drift_sum+=sample_drift_per_cycle;
 	}
 
 	//init to 0. increment before use
@@ -416,7 +418,7 @@ main (int argc, char *argv[])
 		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
 		{"mbuff",	required_argument,	0, 'm'},//max (allocate) buffer
 		{"nozero",	no_argument,	&zero_on_underflow, 'z'},
-		{"drift",	required_argument,	0, 'd'},
+		/*{"drift",	required_argument,	0, 'd'},*/
 		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
 		{0, 0, 0, 0}
@@ -482,9 +484,11 @@ main (int argc, char *argv[])
 				max_buffer_size=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
+/*
 			case 'd':
 				sample_drift_per_second=(float)atof(optarg);
 				break;
+*/
 
 			case 'u':
 				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
@@ -548,7 +552,7 @@ main (int argc, char *argv[])
 		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
 	}
 
-	sample_drift_per_cycle=(float)sample_drift_per_second/((float)sample_rate/(float)period_size);
+	//sample_drift_per_cycle=(float)sample_drift_per_second/((float)sample_rate/(float)period_size);
 
 	//print startup info
 
@@ -569,7 +573,7 @@ main (int argc, char *argv[])
 		strat="re-use last available period";
 	}
 
-	fprintf(stderr,"sample drift: %.1f samples per second\n", sample_drift_per_second);
+	//fprintf(stderr,"sample drift: %.1f samples per second\n", sample_drift_per_second);
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
@@ -695,7 +699,7 @@ main (int argc, char *argv[])
 	if (ports == NULL) 
 	{
 		fprintf(stderr,"no physical playback ports\n");
-		exit (1);
+		//exit (1);
 	}
 	
 	int connection_port_count=fmin(output_port_count,sizeof(ports));
@@ -760,7 +764,7 @@ void registerOSCMessagePatterns(const char *port)
 	lo_st = lo_server_thread_new(port, error);
 
 /*
-	/offer typestring: iiiifh
+	/offer iiiifh
 
 	1) i: sample rate
 	2) i: bytes per sample
@@ -773,7 +777,7 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/offer", "iiiifh", offer_handler, NULL);
 
 /*
-	/trip typestring: it
+	/trip it
 
 	1) i: id/sequence/any number that will be replied
 	2) t: timestamp from sender that will be replied
@@ -784,7 +788,7 @@ void registerOSCMessagePatterns(const char *port)
 /*
 	experimental
 
-	/buffer typestring: ii
+	/buffer ii
 
 	1) i: target fill value for available periods in ringbuffer (multi channel)
 	2) i: max. target buffer size in mc periods
@@ -796,7 +800,7 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/buffer", "ii", buffer_handler, NULL);
 
 /*
-	/audio typestring: hhtb*
+	/audio hhtb*
 
 	1) h: message number
 	2) h: xrun counter (sender side, as all the above meta data)
