@@ -633,9 +633,18 @@ main (int argc, char *argv[])
 		int i;
 		for(i=0;i<connection_port_count;i++)
 		{
-			if (jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) {
-				fprintf (stderr, "cannot connect input port %s\n",jack_port_name(ioPortArray[i]));
-			}
+			if (ports[i]!=NULL && jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) 
+			{
+				fprintf (stderr, "autoconnect: failed: %s to %s\n",
+                                                jack_port_name(ioPortArray[i]),ports[i]
+                                );
+                        }
+                        else if(ports[i]!=NULL)
+                        {
+                                fprintf (stderr, "autoconnect: %s to %s\n",
+                                                jack_port_name(ioPortArray[i]),ports[i]
+                                );
+                        }
 		}
 	}
 

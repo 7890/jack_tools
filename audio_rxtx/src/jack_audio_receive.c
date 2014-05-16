@@ -709,15 +709,17 @@ main (int argc, char *argv[])
 		int i;
 		for(i=0;i<connection_port_count;i++)
 		{
-			if (jack_connect (client, jack_port_name(ioPortArray[i]), ports[i])) 
+			if (ports[i]!=NULL && jack_connect (client, jack_port_name(ioPortArray[i]), ports[i])) 
 			{
-				fprintf (stderr, "autoconnect: could not connect output port %d to %s\n",i,
-						jack_port_name(ioPortArray[i])
+				fprintf (stderr, "autoconnect: failed: %s to %s\n",
+						jack_port_name(ioPortArray[i]),ports[i]
 				);
 			}
-			else
+			else if(ports[i]!=NULL)
 			{
-				fprintf (stderr, "autoconnect: output port %d connected to %s\n",i,jack_port_name(ioPortArray[i]));
+				fprintf (stderr, "autoconnect: %s to %s\n",
+						jack_port_name(ioPortArray[i]),ports[i]
+				);
 			}
 		}
 
