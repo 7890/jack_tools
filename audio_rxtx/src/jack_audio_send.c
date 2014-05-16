@@ -151,7 +151,7 @@ void offer_audio_to_receiver()
 	/*
 	don't send any audio data until accepted by receiver
 
-	typestring: iiiifh
+	/offer iiiifh
 
 	1) i: sample rate
 	2) i: bytes per sample
@@ -249,7 +249,7 @@ process(jack_nframes_t nframes, void *arg)
 
 //don't forget to update the dummy message in message_size()
 /*
-		/audio typestring: hhtb*
+		/audio hhtb*
 
 		1) h: message number
 		2) h: xrun counter (sender side, as all the above meta data)
@@ -623,7 +623,7 @@ main (int argc, char *argv[])
 				JackPortIsPhysical|JackPortIsOutput);
 	if (ports == NULL) {
 		fprintf(stderr, "no physical capture ports found\n");
-		exit (1);
+		//exit (1);
 	}
 	
 	int connection_port_count=fmin(input_port_count,sizeof(ports));
