@@ -72,6 +72,8 @@ float host_to_host_time_offset=0;
 
 struct timeval tv;
 
+int nopause=0;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
@@ -218,8 +220,9 @@ process(jack_nframes_t nframes, void *arg)
 
 	if(process_enabled==1)
 	{
-		//no answer from receiver yet
-		if(receiver_accepted==-1)
+		//no answer from receiver yet. 
+		//skip offering messages (directly send audio) if in nopause mode
+		if(receiver_accepted==-1 && nopause==0)
 		{
 			offer_audio_to_receiver();
 
@@ -357,13 +360,15 @@ static void print_help (void)
 {
 	fprintf (stderr, "Usage: jack_audio_send <Options> <Receiver host> <Receiver port>.\n");
 	fprintf (stderr, "Options:\n");
-	fprintf (stderr, "  Display this text:                 --help\n");
-	fprintf (stderr, "  Local port:                 (9990) --lport    <integer>\n");
-	fprintf (stderr, "  Number of capture channels:    (2) --in       <integer>\n");
-	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
-	fprintf (stderr, "  Jack client name:           (send) --name     <string>\n");
-	fprintf (stderr, "  Update info every nth cycle   (99) --update   <integer>\n");
-	fprintf (stderr, "  Limit totally sent messages: (off) --limit    <integer>\n");
+	fprintf (stderr, "  Display this text:                  --help\n");
+	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
+	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
+	fprintf (stderr, "  Autoconnect ports:            (off) --connect\n");
+	fprintf (stderr, "  Jack client name:            (send) --name   <string>\n");
+	fprintf (stderr, "  Update info every nth cycle    (99) --update <integer>\n");
+	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
+	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
+	fprintf (stderr, "  (Use with multiple receivers)\n");
 	fprintf (stderr, "Receiver host:   <string>\n");
 	fprintf (stderr, "Receiver port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
@@ -399,6 +404,7 @@ main (int argc, char *argv[])
 		{"name",	required_argument,	0, 'n'},
 		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},
+		{"nopause",	no_argument,	&nopause, 1},
 		{0, 0, 0, 0}
 	};
 
@@ -782,8 +788,16 @@ int pause_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		return 0;
 	}
 
-	fprintf(stderr,"\nreceiver requested pause\n");
-	receiver_accepted=-1;
-	msg_sequence_number=1;
+	if(nopause==0)
+	{
+		fprintf(stderr,"\nreceiver requested pause\n");
+		receiver_accepted=-1;
+		msg_sequence_number=1;
+	}
+	else
+	{
+		//fprintf(stderr,"\nsender is configured to ignore\n");
+	}
+
 	return 0;
 }
