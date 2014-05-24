@@ -4,6 +4,7 @@
 //jack_audio_common.h
 
 extern float version;
+extern float format_version;
 
 extern lo_server_thread lo_st;
 

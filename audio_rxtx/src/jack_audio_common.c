@@ -9,7 +9,8 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.63;
+float version = 0.64f;
+float format_version = 1.0f;
 
 lo_server_thread lo_st;
 
@@ -76,7 +77,7 @@ uint64_t get_free_mem(void)
 
 void print_header (char *prgname)
 {
-	fprintf (stderr, "\n%s v%.2f\n", prgname,version);
+	fprintf (stderr, "\n%s v%.2f (format v%.2f)\n", prgname,version,format_version);
 	fprintf (stderr, "(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>\n");
 }
 
