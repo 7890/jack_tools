@@ -1,6 +1,6 @@
 /* jack_audio_receive -- receive uncompressed audio from another host via OSC
  *
- * Copyright (C) 2013 Thomas Brand <tom@trellis.ch>
+ * Copyright (C) 2013 - 2014 Thomas Brand <tom@trellis.ch>
  *
  * This program is free software; feel free to redistribute it and/or 
  * modify it.
@@ -16,9 +16,6 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
-#ifndef WIN32
-#include <unistd.h>
-#endif
 #include <jack/jack.h>
 #include <jack/ringbuffer.h>
 #include <lo/lo.h>
@@ -30,7 +27,7 @@
 //asprintf is a GNU extensions that is only declared when __GNU_SOURCE is set
 #define __GNU_SOURCE
 
-//tb/130427/131206//131211//131216/131229
+//tb/130427/131206//131211//131216/131229/150523
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
 
 //inspired by several examples
@@ -41,6 +38,8 @@
 
 //between incoming osc messages and jack process() callbacks
 jack_ringbuffer_t *rb;
+
+jack_ringbuffer_t *rb_helper;
 
 //will be updated according to blob count in messages
 int input_port_count=2; //can't know yet
@@ -117,24 +116,39 @@ float sample_drift_per_cycle=0;
 float sample_drift_sum=0;
 */
 
+int remote_period_size=0;
+int remote_sample_rate=0;
+
+int close_on_incomp=0;
+
+int rebuffer_on_restart=0;
+int rebuffer_on_underflow=0;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
-	fprintf(stderr,"\nterminate signal %d received, telling sender to pause.\n",sig);
+	fprintf(stderr,"\nterminate signal %d received.\n",sig);
 
-	lo_address loa = lo_address_new(sender_host,sender_port);
-	lo_message msg=lo_message_new();
-	lo_send_message (loa, "/pause", msg);
-	lo_message_free(msg);
+	if(close_on_incomp==0)
+	{
+		fprintf(stderr,"telling sender to pause.\n");
+		lo_address loa = lo_address_new(sender_host,sender_port);
+		lo_message msg=lo_message_new();
+		lo_send_message (loa, "/pause", msg);
+		lo_message_free(msg);
+	}
 
 	shutdown_in_progress=1;
 	process_enabled=0;
+
+	usleep(1000);
 
 	fprintf(stderr,"cleaning up...");
 
 	jack_client_close(client);
 	lo_server_thread_free(lo_st);
 	jack_ringbuffer_free(rb);
+	jack_ringbuffer_free(rb_helper);
 
 	fprintf(stderr,"done.\n");
 
@@ -235,6 +249,12 @@ process (jack_nframes_t nframes, void *arg)
 		}
 
 		multi_channel_drop_counter++;
+
+		if(rebuffer_on_underflow==1)
+		{
+			pre_buffer_counter=0;
+			process_enabled=0;
+		}
 
 		//reset avg calculation
 		time_interval_avg=0;
@@ -349,7 +369,6 @@ process (jack_nframes_t nframes, void *arg)
 	{
 		fprintf(stderr,"\ntest finished after %" PRId64 " process cycles\n",process_cycle_counter);
 		fprintf(stderr,"(waiting and buffering cycles not included)\n");
-
 		shutdown_in_progress=1;
 	}
 
@@ -377,15 +396,19 @@ static void print_help (void)
 	fprintf (stderr, "Usage: jack_audio_receive <Options> <Listening port>.\n");
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text:                 --help\n");
-	fprintf (stderr, "  Number of playback channels:   (2) --out      <integer>\n");
+	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
-	fprintf (stderr, "  Jack client name:        (receive) --name     <string>\n");
-	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre      <integer>\n");
-	fprintf (stderr, "  Max buffer size >= init:    (auto) --mbuff    <integer>\n");
+	fprintf (stderr, "  Jack client name:        (receive) --name   <string>\n");
+	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre    <integer>\n");
+	fprintf (stderr, "  Max buffer size (>= init):  (auto) --max    <integer>\n");
+	fprintf (stderr, "  Rebuffer on sender restart:  (off) --rere\n");
+	fprintf (stderr, "  Rebuffer on underflow:       (off) --reuf\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
 //	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
-	fprintf (stderr, "  Update info every nth cycle   (99) --update   <integer>\n");
-	fprintf (stderr, "  Limit processing count:      (off) --limit    <integer>\n");
+	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
+	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
+	fprintf (stderr, "  Quit on incompatibility:     (off) --close\n");
+
 	fprintf (stderr, "Listening port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
@@ -416,11 +439,15 @@ main (int argc, char *argv[])
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
 		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
-		{"mbuff",	required_argument,	0, 'm'},//max (allocate) buffer
-		{"nozero",	no_argument,	&zero_on_underflow, 'z'},
+		{"max",		required_argument,	0, 'm'},//max (allocate) buffer
+		{"rere",	no_argument,	&rebuffer_on_restart, 1},
+		{"reuf",	no_argument,	&rebuffer_on_underflow, 1},
+		{"nozero",	no_argument,	&zero_on_underflow, 0},
 		/*{"drift",	required_argument,	0, 'd'},*/
-		{"update",	required_argument,	0, 'u'},
+		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
+		{"close",	no_argument,	&close_on_incomp, 1},//close client rather than telling sender to stop
+
 		{0, 0, 0, 0}
 	};
 
@@ -618,7 +645,7 @@ main (int argc, char *argv[])
 	max_buffer_size=max_buffer_mc_periods;
 
 	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
-	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n\n",
+	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n",
 		max_buffer_size,
 		buf,
 		rb_size,
@@ -630,18 +657,21 @@ main (int argc, char *argv[])
 	if(rb_size > get_free_mem())
 	{
 		fprintf(stderr,"not enough memory to create the ringbuffer.\n");
-		fprintf(stderr,"try --mbuff <smaller size>.\n");
+		fprintf(stderr,"try --max <smaller size>.\n");
 		exit(1);
 	}
 #endif
 
 	//====================================
+	//main ringbuffer osc blobs -> jack output
 	rb = jack_ringbuffer_create (rb_size);
+	//helper ringbuffer: used when remote period size < local period size
+	rb_helper = jack_ringbuffer_create (rb_size);
 
 	if(rb==NULL)
 	{
 		fprintf(stderr,"could not create a ringbuffer with that size.\n");
-		fprintf(stderr,"try --mbuff <smaller size>.\n");
+		fprintf(stderr,"try --max <smaller size>.\n");
 		exit(1);
 	}
 
@@ -727,16 +757,10 @@ main (int argc, char *argv[])
 	}
 
 	/* install a signal handler to properly quits jack client */
-#ifdef WIN32
-	signal(SIGINT, signal_handler);
-	signal(SIGABRT, signal_handler);
-	signal(SIGTERM, signal_handler);
-#else
 	signal(SIGQUIT, signal_handler);
 	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
-#endif
 
 	//add osc hooks & start server
 	registerOSCMessagePatterns(listenPort);
@@ -749,12 +773,7 @@ main (int argc, char *argv[])
 		{
 			signal_handler(42);
 		}
-
-	#ifdef WIN32 
-		Sleep(1000);
-	#else
 		sleep (1);
-	#endif
 	}
 
 	exit (0);
@@ -766,17 +785,18 @@ void registerOSCMessagePatterns(const char *port)
 	lo_st = lo_server_thread_new(port, error);
 
 /*
-	/offer iiiifh
+	/offer fiiiifh
 
-	1) i: sample rate
-	2) i: bytes per sample
-	3) i: period size
-	4) i: channel count
-	5) f: expected network data rate
-	6) h: send / request counter
+	1) f: audio rx/tx format version
+	2) i: sample rate
+	3) i: bytes per sample
+	4) i: period size
+	5) i: channel count
+	6) f: expected network data rate
+	7) h: send / request counter
 */
 
-	lo_server_thread_add_method(lo_st, "/offer", "iiiifh", offer_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/offer", "fiiiifh", offer_handler, NULL);
 
 /*
 	/trip it
@@ -802,97 +822,98 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/buffer", "ii", buffer_handler, NULL);
 
 /*
-	/audio hhtb*
+	/audio hhtib*
 
 	1) h: message number
 	2) h: xrun counter (sender side, as all the above meta data)
 	3) t: timetag containing seconds since 1970 and usec fraction
-	4) b: blob of channel 1 (period size * bytes per sample) bytes long
+	4) i: sampling rate
+	5) b: blob of channel 1 (period size * bytes per sample) bytes long
 	...
-	11) b: up to 8 channels
+	68) b: up to 64 channels
 */
 
 	//support 1-8 blobs / channels per message
-	lo_server_thread_add_method(lo_st, "/audio", "hhtb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtib", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbb", audio_handler, NULL);
 //8
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbb", audio_handler, NULL);
 //16
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 //32
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", audio_handler, NULL);
 //64. ouff. maybe using a generic handler?
 //this is a theoretical value, working on localhost at best
 //to test 64 channels, use a small period size
@@ -916,12 +937,15 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		return 0;
 	}
 
-	int offered_sample_rate=argv[0]->i;
-	int offered_bytes_per_sample=argv[1]->i;
-	int offered_period_size=argv[2]->i;
-	int offered_channel_count=argv[3]->i;
-	float offered_data_rate=argv[4]->f;
-	uint64_t request_counter=argv[5]->h;
+	float offered_format_version=argv[0]->f;
+
+	int offered_sample_rate=argv[1]->i;
+	int offered_bytes_per_sample=argv[2]->i;
+	int offered_period_size=argv[3]->i;
+	int offered_channel_count=argv[4]->i;
+
+	float offered_data_rate=argv[5]->f;
+	uint64_t request_counter=argv[6]->h;
 
 	lo_message msg=lo_message_new();
 
@@ -933,9 +957,15 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	if(
 		offered_sample_rate==sample_rate
 		&& offered_bytes_per_sample==bytes_per_sample
-		&& offered_period_size==period_size
+		&& offered_format_version==format_version
+
+		//new: support non-matching period sizes
+		//&& offered_period_size==period_size
 	)
 	{
+		remote_sample_rate=sample_rate;
+		remote_period_size=offered_period_size;
+
 		strcpy(sender_host,lo_address_get_hostname(loa));
 		strcpy(sender_port,lo_address_get_port(loa));
 
@@ -949,17 +979,28 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 		starting_transmission=1;
 	}
-	else
+	//data is incompatible, handle depending on --close
+	else if(close_on_incomp==0)
 	{
 		//sending deny will tell sender to stop/quit
+		lo_message_add_float(msg,format_version);
+		lo_message_add_int32(msg,sample_rate);
 		lo_send_message (loa, "/deny", msg);
 
-		fprintf(stderr,"\ndenying transmission from %s:%s (incompatible jack settings on sender: SR: %d period size %d). telling sender to stop.\n",
-			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_sample_rate,offered_period_size
+		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings or format version on sender:\nformat version: %.2f\nSR: %d\ntelling sender to stop.\n",
+			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate
 		);
 
 		//shutting down is not a good strategy for the receiver in this case
 		//shutdown_in_progress=1;
+	}
+	else
+	{
+		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings or format version on sender\nformat version: %.2f\nSR: %d\nshutting down... (see option --close)\n",
+			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate
+		);
+
+		shutdown_in_progress=1;
 	}
 
 	lo_message_free(msg);
@@ -992,13 +1033,80 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	);
 */
 
+	//first blob is at data_offset+1 (one-based)
+	int data_offset=4;
+
 	//the messages are numbered sequentially. first msg is numberd 1
 	message_number=argv[0]->h;
 
-	if(message_number_prev>message_number)
+	//check sample rate and period size if sender (re)started or values not yet initialized (=no /offer received)
+	if(message_number_prev>message_number || message_number==1 || remote_sample_rate==0 || remote_period_size==0 )
 	{
-		printf("\nsender was restarted\n");
-	}
+		lo_address loa = lo_message_get_source(data);
+		strcpy(sender_host,lo_address_get_hostname(loa));
+		strcpy(sender_port,lo_address_get_port(loa));
+
+		//option --rebuff
+		if(rebuffer_on_restart==1)
+		{
+			size_t can_read_count=jack_ringbuffer_read_space(rb);
+			pre_buffer_counter=fmax(0,(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count);
+			//start buffering
+			process_enabled=0;
+		}
+		else
+		{
+			pre_buffer_counter=0;
+		}
+
+		remote_sample_rate=argv[3]->i;
+
+		if(sample_rate!=remote_sample_rate)
+		{
+			if(close_on_incomp==0)
+			{
+				//sending deny will tell sender to stop/quit
+				lo_message msg = lo_message_new();
+
+				lo_message_add_float(msg,format_version);
+				lo_message_add_int32(msg,sample_rate);
+				lo_send_message (loa, "/deny", msg);
+				lo_message_free(msg);
+
+				fprintf(stderr,"\ndenying transmission from %s:%s\n(incompatible jack settings on sender: SR: %d). telling sender to stop.\n",
+					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
+				);
+
+				message_number=0;
+				message_number_prev=0;
+				remote_sample_rate=0;
+				remote_period_size=0;
+//				pre_buffer_counter=0;
+			}
+			else
+			{
+				lo_address loa = lo_message_get_source(data);
+				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings on sender: SR: %d.\nshutting down (see option --close)...\n",
+					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
+				);
+
+				shutdown_in_progress=1;
+				return 0;
+			}
+		}
+
+		remote_period_size=lo_blob_datasize((lo_blob)argv[0+data_offset])/bytes_per_sample;
+		fprintf(stderr,"\nsender was (re)started. ");
+
+		if(remote_period_size!=period_size)
+		{
+			fprintf(stderr,"sender period size: %d samples (%.3f x local)\n\n",remote_period_size,(float)remote_period_size/period_size);
+		}
+		else
+		{
+			fprintf(stderr,"equal sender and receiver period size\n\n");
+		}
+	}//end if "no-offer init" was needed
 
 	message_number_prev=message_number;
 
@@ -1024,9 +1132,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		time_interval_sum=0;
 	}
 
-	//first blob is at data_offset+1 (one-based)
-	int data_offset=3;
-
 	//total args count minus metadata args count = number of blobs
 	input_port_count=argc-data_offset;
 
@@ -1049,23 +1154,100 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			return 0;
 	}
 
-	int i;
-	//don't read more channels than we have outputs
-	for(i=0;i < port_count;i++)
+
+	//========================================
+	//new: support different period sizes on sender / receiver (still need same SR)
+	//this needs more tests and optimization
+	if(period_size==remote_period_size)
 	{
-		//get blob (=one period of one channel)
-		unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
-		//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
+		int i;
+		//don't read more channels than we have outputs
+		for(i=0;i < port_count;i++)
+		{
+			//get blob (=one period of one channel)
+			unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+			//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
 
-		size_t can_write_count=jack_ringbuffer_write_space(rb);
-
-		//write to ringbuffer
-		//==========================================
-		int cnt=jack_ringbuffer_write(rb, (void *) data, 
-			period_size*bytes_per_sample);
-
+			//write to ringbuffer
+			//==========================================
+			int cnt=jack_ringbuffer_write(rb, (void *) data, 
+				period_size*bytes_per_sample);
+		}
+		pre_buffer_counter++;
 	}
-	pre_buffer_counter++;
+	else if(period_size>remote_period_size)
+	{
+		int i;
+		//don't read more channels than we have outputs
+		for(i=0;i < port_count;i++)
+		{
+			//get blob (=one period of one channel)
+			unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+			//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
+
+			//write to temporary ringbuffer until there is enough data
+			//==========================================
+			int cnt=jack_ringbuffer_write(rb_helper, (void *) data, 
+				remote_period_size*bytes_per_sample);
+		}
+
+		//if enough data collected for one larger multichannel period
+		while(jack_ringbuffer_read_space(rb_helper)	>=period_size*bytes_per_sample*port_count
+		&& jack_ringbuffer_write_space(rb)		>=period_size*bytes_per_sample*port_count)
+		{
+			//transfer from helper to main ringbuffer
+			unsigned char* data;
+			data=malloc(				period_size*bytes_per_sample*port_count);
+			//store orig pointer
+			unsigned char* orig_data=data;
+			jack_ringbuffer_read(rb_helper,data,	period_size*bytes_per_sample*port_count);
+
+			for(i=0;i < port_count;i++)
+			{
+				int k;
+				for(k=0;k<(period_size/remote_period_size);k++)
+				{
+					//reset pointer
+					data=orig_data;
+					//position in helper buffer for next sample for main buffer
+					data+=	k*remote_period_size*bytes_per_sample*port_count
+							+ i*remote_period_size*bytes_per_sample;
+
+					//write one channel snipped (remote_period_size) to main buffer
+					int w=jack_ringbuffer_write(rb,(void *)data,remote_period_size*bytes_per_sample);
+				}
+			}
+			data=orig_data;
+			free(data);
+
+			pre_buffer_counter++;
+		}
+	}
+	else if(period_size<remote_period_size)
+	{
+		int k;
+		for(k=0;k<(remote_period_size/period_size);k++)
+		{
+
+			int i;
+			//don't read more channels than we have outputs
+			for(i=0;i < port_count;i++)
+			{
+				//get blob (=one period of one channel)
+				unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+				//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
+
+				//write to ringbuffer
+				//==========================================
+				data+=k*period_size*bytes_per_sample;
+
+				int cnt=jack_ringbuffer_write(rb, (void *) data, 
+					period_size*bytes_per_sample);
+			}
+			pre_buffer_counter++;
+		}
+	}
+
 
 	return 0;
 }//end audio_handler
