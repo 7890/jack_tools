@@ -1,6 +1,6 @@
 /* jack_audio_send -- send uncompressed audio to another host via OSC
  *
- * Copyright (C) 2013 Thomas Brand <tom@trellis.ch>
+ * Copyright (C) 2013 - 2014 Thomas Brand <tom@trellis.ch>
  *
  * This program is free software; feel free to redistribute it and/or 
  * modify it.
@@ -16,9 +16,6 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
-#ifndef WIN32
-#include <unistd.h>
-#endif
 #include <jack/jack.h>
 #include <lo/lo.h>
 #include <sys/time.h>
@@ -26,7 +23,7 @@
 
 #include "jack_audio_common.h"
 
-//tb/130427/131206//131211
+//tb/130427/131206/131211/140523
 //gcc -o jack_audio_send jack_audio_send.c `pkg-config --cflags --libs jack liblo`
 
 //inspired by several examples
@@ -123,6 +120,7 @@ int message_size()
 	tt.sec=tv.tv_sec;
 	tt.frac=tv.tv_usec;
 	lo_message_add_timetag(msg,tt);
+	lo_message_add_int32(msg,1111);
 
 	lo_blob blob[input_port_count];
 	void* membuf = malloc(period_size*bytes_per_sample);
@@ -153,22 +151,24 @@ void offer_audio_to_receiver()
 	/*
 	don't send any audio data until accepted by receiver
 
-	/offer iiiifh
+	/offer fiiiifh
 
-	1) i: sample rate
-	2) i: bytes per sample
-	3) i: period size
-	4) i: channel count
-	5) f: expected network data rate
-	6) h: send / request counter
+	1) f: audio rx/tx format version
+	2) i: sample rate
+	3) i: bytes per sample
+	4) i: period size
+	5) i: channel count
+	6) f: expected network data rate
+	7) h: send / request counter
 
-	receiver should answer with /accept or /deny
+	receiver should answer with /accept or /deny fi <incomp. receiver format version> <incomp. receiver SR>
 	*/
 
 	lo_message msg=lo_message_new();
 
 	//tell metadata about the stream
 	//clients can decide if they're compatible
+	lo_message_add_float(msg,format_version);
 	lo_message_add_int32(msg,sample_rate);
 	lo_message_add_int32(msg,bytes_per_sample);
 	lo_message_add_int32(msg,period_size);
@@ -252,14 +252,15 @@ process(jack_nframes_t nframes, void *arg)
 
 //don't forget to update the dummy message in message_size()
 /*
-		/audio hhtb*
+		/audio hhtib*
 
 		1) h: message number
 		2) h: xrun counter (sender side, as all the above meta data)
 		3) t: timetag containing seconds since 1970 and usec fraction 
-		4) b: blob of channel 1 (period size * bytes per sample) bytes long
+		4) i: sampling rate
+		5) b: blob of channel 1 (period size * bytes per sample) bytes long
 		...
-		67) b: up to 64 channels
+		68) b: up to 64 channels
 */
 
 		lo_message msg=lo_message_new();
@@ -275,6 +276,7 @@ process(jack_nframes_t nframes, void *arg)
 		tt.sec=(long)tv.tv_sec;
 		tt.frac=(long)tv.tv_usec;
 		lo_message_add_timetag(msg,tt);
+		lo_message_add_int32(msg,sample_rate);
 
 		//blob array, holding one period per channel
 		lo_blob blob[input_port_count];
@@ -295,6 +297,7 @@ process(jack_nframes_t nframes, void *arg)
 
 		//==================================
 		lo_send_message (loa, "/audio", msg);
+		//fprintf(stderr,"msg size %d\n",lo_message_length(msg,"/audio"));
 
 		//free resources to keep memory clean
 		lo_message_free (msg);
@@ -315,8 +318,8 @@ process(jack_nframes_t nframes, void *arg)
 				" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f mb) p: %.1f%s",
 				msg_sequence_number,hms,
 				xrun_counter,
-				transfer_size*msg_sequence_number+140, //140: minimal offer/accept
-				(float)(transfer_size*msg_sequence_number+140)/1000/1000,
+				transfer_size*msg_sequence_number,//+140, //140: minimal offer/accept
+				(float)(transfer_size*msg_sequence_number)/1000/1000,//+140)/1000/1000,
 				(float)frames_since_cycle_start_avg/(float)period_size,
 				"\033[0J"
 			);
@@ -368,7 +371,7 @@ static void print_help (void)
 	fprintf (stderr, "  Update info every nth cycle    (99) --update <integer>\n");
 	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
-	fprintf (stderr, "  (Use with multiple receivers)\n");
+	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
 	fprintf (stderr, "Receiver host:   <string>\n");
 	fprintf (stderr, "Receiver port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
@@ -503,7 +506,9 @@ main (int argc, char *argv[])
 	loa = lo_address_new(sendToHost, sendToPort);
 
 	lo_server_thread_add_method(lo_st, "/accept", "", accept_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/deny", "", deny_handler, NULL);
+
+	lo_server_thread_add_method(lo_st, "/deny", "fi", deny_handler, NULL);
+
 	lo_server_thread_add_method(lo_st, "/pause", "", pause_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/trip", "itt", trip_handler, NULL);
 
@@ -544,7 +549,7 @@ main (int argc, char *argv[])
 		input_port_count*period_size*bytes_per_sample
 	);
 
-	fprintf(stderr, "message rate: %.1f packets/s\n",
+	fprintf(stderr, "message rate: %.1f messages/s\n",
 		(float)sample_rate/(float)period_size
 	);
 
@@ -552,10 +557,41 @@ main (int argc, char *argv[])
 	msg_size=message_size();
 
 	//size in bytes totally used to send over network
-	//experimental, compared with iptraf, localhost
+	//experimental, compared with iptraf, wireshark
 	//handshake (offer/accept/deny/pause) not counted
-	//20 bytes ip header, 8 bytes udp header, +?
-	transfer_size=14+28+msg_size;
+
+	//2, 44100, 512 -> msg size 4148 bytes ***
+
+	//http://ask.wireshark.org/questions/9982/mtu-size-and-path-mtu-discovery
+
+	//on the wire:
+	//sequence of
+	//proto IPv4 length 1514 Fragmented IP protocol UDP [Reassembled in #2140]
+	//
+	//	14 bytes ethernet II header
+	//	20 bytes IP v4 header (length: 1500)
+	//	1480 bytes data (payload)
+
+	//proto IPv4 ...
+	//UDP        length 1230 (Frame#2140)
+	//	14 bytes ethernet II header
+	//	20 bytes IP v4 header	
+	//	8 bytes UDP header (length: 4156)
+	//	4148 bytes data *** (reassembled)
+
+	//per sent packet (!=message) (respect MTU):
+
+	//how to calculate:
+	//message_size / MTU payload
+	//4148 bytes / 1480 bytes = 2.8027
+	//floor(2.0827) = 2
+	//2 x 1514 + 4148 mod 1480 
+	//= 3028 + 1188 = 4216
+	//+ 14 + 20 + 8 = 4258 total transfer
+
+	transfer_size=floor(msg_size / 1480) * 1514
+			+fmod(msg_size,1480)
+			+14+20+8;
 
 	fprintf(stderr,"message length: %d bytes\n", msg_size);
 	fprintf(stderr,"transfer length: %d bytes (%.1f %% overhead)\n", 
@@ -642,31 +678,25 @@ main (int argc, char *argv[])
 			if (ports[i]!=NULL && jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) 
 			{
 				fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-                                                ports[i],jack_port_name(ioPortArray[i])
-                                );
-                        }
-                        else if(ports[i]!=NULL)
-                        {
-                                fprintf (stderr, "autoconnect: %s -> %s\n",
-                                                ports[i],jack_port_name(ioPortArray[i])
-                                );
-                        }
+					ports[i],jack_port_name(ioPortArray[i])
+				);
+			}
+			else if(ports[i]!=NULL)
+			{
+				fprintf (stderr, "autoconnect: %s -> %s\n",
+					ports[i],jack_port_name(ioPortArray[i])
+				);
+			}
 		}
 	}
 
 	free (ports);
 
 	/* install a signal handler to properly quits jack client */
-#ifdef WIN32
-	signal(SIGINT, signal_handler);
-	signal(SIGABRT, signal_handler);
-	signal(SIGTERM, signal_handler);
-#else
 	signal(SIGQUIT, signal_handler);
 	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
-#endif
 
 	//start the osc server
 	lo_server_thread_start(lo_st);
@@ -683,12 +713,7 @@ main (int argc, char *argv[])
 		{
 			signal_handler(42);
 		}
-
-	#ifdef WIN32 
-		Sleep(1000);
-	#else
 		sleep (1);
-	#endif
 	}
 
 	exit (0);
@@ -710,7 +735,6 @@ void trip()
 
 		lo_message msg=lo_message_new();
 		lo_message_add_int32(msg,i);
-
 		lo_message_add_timetag(msg,tt);
 
 		lo_send_message (loa, "/trip", msg);
@@ -773,9 +797,14 @@ int deny_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		return 0;
 	}
 
-	process_enabled=0;
-	fprintf(stderr,"\nreceiver did not accept audio (incompatible jack settings on receiver). \n");
-	shutdown_in_progress=1;
+	if(nopause==0)
+	{
+		process_enabled=0;
+		shutdown_in_progress=1;
+
+		fprintf(stderr,"\nreceiver did not accept audio\nincompatible jack settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n",argv[0]->f,argv[1]->i);
+	}
+
 	return 0;
 }
 
