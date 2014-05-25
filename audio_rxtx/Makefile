@@ -2,15 +2,17 @@ CC ?= gcc
 CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm
 PREFIX ?= /usr/local
 INSTALLDIR ?= $(PREFIX)/bin
-#MANDIR ?= $(PREFIX)/share/man/man1
+MANDIR ?= $(PREFIX)/share/man/man1
 
 SRC = src
 BLD = build
 DOC = doc
 
-default: all
+default: compile
 
-all: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
+all: compile manpage
+
+compile: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
 
 	@echo ""
 	@echo "compiling jack_audio_send, jack_audio_recieve"
@@ -20,7 +22,7 @@ all: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
 	@echo "CFLAGS    : $(CFLAGS)"
 	@echo "PREFIX    : $(PREFIX)"
 	@echo "INSTALLDIR: $(INSTALLDIR)"
-#	@echo "MANDIR    : $(MANDIR)"
+	@echo "MANDIR    : $(MANDIR)"
 	@echo ""
 	@echo "to change these variables either edit the Makefile or use i.e.:"
 	@echo "sudo make install PREFIX=/usr"
@@ -40,9 +42,28 @@ all: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
 	@echo "done. next (if there were no errors) is: sudo make install"
 	@echo ""
 
+manpage:
+	@echo ""
+	@echo "creating manpage with asciidoc"
+	@echo "------------------------------"
+	@echo ""
+
+	a2x --doctype manpage --format manpage $(DOC)/jack_audio_send.man.asciidoc
+	gzip -9 -f $(DOC)/jack_audio_send.1
+	a2x --doctype manpage --format manpage $(DOC)/jack_audio_receive.man.asciidoc
+	gzip -9 -f $(DOC)/jack_audio_receive.1
+
+	@echo ""
+	@echo "done."
+	@echo ""
+
 clean:
 	rm -f ./$(BLD)/*.o
 	rm -f ./$(BLD)/jack_audio*
+
+	@echo ""
+	@echo "done."
+	@echo ""
 
 install: 
 	@echo ""
@@ -57,12 +78,11 @@ install:
 	@echo ""
 
 	mkdir -p $(DESTDIR)$(INSTALLDIR)/
-#	mkdir -p $(DESTDIR)$(MANDIR)/
+	mkdir -p $(DESTDIR)$(MANDIR)/
 	install -m755 $(BLD)/jack_audio_send $(DESTDIR)$(INSTALLDIR)/
 	install -m755 $(BLD)/jack_audio_receive $(DESTDIR)$(INSTALLDIR)/
-#	install -m644 $(DOC)/jack_audio_send.1.gz $(DESTDIR)$(MANDIR)/
-#	install -m644 $(DOC)/jack_audio_receive.1.gz $(DESTDIR)$(MANDIR)/
-
+	install -m644 $(DOC)/jack_audio_send.1.gz $(DESTDIR)$(MANDIR)/
+	install -m644 $(DOC)/jack_audio_receive.1.gz $(DESTDIR)$(MANDIR)/
 
 	@echo ""
 	@echo "done!"
@@ -82,8 +102,8 @@ uninstall:
 
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_audio_send
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_audio_receive
-#	rm -f $(DESTDIR)$(MANDIR)/jakc_audio_send.1.gz
-#	rm -f $(DESTDIR)$(MANDIR)/jakc_audio_receive.1.gz
+	rm -f $(DESTDIR)$(MANDIR)/jack_audio_send.1.gz
+	rm -f $(DESTDIR)$(MANDIR)/jack_audio_receive.1.gz
 
 	@echo ""
 	@echo "done."
