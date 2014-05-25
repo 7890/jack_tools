@@ -1,0 +1,245 @@
+jack_audio_receive(1)
+====================
+:doctype: manpage
+
+NAME
+----
+jack_audio_receive - JACK client to transmit audio data in a LAN
+
+SYNOPSIS
+--------
+*jack_audio_receive* [options] listening_port
+
+DESCRIPTION
+-----------
+'jack_audio_send' & 'jack_audio_receive' are JACK clients
+allowing to transmit uncompressed native JACK 32 bit float 
+audio data on the network using UDP OSC messages.
+
+All involved JACK servers must share the same 
+sampling rate but can run at different period sizes.
+
+- The main purpose is to transmit audio in one direction from host a to host(s) b(, c, ...)
+- Sender and receiver are seperate programs
+- There is no such thing as master / slave
+- The programs run as a regular JACK clients
+- There is no resampling done at either the sender or receiver side
+
+The term "mc" period refers to multichannel period which contains the period of each 
+channel for a given JACK cycle.
+
+audio_rxtx uses liblo >= 0.27
+
+*THIS PROGRAM COMES WITHOUT ANY WARRANTY*
+
+
+OPTIONS
+-------
+*--help*::
+	Display help
+
+*--out*::
+	Number of output/playback channels.
+	Default: 2
+
+*--connect*::
+	Autoconnect ports.
+	This will connect all jack_audio_receive ports to physical output/playback ports.
+	Default: off
+
+*--name*::
+	Jack client name.
+	Default: jack_audio_receive
+
+*--sname*::
+	Jack server name.
+	Default: default //:)
+
+*--pre*::
+	Initial buffer size. Default: 4 mc periods
+
+*--max*::
+	Max buffer size (>= init). Default: (auto)
+
+*--rere*::
+	Rebuffer on sender restart. Default: off
+
+*--reuf*::
+	Rebuffer on underflow. Default: off
+
+*--nozero*::
+	Re-use old data on underflow: Default: off
+
+*---update*::
+	Update info displayed in terminal every nth JACK cycle.
+	Default: 99
+
+*--limit*::
+	Limit totally received messages.
+	This is useful for tests. Receive an exact amount of messages, then quit program.
+	Default: off
+
+*--close*::
+	Quit if received data is incompatible. Default: off
+
+*listening_port*::
+	Local port to listen for audio.
+
+EXAMPLES
+--------
+
+Receive 2 channels on port 1234, automatically connect ports, rebuffer on underflow:
+
+	$ jack_audio_receive --in 2 --connect --rere 4444
+
+Example output of jack_audio_receive:
+
+	listening on osc port: 4444
+	sample rate: 44100
+	bytes per sample: 4
+	period size: 256 samples (5.805 ms, 1024 bytes)
+	channels (playback): 2
+	multi-channel period size: 2048 bytes
+	underflow strategy: fill with zero (silence)
+	rebuffer on sender restart: no
+	rebuffer on underflow: yes
+	shutdown receiver when incompatible data received: no
+	initial buffer size: 4 mc periods (23.220 ms, 8192 bytes, 0.01 mb)
+	allocated buffer size: 91 mc periods (528.254 ms, 186368 bytes, 0.19 mb)
+
+	# 1384 i: 4 f: 4.5 b: 9216 s: 0.0261 i: 5.82 r: 0 l: 0 d: 0 o: 0 p: 0.1
+
+Legend:
+
+- #: message id given by sender, sequence number since start of sender
+- i: input channel count (can dynamically change)
+- f: buffer fill level: periods (for all channels)
+- b: buffer fill level: bytes
+- s: buffer fill level: seconds
+- i: average time between messages: milliseconds
+- r: remote xrun counter
+- l: local xrun counter
+- d: dropped multi-channel periods (buffer underflow)
+- o: buffer overflows (lost audio)
+- p: how much of the available process cycle time was used to do the work (1=100%)
+
+
+Receive 16 channels on port 1234, pre-buffer 100 mc periods, close receiver when incompatible:
+
+	$ jack_audio_receive --in 16 --pre 100 --close 1234 
+
+
+
+PROGRAM STATUSES
+----------------
+
+jack_audio_receive statuses:
+
+0) initializing, starting up with given parameters
+
+1) waiting for audio (if no sender is currently active)
+
+2 - 4 only if sender was started *without* --nopause:
+
+2) receiving audio */offer* from sender
+
+3) */deny* transmission (if offered audio was incompatible)
+
+	-> don't send /deny to sender if receiver was started with --close
+	-> quit receiver when started with --close
+
+OR
+
+4) */accept* transmission (if offered audio was compatible)
+
+5) buffering audio (for the given --pre size in periods)
+
+6) playing audio (read from buffer, pass to jack)
+
+7) buffer underflow (not enough data to read)
+
+	-> rebuffer (if --reuf set)
+	-> fill buffer with zero (silence) (if --nozero NOT set)
+	-> fill buffer with last available value (if --nozero set)
+
+8) buffer overflow (buffer full, can't add more data)
+
+9) sender was restarted 
+
+	-> rebuffer (if --rere set)
+
+10) incompatible data received
+
+	-> telling sender to stop (if --close NOT set)
+	-> shutting down receiver (if --close set)
+
+11) receiver closed (ctrl+c / --limit reached)
+
+	-> telling sender to pause (if --close NOT set)
+
+OSC FORMAT
+----------
+
+The OSC messages that are sent by jack_audio_received are defined as follows:
+
+*/accept*
+
+	(no parameters)
+
+*/deny fi*
+
+	1) f: format version
+	2) i: sampling rate
+
+*/pause*
+
+	(no parameters)
+
+All properties refer to the receiving host.
+
+The OSC messages that are understood by jack_audio_receive are defined as follows:
+
+- */offer ffiiiifh*
+- */audio hhtib**
+
+- */buffer ii*
+
+	1) i: buffer pre-fill (--pre)
+	2) i: buffer max size (--max)
+
+/buffer is not sent by sender, it's an experimental way for any process to 
+control the buffer status of the receiver via OSC.
+
+Playback will either pause (refill buffer) or audio will get lost (drop samples) 
+to match the desired buffer fill level.
+
+If <buffer max size> is not the same as --max / auto,
+a new buffer will be created and filled with <buffer pre-fill>
+
+Please also see manpage of jack_audio_send.
+The liblo tool programs 'oscdump' and 'oscsend' should also be mentioned here.
+
+/////////
+- */trip itt*
+/////////
+
+RESOURCES
+---------
+Github: <https://github.com/7890/jack_tools>
+
+BUGS
+----
+Please report any bugs as issues to the github repository. Patches and pull requests are welcome.
+
+SEE ALSO
+--------
+*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1)
+
+AUTHORS
+-------
+Thomas Brand <tom@trellis.ch>
+
+COPYING
+-------
+Copyright \(C) 2013 - 2014 Thomas Brand. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).

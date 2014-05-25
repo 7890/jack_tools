@@ -1,0 +1,214 @@
+jack_audio_send(1)
+=================
+:doctype: manpage
+
+NAME
+----
+jack_audio_send - JACK client to transmit audio data in a LAN
+
+SYNOPSIS
+--------
+*jack_audio_send* [options] target_host target_port
+
+DESCRIPTION
+-----------
+'jack_audio_send' & 'jack_audio_receive' are JACK clients
+allowing to transmit uncompressed native JACK 32 bit float 
+audio data on the network using UDP OSC messages.
+
+All involved JACK servers must share the same 
+sampling rate but can run at different period sizes.
+
+- The main purpose is to transmit audio in one direction from host a to host(s) b(, c, ...)
+- Sender and receiver are seperate programs
+- There is no such thing as master / slave
+- The programs run as a regular JACK clients
+- There is no resampling done at either the sender or receiver side
+
+The term "mc" period refers to multichannel period which contains the period of each 
+channel for a given JACK cycle.
+
+audio_rxtx uses liblo >= 0.27
+
+*THIS PROGRAM COMES WITHOUT ANY WARRANTY*
+
+
+OPTIONS
+-------
+*--help*::
+	Display help
+
+*--lport*::
+	Local port. Default: 9990
+
+*--in*::
+	Number of input/capture channels.
+	Up to 64 channels are possible. Use small JACK period sizes with high channel counts.
+	Default: 2
+
+*--connect*::
+	Autoconnect ports.
+	This will connect all physical input/capture ports to jack_audio_send.
+	Default: off
+
+*--name*::
+	Jack client name.
+	Default: jack_audio_send
+
+*--sname*::
+	Jack server name.
+	Default: default //:)
+
+*---update*::
+	Update info displayed in terminal every nth JACK cycle.
+	Default: 99
+
+*--limit*::
+	Limit totally sent messages.
+	This is useful for tests. Send an exact amount of messages, then quit program.
+	Default: off
+
+*--nopause*:: (no argument)
+	Immediate send, ignore /pause, /deny.
+	Use with multiple receivers.
+	Default: off
+
+*target_host*::
+	A valid target (receiver) hostname or IP address.
+	Broadcast IP addresses should work too (i.e. 10.10.10.255)
+
+*target_port*::
+	Port to send audio to.
+	If target_host is a broadcast address, target_port could be interpreted as target_bus.
+
+EXAMPLES
+--------
+
+Send 4 channels to port 1234 on host 10.10.10.3:
+
+	$ jack_audio_send --in 4 10.10.10.3 1234
+
+Example output of jack_audio_send:
+
+	sending from osc port: 9990
+	target host:port: 10.10.10.3:1234
+	sample rate: 44100
+	bytes per sample: 4
+	period size: 256 samples (5.805 ms, 1024 bytes)
+	channels (capture): 4
+	immediate send, no pause or shutdown: no
+	multi-channel period size: 4096 bytes
+	message rate: 172.3 packets/s
+	message length: 4156 bytes
+	transfer length: 4198 bytes (2.4 % overhead)
+	expected network data rate: 5785.4 kbit/s (0.72 mb/s)
+
+	# 15093 (00:01:27) xruns: 0 tx: 63360554 bytes (63.36 mb) p: 0.1
+
+Legend:
+
+- #: sequential message number since start of program
+- (HH:MM:SS): elapsed time corresponding to message number
+- xruns: local xrun counter
+- tx: calculated network traffic sum
+- p: how much of the available process cycle time was used to do the work (1=100%)
+
+
+Send 16 channels to subnet broadcast address 10.10.10.255, "bus" 1234:
+
+	$ jack_audio_send --in 16 --nopause 10.10.10.255 1234
+
+jack_audio_send has no buffer. A message with all channels as blobs is sent in every JACK cycle.
+
+
+PROGRAM STATUSES
+----------------
+
+jack_audio_send statuses:
+
+0) initializing, starting up with given parameters
+
+1) offering audio to given host
+
+2) received */deny* transmission (if offered audio was incompatible)
+
+	-> quit
+
+OR
+
+3) received */accept* transmission (if offered audio was compatible)
+
+4) sending */audio* to receiver (one message = one multi-channel period)
+
+5) received */pause* transmission 
+
+	-> offering again
+
+
+jack_audio_send statuses with option *--nopause*:
+
+0) initializing, starting up with given parameters
+
+1) sending */audio* to receiver (one message = one multi-channel period)
+
+
+OSC FORMAT
+----------
+
+The OSC messages that are sent by jack_audio_send are defined as follows:
+
+*/offer ffiiiifh*
+
+	1) f: audio rx/tx format version
+	2) i: sampling rate
+	3) i: bytes per sample
+	4) i: period size
+	5) i: channel count
+	6) f: expected network data rate
+	7) h: send / request counter
+
+*/audio hhtib**
+
+	1) h: message number
+	2) h: xrun counter
+	3) t: timetag containing seconds since 1970 and usec fraction 
+	4) i: sampling rate
+	5) b: blob of channel 1 (period size * bytes per sample) bytes long
+	...
+	68) b: up to 64 channels
+
+All properties refer to the sending host.
+
+The OSC messages that are understood by jack_audio_send are defined as follows:
+
+- */accept*
+- */deny fi*
+- */pause*
+
+Please also see manpage of jack_audio_receive.
+The liblo tool programs 'oscdump' and 'oscsend' should also be mentioned here.
+
+/////////
+- */trip itt*
+/////////
+
+RESOURCES
+---------
+Github: <https://github.com/7890/jack_tools>
+
+BUGS
+----
+Please report any bugs as issues to the github repository. Patches and pull requests are welcome.
+
+SEE ALSO
+--------
+*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1)
+
+AUTHORS
+-------
+Thomas Brand <tom@trellis.ch>
+
+COPYING
+-------
+Copyright \(C) 2013 - 2014 Thomas Brand. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).
