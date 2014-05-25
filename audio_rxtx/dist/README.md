@@ -14,15 +14,21 @@ tested on
 
 install:
 -------
-
-on debian style:
+using .deb (debian, ubuntu, ...)
 sudo dpkg -i audio-rxtx.deb //(use exact name of .deb file)
+#sudo dpkg -i --force-depends audio-rxtx.deb //(use exact name of .deb file)
+
+using .rpm (fedora, ...)
+sudo rpm -i audio-rxtx.rpm //(use exact name of .rpm file)
+#rpm -i --nodeps audio-rxtx.rpm //(use exact name of .rpm file)
 
 uninstall:
 ---------
-
-on debian style:
+using .deb:
 sudo apt-get remove audio-rxtx
+
+using .rpm:
+sudo yum remove audio-rxtx
 
 issues:
 -------
@@ -51,5 +57,11 @@ Errors were encountered while processing:
 
 consider to use --force-depends:
 sudo dpkg -i --force-depends audio-rxtx_0-1_armhf.deb  
+
+when getting:
+"error while loading shared libraries: libxxyy.so.n: cannot open shared object file":
+-ldd `which jack_audio_send` / ldd `which jack_audio_send` to confirm missing
+-sudo updatedb; locate libxxyy.so.n
+-eventually start with LD_LIBRARY_PATH=/usr/local/lib jack_audio_xx
 
 ```
