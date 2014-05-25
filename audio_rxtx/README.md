@@ -6,6 +6,7 @@ native JACK 32 bit float audio data on the network using UDP OSC messages.
 All involved JACK servers must share the same sampling rate but can run at different period sizes.
 
 audio_rxtx uses jackd, liblo >= 0.27
+(older liblo is prone to server error 9912)
 
 Build & Install on Linux
 ========================
