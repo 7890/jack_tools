@@ -1162,9 +1162,13 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		process_enabled=1;
 	}
 
+
+	int mc_period_bytes=period_size*bytes_per_sample*port_count;
+
+
 	//check if a whole mc period can be written to the ringbuffer
 	size_t can_write_count=jack_ringbuffer_write_space(rb);
-	if(can_write_count < port_count*period_size*bytes_per_sample)
+	if(can_write_count < mc_period_bytes)
 	{
 			buffer_overflow_counter++;
 			/////////////////
@@ -1210,15 +1214,16 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		}
 
 		//if enough data collected for one larger multichannel period
-		while(jack_ringbuffer_read_space(rb_helper)	>=period_size*bytes_per_sample*port_count
-		&& jack_ringbuffer_write_space(rb)		>=period_size*bytes_per_sample*port_count)
+
+		while(jack_ringbuffer_read_space(rb_helper)	>=mc_period_bytes
+		&& jack_ringbuffer_write_space(rb)		>=mc_period_bytes)
 		{
 			//transfer from helper to main ringbuffer
 			unsigned char* data;
-			data=malloc(				period_size*bytes_per_sample*port_count);
+			data=malloc(				mc_period_bytes);
 			//store orig pointer
 			unsigned char* orig_data=data;
-			jack_ringbuffer_read(rb_helper,data,	period_size*bytes_per_sample*port_count);
+			jack_ringbuffer_read(rb_helper,data,	mc_period_bytes);
 
 			for(i=0;i < port_count;i++)
 			{
