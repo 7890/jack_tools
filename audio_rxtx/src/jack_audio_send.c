@@ -545,6 +545,15 @@ main (int argc, char *argv[])
 
 	fprintf(stderr, "channels (capture): %d\n",input_port_count);
 
+	if(nopause==1)
+	{
+		fprintf(stderr, "immediate send, ignore /pause and /deny: yes\n");
+	}
+	else
+	{
+		fprintf(stderr, "immediate send, no pause or shutdown: no\n");
+	}
+
 	fprintf(stderr,"multi-channel period size: %d bytes\n",
 		input_port_count*period_size*bytes_per_sample
 	);

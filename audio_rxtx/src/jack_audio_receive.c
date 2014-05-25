@@ -604,6 +604,24 @@ main (int argc, char *argv[])
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
+	if(rebuffer_on_restart==1)
+	{
+		fprintf(stderr,"rebuffer on sender restart: yes\n");
+	}
+	else
+	{
+		fprintf(stderr,"rebuffer on sender restart: no\n");
+	}
+
+	if(rebuffer_on_underflow==1)
+	{
+		fprintf(stderr,"rebuffer on underflow: yes\n");
+	}
+	else
+	{
+		fprintf(stderr,"rebuffer on underflow: no\n");
+	}
+
 #if 0 //ndef __APPLE__
 	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
 #endif
