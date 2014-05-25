@@ -22,6 +22,8 @@ extern int autoconnect;
 
 extern int max_channel_count;
 
+jack_options_t jack_opts;
+
 extern int shutdown_in_progress;
 
 extern uint64_t buffer_overflow_counter;

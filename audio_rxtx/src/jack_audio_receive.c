@@ -398,7 +398,8 @@ static void print_help (void)
 	fprintf (stderr, "  Display this text:                 --help\n");
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
-	fprintf (stderr, "  Jack client name:        (receive) --name   <string>\n");
+	fprintf (stderr, "  JACK client name:        (receive) --name   <string>\n");
+	fprintf (stderr, "  JACK server name:        (default) --sname  <string>\n");
 	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre    <integer>\n");
 	fprintf (stderr, "  Max buffer size (>= init):  (auto) --max    <integer>\n");
 	fprintf (stderr, "  Rebuffer on sender restart:  (off) --rere\n");
@@ -424,7 +425,7 @@ main (int argc, char *argv[])
 	const char **ports;
 	const char *client_name="receive"; //param
 	const char *server_name = NULL;
-	jack_options_t options = JackNullOption;
+	//jack_options_t options = JackNullOption;
 	jack_status_t status;
 
 	//osc
@@ -438,6 +439,7 @@ main (int argc, char *argv[])
 		{"out",		required_argument, 	0, 'o'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
+		{"sname",	required_argument,	0, 's'},
 		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
 		{"max",		required_argument,	0, 'm'},//max (allocate) buffer
 		{"rere",	no_argument,	&rebuffer_on_restart, 1},
@@ -503,6 +505,12 @@ main (int argc, char *argv[])
 				client_name=optarg;
 				break;
 
+			case 's':
+				server_name = (char *) malloc (sizeof (char) * strlen(optarg));
+				strcpy (server_name, optarg);
+				jack_opts |= JackServerName;
+				break;
+
 			case 'b':
 				pre_buffer_size=fmax(1,(uint64_t)atoll(optarg));
 				break;
@@ -562,12 +570,12 @@ main (int argc, char *argv[])
 	ioBufferArray = (jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//open a client connection to the JACK server
-	client = jack_client_open (client_name, options, &status, server_name);
+	client = jack_client_open (client_name, jack_opts, &status, server_name);
 	if (client == NULL) {
 		fprintf(stderr,"jack_client_open() failed, "
 			 "status = 0x%2.0x\n", status);
 		if (status & JackServerFailed) {
-			fprintf(stderr,"Unable to connect to JACK server\n");
+			fprintf(stderr,"Unable to connect to JACK server.\n");
 		}
 		exit (1);
 		}
@@ -621,6 +629,17 @@ main (int argc, char *argv[])
 	{
 		fprintf(stderr,"rebuffer on underflow: no\n");
 	}
+
+	if(close_on_incomp==1)
+	{
+		fprintf(stderr,"shutdown receiver when incompatible data received: yes\n");
+	}
+	else
+	{
+		fprintf(stderr,"shutdown receiver when incompatible data received: no\n");
+	}
+
+
 
 #if 0 //ndef __APPLE__
 	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
@@ -1005,7 +1024,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		lo_message_add_int32(msg,sample_rate);
 		lo_send_message (loa, "/deny", msg);
 
-		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings or format version on sender:\nformat version: %.2f\nSR: %d\ntelling sender to stop.\n",
+		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender:\nformat version: %.2f\nSR: %d\ntelling sender to stop.\n",
 			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate
 		);
 
@@ -1014,7 +1033,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	}
 	else
 	{
-		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings or format version on sender\nformat version: %.2f\nSR: %d\nshutting down... (see option --close)\n",
+		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender\nformat version: %.2f\nSR: %d\nshutting down... (see option --close)\n",
 			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate
 		);
 
@@ -1091,7 +1110,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 				lo_send_message (loa, "/deny", msg);
 				lo_message_free(msg);
 
-				fprintf(stderr,"\ndenying transmission from %s:%s\n(incompatible jack settings on sender: SR: %d). telling sender to stop.\n",
+				fprintf(stderr,"\ndenying transmission from %s:%s\n(incompatible JACK settings on sender: SR: %d). telling sender to stop.\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
 				);
 
@@ -1104,7 +1123,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			else
 			{
 				lo_address loa = lo_message_get_source(data);
-				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible jack settings on sender: SR: %d.\nshutting down (see option --close)...\n",
+				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings on sender: SR: %d.\nshutting down (see option --close)...\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
 				);
 

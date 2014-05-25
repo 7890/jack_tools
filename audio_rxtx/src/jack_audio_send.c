@@ -367,7 +367,8 @@ static void print_help (void)
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
 	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:            (off) --connect\n");
-	fprintf (stderr, "  Jack client name:            (send) --name   <string>\n");
+	fprintf (stderr, "  JACK client name:            (send) --name   <string>\n");
+	fprintf (stderr, "  JACK server name:         (default) --sname  <string>\n");
 	fprintf (stderr, "  Update info every nth cycle    (99) --update <integer>\n");
 	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
@@ -376,7 +377,7 @@ static void print_help (void)
 	fprintf (stderr, "Receiver port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
-	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
+	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
 	//needs manpage
 	exit (1);
 }
@@ -388,7 +389,7 @@ main (int argc, char *argv[])
 	const char **ports;
 	const char *client_name="send"; //param
 	const char *server_name = NULL;
-	jack_options_t options = JackNullOption;
+	//jack_options_t options = JackNullOption;
 	jack_status_t status;
 
 	//osc
@@ -405,6 +406,7 @@ main (int argc, char *argv[])
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
+		{"sname",       required_argument,      0, 's'},
 		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},
 		{"nopause",	no_argument,	&nopause, 1},
@@ -466,6 +468,12 @@ main (int argc, char *argv[])
 				client_name=optarg;
 				break;
 
+			case 's':
+				server_name = (char *) malloc (sizeof (char) * strlen(optarg));
+				strcpy (server_name, optarg);
+				jack_opts |= JackServerName;
+				break;
+
 			case 'u':
 				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
@@ -520,7 +528,7 @@ main (int argc, char *argv[])
 	ioBufferArray = (jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//open a client connection to the JACK server
-	client = jack_client_open (client_name, options, &status, server_name);
+	client = jack_client_open (client_name, jack_opts, &status, server_name);
 	if (client == NULL) {
 		fprintf (stderr, "jack_client_open() failed, "
 			 "status = 0x%2.0x\n", status);
@@ -811,7 +819,7 @@ int deny_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		process_enabled=0;
 		shutdown_in_progress=1;
 
-		fprintf(stderr,"\nreceiver did not accept audio\nincompatible jack settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n",argv[0]->f,argv[1]->i);
+		fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n",argv[0]->f,argv[1]->i);
 	}
 
 	return 0;

@@ -35,6 +35,8 @@ int autoconnect=0; //param
 
 int max_channel_count=64;
 
+jack_options_t jack_opts = JackNoStartServer;
+
 int shutdown_in_progress=0;
 
 uint64_t buffer_overflow_counter=0;
