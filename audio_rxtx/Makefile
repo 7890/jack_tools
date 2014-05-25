@@ -8,6 +8,13 @@ SRC = src
 BLD = build
 DOC = doc
 
+#.deb package
+SRC_URL="https://github.com/7890/jack_tools"
+MAINTAINER="tom@trellis.ch"
+LICENSE="GPL"
+VERSION=0
+RELEASE=1
+
 default: compile
 
 all: compile manpage
@@ -108,5 +115,15 @@ uninstall:
 	@echo ""
 	@echo "done."
 	@echo ""
+
+deb64:
+	checkinstall -D --arch=amd64 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
+#	sudo make deb64 PREFIX=/usr
+
+deb32:
+	checkinstall -D --arch=i386 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
+#	sudo make deb32 PREFIX=/usr
 
 .PHONY: all
