@@ -361,7 +361,7 @@ jack_shutdown (void *arg)
 
 static void print_help (void)
 {
-	fprintf (stderr, "Usage: jack_audio_send <Options> <Receiver host> <Receiver port>.\n");
+	fprintf (stderr, "Usage: jack_audio_send [Options] target_host target_port.\n");
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text:                  --help\n");
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
@@ -373,8 +373,8 @@ static void print_help (void)
 	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
 	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
-	fprintf (stderr, "Receiver host:   <string>\n");
-	fprintf (stderr, "Receiver port:   <integer>\n\n");
+	fprintf (stderr, "target_host:   <string>\n");
+	fprintf (stderr, "target_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");

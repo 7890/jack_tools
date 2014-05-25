@@ -393,7 +393,7 @@ jack_shutdown (void *arg)
 
 static void print_help (void)
 {
-	fprintf (stderr, "Usage: jack_audio_receive <Options> <Listening port>.\n");
+	fprintf (stderr, "Usage: jack_audio_receive [Options] listening_port.\n");
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text:                 --help\n");
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
@@ -409,8 +409,7 @@ static void print_help (void)
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
 	fprintf (stderr, "  Quit on incompatibility:     (off) --close\n");
-
-	fprintf (stderr, "Listening port:   <integer>\n\n");
+	fprintf (stderr, "listening_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");

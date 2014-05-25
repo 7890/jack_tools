@@ -18,34 +18,43 @@ man jack_audio_receive
 
 
 =====
-Usage: jack_audio_send <Options> <Receiver host> <Receiver port>.
+Usage: jack_audio_send [Options] target_host target_port
 Options:
-  Display this text:                 --help
-  Local port:                 (9990) --lport <number>
-  Number of capture channels:    (2) --in <number>
-  Autoconnect ports:           (off) --connect
-  Jack client name:           (send) --name <string>
-  Update info every nth cycle   (99) --update <number>
-  Limit totally sent messages: (off) --limit <number>
+  Display this text:                  --help
+  Local port:                  (9990) --lport  <integer>
+  Number of capture channels :    (2) --in     <integer>
+  Autoconnect ports:            (off) --connect
+  JACK client name:            (send) --name   <string>
+  JACK server name:         (default) --sname  <string>
+  Update info every nth cycle    (99) --update <integer>
+  Limit totally sent messages:  (off) --limit  <integer>
   Immediate send, ignore /pause (off) --nopause
   (Use with multiple receivers. Ignore /pause, /deny)
+target_host:   <string>
+target_port:   <integer>
+
+Example: jack_audio_send --in 8 10.10.10.3 1234
 
 
 =====
-Usage: jack_audio_receive <Options> <Listening port>.
+Usage: jack_audio_receive [Options] listening_port
 Options:
   Display this text:                 --help
-  Number of playback channels:   (2) --out <number>
+  Number of playback channels:   (2) --out    <integer>
   Autoconnect ports:           (off) --connect
-  Jack client name:        (receive) --name <string>
-  Initial buffer size:(4 mc periods) --pre <number>
-  Max buffer size >= init:    (auto) --max <number>
+  JACK client name:        (receive) --name   <string>
+  JACK server name:        (default) --sname  <string>
+  Initial buffer size:(4 mc periods) --pre    <integer>
+  Max buffer size (>= init):  (auto) --max    <integer>
   Rebuffer on sender restart:  (off) --rere
   Rebuffer on underflow:       (off) --reuf
   Re-use old data on underflow: (no) --nozero
-  Update info every nth cycle   (99) --update <number>
-  Limit processing count:      (off) --limit <number>
+  Update info every nth cycle   (99) --update <integer>
+  Limit processing count:      (off) --limit  <integer>
   Quit on incompatibility:     (off) --close
+listening_port:   <integer>
+
+Example: jack_audio_receive --out 8 --connect --pre 200 1234
 
 
 ```
