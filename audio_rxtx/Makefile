@@ -126,4 +126,9 @@ deb32:
 	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
 #	sudo make deb32 PREFIX=/usr
 
+debarmhf: 
+	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="shellutils" --requires="liblo7,libncurses5" --install=no make install
+#	sudo make debarmhf PREFIX=/usr
+
 .PHONY: all
