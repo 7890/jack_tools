@@ -29,6 +29,8 @@ Options:
   Jack client name:           (send) --name <string>
   Update info every nth cycle   (99) --update <number>
   Limit totally sent messages: (off) --limit <number>
+  Immediate send, ignore /pause (off) --nopause
+  (Use with multiple receivers. Ignore /pause, /deny)
 Receiver host:   <string>
 Receiver port:   <number>
 
@@ -47,6 +49,7 @@ sample rate: 44100
 bytes per sample: 4
 period size: 256 samples (5.805 ms, 1024 bytes)
 channels (capture): 4
+immediate send, no pause or shutdown: no
 multi-channel period size: 4096 bytes
 message rate: 172.3 packets/s
 message length: 4156 bytes
@@ -65,11 +68,14 @@ p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_sender states:
 -offering audio to given host
--receiving accepted transmission (if offered audio was compatible)
--receiveing denying transmission (if offered audio was incompatible)
+-received /accept transmission (if offered audio was compatible)
+-received /deny transmission (if offered audio was incompatible)
  *** quit
 -sending /audio to receiver (one message = one multi-channel period)
 -receiveing pause transmission -> offering again
+
+jack_audio_sender states (--nopause):
+-sending /audio to receiver (one message = one multi-channel period)
 
 jack_audio_send has no buffer. in every cycle, a message
 is sent with all channels as blobs.
@@ -83,10 +89,14 @@ Options:
   Autoconnect ports:           (off) --connect
   Jack client name:        (receive) --name <string>
   Initial buffer size:(4 mc periods) --pre <number>
-  Max buffer size >= init:    (auto) --mbuff <number>
+  Max buffer size >= init:    (auto) --max <number>
+  Rebuffer on sender restart:  (off) --rere
+  Rebuffer on underflow:       (off) --reuf
   Re-use old data on underflow: (no) --nozero
   Update info every nth cycle   (99) --update <number>
   Limit processing count:      (off) --limit <number>
+  Quit on incompatibility:     (off) --close
+
 Listening port:   <number>
 
 Example: jack_audio_receive --in 8 --connect --pre 200 1234
@@ -100,7 +110,9 @@ period size: 256 samples (5.805 ms, 1024 bytes)
 channels (playback): 2
 multi-channel period size: 2048 bytes
 underflow strategy: fill with zero (silence)
-free memory: 5651 mb
+rebuffer on sender restart: no
+rebuffer on underflow: yes
+shutdown receiver when incompatible data received: no
 initial buffer size: 4 mc periods (23.220 ms, 8192 bytes, 0.01 mb)
 allocated buffer size: 91 mc periods (528.254 ms, 186368 bytes, 0.19 mb)
 
@@ -122,14 +134,19 @@ p: how much of the available process cycle time was used to do the work (1=100%)
 
 jack_audio_receive states:
 -waiting for audio (if no sender is currently active)
+
+if sender was started without --nopause:
 -receiving audio /offer from sender
 -accepting transmission (if offered audio was compatible)
 -denying transmission (if offered audio was incompatible)
+
 -buffering (for the given --pre size in periods)
 -playing (read from buffer, pass to jack)
 -buffer underflow (not enough data to read)
+ -rebuffer (if --reuf set)
 -buffer overflow (buffer full, can't add more data)
--shutting down (not accepting data/control, clean up)
+-rebuffer on sender restart (if --rere set)
+-shutting down, not accepting data (-if --close set)
 
 Absolutely no resampling involved for now.
 
