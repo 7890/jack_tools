@@ -505,8 +505,7 @@ main (int argc, char *argv[])
 				break;
 
 			case 's':
-				server_name = (char *) malloc (sizeof (char) * strlen(optarg));
-				strcpy (server_name, optarg);
+				server_name=optarg;
 				jack_opts |= JackServerName;
 				break;
 
