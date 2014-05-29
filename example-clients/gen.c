@@ -52,7 +52,7 @@ frequency / periodicity:
 	/freq/bpm f
 	/freq/samples f
 	/freq/nth_cycle f	#f times size of jack cycle
-#	/freq/wavelength f	#[mm]
+	/freq/wavelength f	#[mm]
 		/freq/speed_of_sound f	#[m/s] (345*)
 	/freq/period_duration	#[ms]
 	/freq/multiply f	#multiply current freq with f
@@ -62,7 +62,7 @@ frequency / periodicity:
 	/freq/bpm/rel f
 	/freq/samples/rel f
 	/freq/nth_cycle/rel f
-##	/freq/wavelength/rel f		#[mm]
+#	/freq/wavelength/rel f		#[mm]
 	/freq/period_duration/rel	#[ms]
 
 
@@ -74,7 +74,7 @@ frequency / periodicity:
 				#followed by octave: -1 - 9
 
 
-#	/freq/midi_note/rel i
+	/freq/midi_note/rel i
 
 basic control:
 	/gen/on			#global on: fill audio output buffers with generated signal
@@ -149,6 +149,7 @@ double nth_cycle_to_samples(double nth_cycle);
 double samples_to_nth_cycle(double samples);
 
 double wavelength_to_samples(double wavelength);
+double wavelength_to_herz(double wavelength);
 double samples_to_wavelength(double samples);
 
 double time_to_samples(double duration);
@@ -502,8 +503,8 @@ static int process (jack_nframes_t frames, void* arg)
 			else if(!strcmp(path,"/freq/speed_of_sound") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				freq.speed_of_sound=args[0]->f;
-			////
 				//recalc wavelength
+				set_all_freq(freq.samples_per_period);
 			}
 			else if(!strcmp(path,"/freq/midi_note") && !strcmp(types,"i") && args[0]->i >= 0)
 			{
@@ -853,6 +854,10 @@ double herz_to_wavelength(double frequency)
 	//wavelength = speed of sound / frequency
 	double l=(double)freq.speed_of_sound/frequency;
 	return (double)1000*l;
+
+
+//frequency=speed of sound/wavelength
+
 }
 double samples_to_herz(double samples)
 {
@@ -893,8 +898,13 @@ double samples_to_nth_cycle(double samples)
 //[mm]
 double wavelength_to_samples(double wavelength)
 {
-/////
-	return 0;
+	return herz_to_samples(wavelength_to_herz(wavelength));
+}
+double wavelength_to_herz(double wavelength) //[mm]
+{
+	//frequency = speed of sound / wavelength
+	double f=(double)freq.speed_of_sound / (wavelength / 1000);
+	return f;
 }
 double samples_to_wavelength(double samples)
 {
@@ -1012,10 +1022,10 @@ void print_all_properties()
 		,samples_to_herz(midi_notes[midi_index].samples));
 
 	fprintf(stderr,"speed of sound [m/s]: %f\n",freq.speed_of_sound);
-	fprintf(stderr,"(dummy) wavelength [mm]: \n");//,freq.wavelength);
+	fprintf(stderr,"wavelength [mm]: %f\n",freq.wavelength);
 
 	fprintf(stderr,"status: %d\n",gen.status);
-	fprintf(stderr,"pulse length: %f\n",gen.pulse_length);
+	fprintf(stderr,"pulse length [samples]: %f\n",gen.pulse_length);
 
 	fprintf(stderr,"amplification: %f\n",gen.amplification);
 	fprintf(stderr,"dc_offset: %f\n",gen.dc_offset);
