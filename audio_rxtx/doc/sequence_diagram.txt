@@ -1,0 +1,160 @@
+audio_rxtx (jack_audio_send, jack_audio_receive) sequence diagrams
+******************************************************************
+//tb/140529
+
+standard communication live cycle of sender and receiver
+========================================================
+
+-the sender and receiver are started with default options
+-the order of program startup of sender and receiver doesn't make a difference
+-compatibility means sender and receiver share the same sampling rate
+-receiver fills playout buffer at any time with zero (silence) if there 
+ is no audio data to play (yet/anymore)
+-sender restarts to offer after told via /pause
+
+
+         sender
+           |1)         /offer
+           |-------------------------------->[] (no receiver available)
+           |           /offer
+           |-------------------------------->[]
+           |            ...
+           |           /offer            receiver
+           |-------------------------------->|---.
+           |           /accpet               |   | check compatiblity
+       .---|<--------------------------------|---|
+       |   |2)         /audio                |
+       |---|-------------------------------->|- fill pre-play buffer
+           |           /audio                |
+           |-------------------------------->|- ...
+           |            ...                  |
+           |           /audio                |
+           |-------------------------------->|- buffer 100% filled
+           |           /audio                |  -> start playout
+           |-------------------------------->|- continue to receive
+           |            ...                  |  and playout
+           |                                 |  ...
+           |           /pause                |
+     go to-|<--------------------------------|  (receiver was shut down)
+     1)    |                                 _
+           .                                 
+
+
+shutting down sender on incompatibility
+=======================================
+
+-the default behaviour (sender & receiver use default values) is so that
+ sender will shutdown once received a /deny (on incompatibility)
+
+
+         sender
+           |           /offer            receiver
+           |-------------------------------->|---.
+           |           /deny                 |   | check compatiblity
+ stop    --|<--------------------------------|---|  -> incompatible
+ offering, |                                 |
+ shut down _                                 | wait for (another) sender
+                                             |
+                                             |
+                                             .
+
+
+shutting down receiver on incompatibility
+=========================================
+
+-if receiver started with option --close, it will shut down when
+ imcompatible data was received and won't send /deny to sender.
+ this applies both to /offer and to /audio messages.
+-sender will continue to offer / send
+
+
+         sender
+           |           /offer            receiver
+           |-------------------------------->|--- check compatiblity
+           |                                 |     -> incompatible 
+           |                                 _   shut down
+           |           /offer
+           |-------------------------------->[] (no receiver available)
+           |           /offer               
+           |-------------------------------->[]
+           |            ... 
+           .
+
+
+         sender
+           |           /audio            receiver
+           |-------------------------------->|--- check compatiblity
+           |                                 |     -> incompatible 
+           |                                 _   shut down
+           |           /audio
+           |-------------------------------->[] (no receiver available)
+           |           /audio               
+           |-------------------------------->[]
+           |            ... 
+           .
+
+
+running sender in broadcast mode
+================================
+
+-when sender sends to multiple receivers via broadcast address,
+ it should not pause or quit when one receiver requested so.
+ therefore all /pause and /deny requests should be ignored.
+ for that, the sender must be started with option --nopause
+
+
+         sender                           reciever
+           |           /audio                ?                       
+immediate  |-------------------------------->?                     
+send,      |           /audio                ?
+no offer   |-------------------------------->?
+           |            ...                  ?
+
+
+         sender                           reciever
+           |            ...                  |    
+           |           /accept               |                       
+ ignore  --|<--------------------------------|                     
+           |                                 |
+                        ...                       
+           |           /deny                 |                       
+ ignore  --|<--------------------------------|                     
+           |                                 |
+                        ...                       
+           |           /pause                |                       
+ ignore  --|<--------------------------------|                     
+           |                                 |
+
+
+controlling the receiver buffer
+===============================
+
+-the receiver uses a lockfree ringbuffer internally
+-the receiver buffer has a max size
+-the receiver buffer can be filled to a certain level before playback starts
+-the receiver buffer can be re-filled on certain events
+
+-lockfree ringbuffers are a common scenario in producer/consumer systems
+
+-a buffer can overflow (not enouth buffer write space):
+ -the desired amount of data cannot be written to the buffer
+
+-a buffer can underflow (not enough buffer read space):
+ -the desired amount of data cannot be read
+
+-the default behaviour is to have a pre-play buffer of 4 mc periods
+ the pre-play buffer size can be set via option --pre
+
+-no measurements are currently taken when there is a buffer overflow (!)
+ the max buffer size can be set via option --max
+
+-default behaviour on buffer underflow is to fill with zero (silence)
+ -if receiver was started with option --nozero, the last available data will be used
+ -if receiver was started with --reuf, the buffer will be re-filled to pre-play level
+
+-if receiver was started with --rere, the buffer will be re-filled to pre-play level 
+ if the sender was restarted (gap in message #)
+
+-an OSC message /buffer ii <pre> <max> can be sent to a receiver to 
+ immediately rebuffer or drop from buffer to meet requested <pre> and 
+ resize the buffer so that the total size is <max>
