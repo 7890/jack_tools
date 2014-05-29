@@ -57,6 +57,15 @@ frequency / periodicity:
 	/freq/period_duration	#[ms]
 	/freq/multiply f	#multiply current freq with f
 
+#add or substract f from freq in given units
+	/freq/herz/rel f	
+	/freq/bpm/rel f
+	/freq/samples/rel f
+	/freq/nth_cycle/rel f
+##	/freq/wavelength/rel f		#[mm]
+	/freq/period_duration/rel	#[ms]
+
+
 	/freq/a4_ref f		#[hz] A4 reference for chromatic midi freqs (440*)
 	/freq/midi_note i	#(>=0, <=127, C-1=0, A4=69, G9=127)
 	/freq/midi_note s	#C-1 - G9, upper- and lower case possible
@@ -64,17 +73,20 @@ frequency / periodicity:
 				#starting with one of: C,C#,D,D#,E,F,F#,G,G#,A,A#,B
 				#followed by octave: -1 - 9
 
+
+#	/freq/midi_note/rel i
+
 basic control:
 	/gen/on			#global on: fill audio output buffers with generated signal
 	/gen/off		#global off: fill audio output buffers with 0 (off) or with generated signal (on)
-	/gen/restart_at i	#restart signal at jack cycle position i (stop currently ongoing)
+	/gen/restart_at i	#restart signal at jack cycle __sample__ position i (stop currently ongoing)
 	/gen/stop		#stop (act like if duration was elapsed but do not loop)
 
-#	/gen/restart_on_freq_change i	#automatically restart signal on req change 0: off 1: on
+#	/gen/restart_on_freq_change i	#automatically restart signal on freq change 0: off 1: on
 #	/gen/restart_on_pulse_length_change i	#automatically restart signal on pulse length change 0: off 1: on
 
 	/gen/loop_enable i	#0: off 1: on
-	/gen/loop_gap i		#samples to wait before looping after duration elapsed
+	/gen/loop_gap i		# __samples__ to wait before looping after duration elapsed
 
 minimal processing:
 	/gen/amplify f		#multiplication, linear (-1 to invert)
@@ -156,8 +168,11 @@ void set_all_duration(double samples);
 void print_all_properties();
 
 void create_midi_notes();
+void update_midi_notes();
 void clear_buffer(jack_nframes_t frames,jack_default_audio_sample_t* buff);
 static void signal_handler(int sig);
+
+int find_nearest_midi_note(float samples);
 
 //==================================================================
 
@@ -276,6 +291,9 @@ struct MidiNote
 	//midi note number given through position in array
 	//(>=0, <=127, C-1=0, A4=69, G9=127)
 	char symbol[16]; //(C-1 - G9)
+
+	float samples;
+
 };
 struct MidiNote midi_notes[128];
 
@@ -423,47 +441,79 @@ static int process (jack_nframes_t frames, void* arg)
 				gen.shape=SHAPE_RECTANGLE;
 			}
 			//===
-			else if(!strcmp(path,"/freq/samples") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/samples") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(args[0]->f);
 			}
-			else if(!strcmp(path,"/freq/herz") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/samples/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			{
+				float sm=freq.samples_per_period+args[0]->f;
+				set_all_freq(sm);
+			}
+			else if(!strcmp(path,"/freq/herz") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(herz_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/bpm") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/herz/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			{
+				float hz=freq.herz+args[0]->f;
+				set_all_freq(herz_to_samples(hz));
+			}
+			else if(!strcmp(path,"/freq/bpm") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(bpm_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/nth_cycle") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/bpm/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			{
+				float bpm=freq.beats_per_minute+args[0]->f;
+				set_all_freq(bpm_to_samples(bpm));
+			}
+			else if(!strcmp(path,"/freq/nth_cycle") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(nth_cycle_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/wavelength") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/nth_cycle/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			{
+				float nth=freq.nth_cycle+args[0]->f;
+				set_all_freq(nth_cycle_to_samples(nth));
+			}
+			else if(!strcmp(path,"/freq/wavelength") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(wavelength_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/period_duration") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/period_duration") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(time_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/multiply") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/period_duration/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			{
+				float dur=freq.period_duration+args[0]->f;
+				set_all_freq(time_to_samples(dur));
+			}
+			else if(!strcmp(path,"/freq/multiply") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_freq(freq.samples_per_period/args[0]->f);
 			}
-			else if(!strcmp(path,"/freq/a4_ref") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/a4_ref") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				freq.a4_ref=args[0]->f;
+				update_midi_notes();
 			}
-			else if(!strcmp(path,"/freq/speed_of_sound") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/freq/speed_of_sound") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				freq.speed_of_sound=args[0]->f;
 			////
 				//recalc wavelength
 			}
-			else if(!strcmp(path,"/freq/midi_note") && !strcmp(types,"i"))
+			else if(!strcmp(path,"/freq/midi_note") && !strcmp(types,"i") && args[0]->i >= 0)
 			{
 				set_all_freq(midi_note_to_samples(args[0]->i));
+			}
+			else if(!strcmp(path,"/freq/midi_note/rel") && !strcmp(types,"i") && args[0]->i != 0)
+			{
+				int note=find_nearest_midi_note( freq.samples_per_period )
+					+ args[0]->i;
+				set_all_freq(midi_note_to_samples(note));
 			}
 			else if(!strcmp(path,"/freq/midi_note") && !strcmp(types,"s"))
 			{
@@ -480,7 +530,7 @@ static int process (jack_nframes_t frames, void* arg)
 			{
 				gen.status=STATUS_OFF;
 			}
-			else if(!strcmp(path,"/gen/restart_at") && !strcmp(types,"i"))
+			else if(!strcmp(path,"/gen/restart_at") && !strcmp(types,"i") && args[0]->i > 0)
 			{
 				gen.restart_at=args[0]->i;
 				gen.restart_pending=1;
@@ -491,13 +541,20 @@ static int process (jack_nframes_t frames, void* arg)
 			}
 			else if(!strcmp(path,"/gen/loop_enable") && !strcmp(types,"i"))
 			{
-				gen.loop_enabled=args[0]->i;
+				if(args[0]->i == 1)
+				{
+					gen.loop_enabled=1;
+				}
+				else
+				{
+					gen.loop_enabled=0;
+				}
 			}
-			else if(!strcmp(path,"/gen/loop_gap") && !strcmp(types,"i"))
+			else if(!strcmp(path,"/gen/loop_gap") && !strcmp(types,"i") && args[0]->i > 0)
 			{
 				gen.loop_gap=args[0]->i;
 			}
-			else if(!strcmp(path,"/gen/pulse_length") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/gen/pulse_length") && !strcmp(types,"f") && args[0]->f >= 0)
 			{
 				gen.pulse_length=args[0]->f;
 
@@ -505,14 +562,22 @@ static int process (jack_nframes_t frames, void* arg)
 				{
 					fprintf(stderr,"warning: pulse length is larger than or equally sized to shape period size!\n");
 				}
+				else if(gen.pulse_length==0)
+				{
+					fprintf(stderr,"warning: pulse length == 0!\n");
+				}
 			}
-			else if(!strcmp(path,"/gen/pulse_length_ratio") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/gen/pulse_length_ratio") && !strcmp(types,"f") && args[0]->f >= 0)
 			{
 				gen.pulse_length=freq.samples_per_period*args[0]->f;
 
 				if(gen.pulse_length>=freq.samples_per_period)
 				{
 					fprintf(stderr,"warning: pulse length is larger than or equally sized to shape period size!\n");
+				}
+				else if(gen.pulse_length==0)
+				{
+					fprintf(stderr,"warning: pulse length == 0!\n");
 				}
 			}
 			else if(argc==0 && !strcmp(path,"/gen/pulse_length_auto"))
@@ -552,25 +617,32 @@ static int process (jack_nframes_t frames, void* arg)
 			{
 				set_all_duration(0);
 			}
-			else if(!strcmp(path,"/duration/samples") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/duration/samples") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_duration(args[0]->f);
 			}
-			else if(!strcmp(path,"/duration/beats") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/duration/beats") && !strcmp(types,"f")  && args[0]->f > 0)
 			{
 				set_all_duration(beats_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/duration/nth_cycle") && !strcmp(types,"f"))
+			else if(!strcmp(path,"/duration/nth_cycle") && !strcmp(types,"f") && args[0]->f > 0)
 			{
 				set_all_duration(nth_cycle_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/duration/time") && !strcmp(types,"f")) //ms
+			else if(!strcmp(path,"/duration/time") && !strcmp(types,"f") && args[0]->f > 0) //ms
 			{
 				set_all_duration(time_to_samples(args[0]->f));
 			}
 			else if(!strcmp(path,"/duration/follow_transport") && !strcmp(types,"i"))
 			{
-				dur.follow_transport=args[0]->i;
+				if(args[0]->i==1)
+				{
+					dur.follow_transport=1;
+				}
+				else
+				{
+					dur.follow_transport=0;
+				}
 			}
 
 			////////
@@ -913,6 +985,10 @@ void set_all_freq(double samples)
 	}
 
 	gen.radstep=(double)(2*M_PI)/freq.samples_per_period;
+
+/////////////////verbose
+	print_all_properties();
+
 }
 
 void print_all_properties()
@@ -922,14 +998,20 @@ void print_all_properties()
 	fprintf(stderr,"jack period size: %d\n",jack.samples_per_period);
 	fprintf(stderr,"jack transport rolling: %d\n",jack.transport_state);
 
-	fprintf(stderr,"speed of sound [m/s]: %f\n",freq.speed_of_sound);
-	fprintf(stderr,"a4 ref [hz]: %f\n",freq.a4_ref);
-
 	fprintf(stderr,"samples per shape period: %f\n",freq.samples_per_period);
 	fprintf(stderr,"herz: %f\n",freq.herz);
 	fprintf(stderr,"bpm: %f\n",freq.beats_per_minute);
 	fprintf(stderr,"nth cycle: %f\n",freq.nth_cycle);
 	fprintf(stderr,"period duration [ms]: %f\n",freq.period_duration);
+
+	fprintf(stderr,"a4 ref [hz]: %f\n",freq.a4_ref);
+
+	int midi_index=find_nearest_midi_note(freq.samples_per_period);
+	fprintf(stderr,"best match for MIDI note: %d (%s) (%f hz)\n"
+		,midi_index,midi_notes[midi_index].symbol
+		,samples_to_herz(midi_notes[midi_index].samples));
+
+	fprintf(stderr,"speed of sound [m/s]: %f\n",freq.speed_of_sound);
 	fprintf(stderr,"(dummy) wavelength [mm]: \n");//,freq.wavelength);
 
 	fprintf(stderr,"status: %d\n",gen.status);
@@ -952,8 +1034,51 @@ void print_all_properties()
 	//jack time, cycle frame number
 }
 
+int find_nearest_midi_note(float samples)
+{
+	float diff=0;
+	float diff_prev=0;
+
+	float diff_smallest=0;
+	int index_smallest=0;
+
+	int i;
+        for(i=0;i<128;i++)
+        {
+		diff_prev=diff;
+		diff=fabs(samples - midi_notes[i].samples);
+
+		//fprintf(stderr,"diff prev: %f diff: %f\n",diff_prev,diff);
+
+		if(diff<diff_prev)
+		{
+			diff_smallest=diff;
+			index_smallest=i;
+		}
+	}
+/*
+	fprintf(stderr,"diff smallest %f index %i symbol %s samples %f freq hz %f\n"
+		,diff_smallest,index_smallest,midi_notes[index_smallest].symbol
+		,midi_notes[index_smallest].samples,samples_to_herz(midi_notes[index_smallest].samples));
+*/
+
+	return index_smallest;
+
+}
+
+void update_midi_notes()
+{
+	int i;
+	for(i=0;i<128;i++)
+	{
+		midi_notes[i].samples=midi_note_to_samples(i);
+	}
+}
+
 void create_midi_notes()
 {
+	//needs re-creation when a4 ref changes
+
 	const char note_chars[7]="CDEFGAB";
 	int note_index=0;
 	int octave=-1;
@@ -974,6 +1099,10 @@ void create_midi_notes()
 
 		strncpy(midi_notes[i].symbol,&note_chars[note_index],1);
 		strcat(midi_notes[i].symbol,_octave);
+
+		//implicit use of a4 ref
+		midi_notes[i].samples=midi_note_to_samples(i);
+
 /*
 		printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_herz(i),
 			herz_to_wavelength(midi_note_to_herz(i)));
@@ -991,9 +1120,14 @@ void create_midi_notes()
 		{
 			i++;
 			if(i>127) {return;};
+
 			strncpy(midi_notes[i].symbol,&note_chars[note_index],1);
 			strncat(midi_notes[i].symbol,flat_sharp_char,1);
 			strcat(midi_notes[i].symbol,_octave);
+
+			//implicit use of a4 ref
+			midi_notes[i].samples=midi_note_to_samples(i);
+
 /*
 			printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_herz(i),
 				herz_to_wavelength(midi_note_to_herz(i)));
