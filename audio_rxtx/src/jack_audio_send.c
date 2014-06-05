@@ -677,33 +677,41 @@ main (int argc, char *argv[])
 	 * "input" to the backend, and capture ports are "output" from
 	 * it.
 	 */
-	ports = jack_get_ports (client, NULL, NULL,
+
+	//prevent to get physical midi ports
+	const char* pat="audio";
+
+	ports = jack_get_ports (client, NULL, pat,
 				JackPortIsPhysical|JackPortIsOutput);
 	if (ports == NULL) {
 		fprintf(stderr, "no physical capture ports found\n");
 		//exit (1);
 	}
 	
-	int connection_port_count=fmin(input_port_count,sizeof(ports));
-
 	if(autoconnect==1)
 	{
+		int j=0;
 		int i;
-		for(i=0;i<connection_port_count;i++)
+		for(i=0;i<input_port_count;i++)
 		{
-			if (ports[i]!=NULL && jack_connect (client, ports[i],jack_port_name(ioPortArray[i]))) 
+			if (ports[i]!=NULL)
 			{
-				fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-					ports[i],jack_port_name(ioPortArray[i])
-				);
-			}
-			else if(ports[i]!=NULL)
-			{
-				fprintf (stderr, "autoconnect: %s -> %s\n",
-					ports[i],jack_port_name(ioPortArray[i])
-				);
+				if(!jack_connect (client, ports[i],jack_port_name(ioPortArray[j])))
+				{
+					fprintf (stderr, "autoconnect: %s -> %s\n",
+						ports[i],jack_port_name(ioPortArray[j])
+					);
+					j++;
+				}
+				else
+				{
+					fprintf (stderr, "autoconnect: failed: %s -> %s\n",
+						ports[i],jack_port_name(ioPortArray[j])
+					);
+				}
 			}
 		}
+		fprintf (stderr, "\n");
 	}
 
 	free (ports);
