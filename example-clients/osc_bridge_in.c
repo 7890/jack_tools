@@ -69,9 +69,9 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 	if(size+sizeof(jack_nframes_t)+sizeof(size_t)<=can_write)
 	{
 		//write position in cycle as samples since start of cycle
-		int cnt=jack_ringbuffer_write(rb, &frames_since_cycle_start, sizeof(jack_nframes_t));
+		int cnt=jack_ringbuffer_write(rb, (char*) &frames_since_cycle_start, sizeof(jack_nframes_t));
 		//write size of message
-		cnt=jack_ringbuffer_write(rb, &size, sizeof(size_t));
+		cnt=jack_ringbuffer_write(rb, (char*) &size, sizeof(size_t));
 		//write message
 		cnt+=jack_ringbuffer_write(rb, (void *) msg_ptr, size );
 		//printf("%i\n",cnt);
@@ -111,10 +111,10 @@ static int process(jack_nframes_t frames, void *arg)
 		//printf("can read %lu\n",can_read);
 
 		jack_nframes_t pos;
-		jack_ringbuffer_read (rb, &pos, sizeof(jack_nframes_t));
+		jack_ringbuffer_read (rb, (char*) &pos, sizeof(jack_nframes_t));
 
 		size_t msg_size;
-		jack_ringbuffer_read (rb, &msg_size, sizeof(size_t));
+		jack_ringbuffer_read (rb, (char*) &msg_size, sizeof(size_t));
 		//printf("msg_size %lu\n",msg_size);
 
 		void* buffer = malloc(msg_size);
