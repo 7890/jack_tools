@@ -37,8 +37,8 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 
 	mkdir -p $(BLD)
 
-	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_out.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_in.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_in.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_out.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_osc_filter $(SRC)/osc_filter.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS)
 
