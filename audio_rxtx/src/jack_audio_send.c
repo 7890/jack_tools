@@ -255,8 +255,8 @@ process(jack_nframes_t nframes, void *arg)
 		/audio hhtib*
 
 		1) h: message number
-		2) h: xrun counter (sender side, as all the above meta data)
-		3) t: timetag containing seconds since 1970 and usec fraction 
+		2) h: xrun counter (sender side, as all the following meta data)
+		3) t: timetag (seconds since Jan 1st 1900 in the UTC, fraction 1/2^32nds of a second)
 		4) i: sampling rate
 		5) b: blob of channel 1 (period size * bytes per sample) bytes long
 		...
