@@ -171,7 +171,7 @@ The OSC messages that are sent by jack_audio_send are defined as follows:
 
 	1) h: message number
 	2) h: xrun counter
-	3) t: timetag containing seconds since 1970 and usec fraction 
+	3) t: timetag (seconds since Jan 1st 1900 in the UTC, fraction 1/2^32nds of a second)
 	4) i: sampling rate
 	5) b: blob of channel 1 (period size * bytes per sample) bytes long
 	...
