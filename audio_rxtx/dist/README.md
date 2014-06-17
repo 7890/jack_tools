@@ -58,6 +58,11 @@ Errors were encountered while processing:
 consider to use --force-depends:
 sudo dpkg -i --force-depends audio-rxtx_0-1_armhf.deb  
 
+**********
+NEW since version 130618_0-2: removed any depends since package names can differ on 
+different platforms or a local installation of a needed library might exist
+**********
+
 when getting:
 "error while loading shared libraries: libxxyy.so.n: cannot open shared object file":
 -ldd `which jack_audio_send` / ldd `which jack_audio_send` to confirm missing
