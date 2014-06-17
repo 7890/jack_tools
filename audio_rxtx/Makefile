@@ -118,14 +118,19 @@ uninstall:
 	@echo "done."
 	@echo ""
 
+prepare_deb:
+	mkdir -p doc-pak
+	cp README.md doc-pak
+	cp $(DOC)/jack_audio_receive.man.asciidoc doc-pak
+	cp $(DOC)/jack_audio_send.man.asciidoc doc-pak
+	cp $(DOC)/sequence_diagram.txt doc-pak
+
 deb64:
 	checkinstall -D --arch=amd64 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
 	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make deb64 PREFIX=/usr	
 
 deb64_dist:
-	mkdir -p doc-pak
-	cp $(DOC)/sequence_diagram.txt doc-pak
 	mkdir -p $(DIST)
 	mv audio-rxtx_$(VERSION)-$(RELEASE)_amd64.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb
 	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb.txt 2>&1
@@ -135,9 +140,15 @@ deb32:
 	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make deb32 PREFIX=/usr
 
+deb32_dist:
+	mkdir -p $(DIST)
+	mv audio-rxtx_$(VERSION)-$(RELEASE)_i386.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb
+	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb.txt 2>&1
+
 debarmhf: 
 	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
 	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make debarmhf PREFIX=/usr
+
 
 .PHONY: all
