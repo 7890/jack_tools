@@ -7,13 +7,15 @@ MANDIR ?= $(PREFIX)/share/man/man1
 SRC = src
 BLD = build
 DOC = doc
+DIST = dist
 
 #.deb package
 SRC_URL="https://github.com/7890/jack_tools"
 MAINTAINER="tom@trellis.ch"
 LICENSE="GPL"
-VERSION=0
-RELEASE=1
+VERSION ?= 0
+RELEASE ?= 2
+RELEASE_DATE ?= 140618
 
 default: compile
 
@@ -118,17 +120,24 @@ uninstall:
 
 deb64:
 	checkinstall -D --arch=amd64 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
-#	sudo make deb64 PREFIX=/usr
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
+#	sudo make deb64 PREFIX=/usr	
+
+deb64_dist:
+	mkdir -p doc-pak
+	cp $(DOC)/sequence_diagram.txt doc-pak
+	mkdir -p $(DIST)
+	mv audio-rxtx_$(VERSION)-$(RELEASE)_amd64.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb
+	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb.txt 2>&1
 
 deb32:
 	checkinstall -D --arch=i386 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make deb32 PREFIX=/usr
 
 debarmhf: 
 	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="shellutils" --requires="liblo7,libncurses5" --install=no make install
+	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make debarmhf PREFIX=/usr
 
 .PHONY: all
