@@ -120,7 +120,9 @@ uninstall:
 
 prepare_deb:
 	mkdir -p doc-pak
-	cp README.md doc-pak
+	rm -rf doc-pak/*
+	mkdir -p $(DIST)/
+	cp $(DIST)/README.md doc-pak
 	cp $(DOC)/jack_audio_receive.man.asciidoc doc-pak
 	cp $(DOC)/jack_audio_send.man.asciidoc doc-pak
 	cp $(DOC)/sequence_diagram.txt doc-pak
@@ -150,5 +152,9 @@ debarmhf:
 	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
 #	sudo make debarmhf PREFIX=/usr
 
+debarmhf_dist:
+	mkdir -p $(DIST)
+	mv audio-rxtx_$(VERSION)-$(RELEASE)_armhf.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb
+	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb.txt 2>&1
 
 .PHONY: all
