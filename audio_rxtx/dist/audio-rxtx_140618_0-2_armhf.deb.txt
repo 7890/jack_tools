@@ -1,0 +1,67 @@
+audio-rxtx
+36K	dist/audio-rxtx_140618_0-2_armhf.deb
+Wed Jun 18 01:48:03 CEST 2014
+********************
+
+$ md5sum dist/audio-rxtx_140618_0-2_armhf.deb
+9255fb8b081736576e2908542237636c  dist/audio-rxtx_140618_0-2_armhf.deb
+
+$ sudo dpkg -i dist/audio-rxtx_140618_0-2_armhf.deb
+(Reading database ... 29085 files and directories currently installed.)
+Preparing to replace audio-rxtx 0-2 (using .../audio-rxtx_140618_0-2_armhf.deb) ...
+Unpacking replacement audio-rxtx ...
+Setting up audio-rxtx (0-2) ...
+Processing triggers for man-db ...
+
+$ dpkg -L audio-rxtx
+/.
+/usr
+/usr/share
+/usr/share/man
+/usr/share/man/man1
+/usr/share/man/man1/jack_audio_receive.1.gz
+/usr/share/man/man1/jack_audio_send.1.gz
+/usr/share/doc
+/usr/share/doc/audio-rxtx
+/usr/share/doc/audio-rxtx/README.md
+/usr/share/doc/audio-rxtx/jack_audio_receive.man.asciidoc
+/usr/share/doc/audio-rxtx/jack_audio_send.man.asciidoc
+/usr/share/doc/audio-rxtx/sequence_diagram.txt
+/usr/bin
+/usr/bin/jack_audio_receive
+/usr/bin/jack_audio_send
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_send
+	libjack.so.0 => /usr/local/lib/libjack.so.0 (0x40043000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x40067000)
+	libm.so.6 => /lib/arm-linux-gnueabihf/libm.so.6 (0x40077000)
+	libgcc_s.so.1 => /lib/arm-linux-gnueabihf/libgcc_s.so.1 (0x400e2000)
+	libc.so.6 => /lib/arm-linux-gnueabihf/libc.so.6 (0x40104000)
+	/lib/ld-linux-armhf.so.3 (0x4001d000)
+	libdb-5.1.so => /usr/lib/arm-linux-gnueabihf/libdb-5.1.so (0x401e7000)
+	libpthread.so.0 => /lib/arm-linux-gnueabihf/libpthread.so.0 (0x402cf000)
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_receive
+	libjack.so.0 => /usr/local/lib/libjack.so.0 (0x400cf000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x400f3000)
+	libm.so.6 => /lib/arm-linux-gnueabihf/libm.so.6 (0x40103000)
+	libgcc_s.so.1 => /lib/arm-linux-gnueabihf/libgcc_s.so.1 (0x4016e000)
+	libc.so.6 => /lib/arm-linux-gnueabihf/libc.so.6 (0x40190000)
+	/lib/ld-linux-armhf.so.3 (0x400a9000)
+	libdb-5.1.so => /usr/lib/arm-linux-gnueabihf/libdb-5.1.so (0x40273000)
+	libpthread.so.0 => /lib/arm-linux-gnueabihf/libpthread.so.0 (0x4035b000)
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_send
+
+jack_audio_send v0.64 (format v1.00)
+(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>
+Missing arguments, try --help.
+
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_receive
+
+jack_audio_receive v0.64 (format v1.00)
+(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>
+Missing arguments, try --help.
+
+

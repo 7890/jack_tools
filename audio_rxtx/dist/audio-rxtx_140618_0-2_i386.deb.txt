@@ -1,0 +1,69 @@
+audio-rxtx
+32K	dist/audio-rxtx_140618_0-2_i386.deb
+Wed Jun 18 01:46:47 CEST 2014
+********************
+
+$ md5sum dist/audio-rxtx_140618_0-2_i386.deb
+c4400ad39e26ef9e9f91b1432914178c  dist/audio-rxtx_140618_0-2_i386.deb
+
+$ sudo dpkg -i dist/audio-rxtx_140618_0-2_i386.deb
+(Reading database ... 176514 files and directories currently installed.)
+Preparing to replace audio-rxtx 0-2 (using .../audio-rxtx_140618_0-2_i386.deb) ...
+Unpacking replacement audio-rxtx ...
+Setting up audio-rxtx (0-2) ...
+Processing triggers for man-db ...
+
+$ dpkg -L audio-rxtx
+/.
+/usr
+/usr/bin
+/usr/bin/jack_audio_receive
+/usr/bin/jack_audio_send
+/usr/share
+/usr/share/doc
+/usr/share/doc/audio-rxtx
+/usr/share/doc/audio-rxtx/sequence_diagram.txt
+/usr/share/doc/audio-rxtx/README.md
+/usr/share/doc/audio-rxtx/jack_audio_receive.man.asciidoc
+/usr/share/doc/audio-rxtx/jack_audio_send.man.asciidoc
+/usr/share/man
+/usr/share/man/man1
+/usr/share/man/man1/jack_audio_send.1.gz
+/usr/share/man/man1/jack_audio_receive.1.gz
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_send
+	linux-gate.so.1 =>  (0x4001d000)
+	libjack.so.0 => /usr/lib/libjack.so.0 (0x40020000)
+	librt.so.1 => /lib/tls/i686/cmov/librt.so.1 (0x4004f000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x40059000)
+	libpthread.so.0 => /lib/tls/i686/cmov/libpthread.so.0 (0x40065000)
+	libm.so.6 => /lib/tls/i686/cmov/libm.so.6 (0x4007e000)
+	libc.so.6 => /lib/tls/i686/cmov/libc.so.6 (0x400a4000)
+	libdl.so.2 => /lib/tls/i686/cmov/libdl.so.2 (0x401fe000)
+	/lib/ld-linux.so.2 (0x40000000)
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_receive
+	linux-gate.so.1 =>  (0x4001d000)
+	libjack.so.0 => /usr/lib/libjack.so.0 (0x40020000)
+	librt.so.1 => /lib/tls/i686/cmov/librt.so.1 (0x4004f000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x40059000)
+	libpthread.so.0 => /lib/tls/i686/cmov/libpthread.so.0 (0x40065000)
+	libm.so.6 => /lib/tls/i686/cmov/libm.so.6 (0x4007e000)
+	libc.so.6 => /lib/tls/i686/cmov/libc.so.6 (0x400a4000)
+	libdl.so.2 => /lib/tls/i686/cmov/libdl.so.2 (0x401fe000)
+	/lib/ld-linux.so.2 (0x40000000)
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_send
+
+jack_audio_send v0.64 (format v1.00)
+(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>
+Missing arguments, try --help.
+
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_receive
+
+jack_audio_receive v0.64 (format v1.00)
+(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>
+Missing arguments, try --help.
+
+
