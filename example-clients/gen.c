@@ -8,7 +8,6 @@
 #include "meta/jackey.h"
 #include "meta/jack_osc.h"
 #include <lo/lo.h>
-//#include <regex.h>
 #include <math.h>
 
 //tb/140511/140513
@@ -39,8 +38,8 @@ info:
 	/print/info
 
 shapes:
-	/shape/sinus
-	/shape/rectangle
+	/shape/sine
+	/shape/square
 		/gen/pulse_length f 	#(high) >=0, <= shape period length
 		/gen/pulse_length_ratio f #(high) relative to shape period length >=0, <=1
 		/gen/pulse_length_auto	#set pulse length (high) to half of shape period size
@@ -51,7 +50,7 @@ frequency / periodicity:
 	/freq/herz f
 	/freq/bpm f
 	/freq/samples f
-	/freq/nth_cycle f	#f times size of jack cycle
+	/freq/jack_cycles f	#f times size of jack cycle
 	/freq/wavelength f	#[mm]
 		/freq/speed_of_sound f	#[m/s] (345*)
 	/freq/period_duration	#[ms]
@@ -61,7 +60,7 @@ frequency / periodicity:
 	/freq/herz/rel f	
 	/freq/bpm/rel f
 	/freq/samples/rel f
-	/freq/nth_cycle/rel f
+	/freq/jack_cycles/rel f
 #	/freq/wavelength/rel f		#[mm]
 	/freq/period_duration/rel	#[ms]
 
@@ -98,8 +97,8 @@ duration of signal output:
 	/duration/inf		#infinite
 	/duration/beats f		#current bpm used. default bpm is 120
 	/duration/samples i
-	/duration/nth_cycle f		#f times size of jack cycle
-	/duration/time f		#[ms]
+	/duration/jack_cycles f		#f times size of jack cycle
+	/duration/ms f		#[ms]
 	/duration/follow_transport i	#0: off, 1: on -> generate signal only while jack transport is rolling
 
 
@@ -145,15 +144,15 @@ double samples_to_bpm(double samples);
 double beats_to_samples(double beats);
 double samples_to_beats(double samples);
 
-double nth_cycle_to_samples(double nth_cycle);
-double samples_to_nth_cycle(double samples);
+double jack_cycles_to_samples(double jack_cycles);
+double samples_to_jack_cycles(double samples);
 
 double wavelength_to_samples(double wavelength);
 double wavelength_to_herz(double wavelength);
 double samples_to_wavelength(double samples);
 
-double time_to_samples(double duration);
-double samples_to_time(double samples);
+double ms_to_samples(double duration);
+double samples_to_ms(double samples);
 
 double midi_note_to_samples(int midi_note_number);
 double midi_note_symbol_to_samples(char* midi_note_symbol);
@@ -188,8 +187,8 @@ struct JackProps jack;
 //==================================================================
 
 //shape types
-#define SHAPE_SINUS 0
-#define SHAPE_RECTANGLE 1
+#define SHAPE_SINE 0
+#define SHAPE_SQUARE 1
 
 //status types
 #define STATUS_OFF 0
@@ -207,7 +206,7 @@ struct Generator
 	double low;
 	int current_pulse_length;
 
-	double radstep; //for sinus
+	double radstep; //for sine
 	double current_rad;
 
 	double amplification; //multiply (linear)
@@ -240,8 +239,8 @@ struct Duration
 
 	double samples;
 	double beats; //for calculation of n beats duration, current freq / bmp used
-	double nth_cycle; 
-	double time; //[ms]
+	double jack_cycles; 
+	double ms; //[ms]
 };
 struct Duration dur;
 
@@ -259,7 +258,7 @@ struct Frequency
 	double herz;
 	double beats_per_minute;
 	double samples_per_period; //shape period size (!= jack period size)
-	double nth_cycle;
+	double jack_cycles;
 	double wavelength; //[mm] 
 	double speed_of_sound; //[m/s]
 	double period_duration; //[ms]
@@ -308,14 +307,14 @@ void minimal_test()
 	printf("bpm (120) to samples %f\n",bpm_to_samples(120));
 	printf("samples to bpm %f\n",samples_to_bpm(bpm_to_samples(120)));
 
-	printf("nth cycle (-2) to samples %f\n",nth_cycle_to_samples(-2));
-	printf("samples to nth cycle %f\n",samples_to_nth_cycle(nth_cycle_to_samples(-2)));
+	printf("nth cycle (-2) to samples %f\n",jack_cycles_to_samples(-2));
+	printf("samples to nth cycle %f\n",samples_to_jack_cycles(jack_cycles_to_samples(-2)));
 
-	printf("period duration (0.2267573696) to samples %f\n",time_to_samples(0.2267573696));
-	printf("samples to period duration %f\n",samples_to_time(time_to_samples(0.2267573696)));
+	printf("period duration (0.2267573696) to samples %f\n",ms_to_samples(0.2267573696));
+	printf("samples to period duration %f\n",samples_to_ms(ms_to_samples(0.2267573696)));
 
 	//set_all_freq(wavelength_to_samples(0.123d)); 
-	//set_all_freq(time_to_samples(1.0d));
+	//set_all_freq(ms_to_samples(1.0d));
 	//set_all_freq(midi_note_to_samples(69));
 	//set_all_freq(midi_note_symbol_to_samples("A4"));
 	
@@ -345,14 +344,14 @@ void setup()
 	set_all_freq(herz_to_samples(jack.sampling_rate/100));
 	//set_all_freq(bpm_to_samples(120.0d));
 	//set_all_freq(44100.0d);
-	//set_all_freq(nth_cycle_to_samples(-2));
+	//set_all_freq(jack_cycles_to_samples(-2));
 	//set_all_freq(wavelength_to_samples(0.123d)); 
-	//set_all_freq(time_to_samples(1.0d));
+	//set_all_freq(ms_to_samples(1.0d));
 	//set_all_freq(midi_note_to_samples(69));
 	//set_all_freq(midi_note_symbol_to_samples("A4"));
 
-	//gen.shape=SHAPE_SINUS;
-	gen.shape=SHAPE_RECTANGLE;
+	//gen.shape=SHAPE_SINE;
+	gen.shape=SHAPE_SQUARE;
 
 	gen.status=STATUS_ON;
 	gen.amplification=1;
@@ -433,13 +432,13 @@ static int process (jack_nframes_t frames, void* arg)
 				print_all_properties();
 			}
 			//===
-			else if(argc==0 && !strcmp(path,"/shape/sinus"))
+			else if(argc==0 && !strcmp(path,"/shape/sine"))
 			{
-				gen.shape=SHAPE_SINUS;
+				gen.shape=SHAPE_SINE;
 			}
-			else if(argc==0 && !strcmp(path,"/shape/rectangle"))
+			else if(argc==0 && !strcmp(path,"/shape/square"))
 			{
-				gen.shape=SHAPE_RECTANGLE;
+				gen.shape=SHAPE_SQUARE;
 			}
 			//===
 			else if(!strcmp(path,"/freq/samples") && !strcmp(types,"f") && args[0]->f > 0)
@@ -469,14 +468,14 @@ static int process (jack_nframes_t frames, void* arg)
 				float bpm=freq.beats_per_minute+args[0]->f;
 				set_all_freq(bpm_to_samples(bpm));
 			}
-			else if(!strcmp(path,"/freq/nth_cycle") && !strcmp(types,"f") && args[0]->f > 0)
+			else if(!strcmp(path,"/freq/jack_cycles") && !strcmp(types,"f") && args[0]->f > 0)
 			{
-				set_all_freq(nth_cycle_to_samples(args[0]->f));
+				set_all_freq(jack_cycles_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/nth_cycle/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			else if(!strcmp(path,"/freq/jack_cycles/rel") && !strcmp(types,"f") && args[0]->f != 0)
 			{
-				float nth=freq.nth_cycle+args[0]->f;
-				set_all_freq(nth_cycle_to_samples(nth));
+				float nth=freq.jack_cycles+args[0]->f;
+				set_all_freq(jack_cycles_to_samples(nth));
 			}
 			else if(!strcmp(path,"/freq/wavelength") && !strcmp(types,"f") && args[0]->f > 0)
 			{
@@ -484,12 +483,12 @@ static int process (jack_nframes_t frames, void* arg)
 			}
 			else if(!strcmp(path,"/freq/period_duration") && !strcmp(types,"f") && args[0]->f > 0)
 			{
-				set_all_freq(time_to_samples(args[0]->f));
+				set_all_freq(ms_to_samples(args[0]->f));
 			}
 			else if(!strcmp(path,"/freq/period_duration/rel") && !strcmp(types,"f") && args[0]->f != 0)
 			{
 				float dur=freq.period_duration+args[0]->f;
-				set_all_freq(time_to_samples(dur));
+				set_all_freq(ms_to_samples(dur));
 			}
 			else if(!strcmp(path,"/freq/multiply") && !strcmp(types,"f") && args[0]->f > 0)
 			{
@@ -626,13 +625,13 @@ static int process (jack_nframes_t frames, void* arg)
 			{
 				set_all_duration(beats_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/duration/nth_cycle") && !strcmp(types,"f") && args[0]->f > 0)
+			else if(!strcmp(path,"/duration/jack_cycles") && !strcmp(types,"f") && args[0]->f > 0)
 			{
-				set_all_duration(nth_cycle_to_samples(args[0]->f));
+				set_all_duration(jack_cycles_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/duration/time") && !strcmp(types,"f") && args[0]->f > 0) //ms
+			else if(!strcmp(path,"/duration/ms") && !strcmp(types,"f") && args[0]->f > 0) //ms
 			{
-				set_all_duration(time_to_samples(args[0]->f));
+				set_all_duration(ms_to_samples(args[0]->f));
 			}
 			else if(!strcmp(path,"/duration/follow_transport") && !strcmp(types,"i"))
 			{
@@ -737,12 +736,12 @@ static int process (jack_nframes_t frames, void* arg)
 
 		//========================================
 		//main signal generation
-		if(gen.shape==SHAPE_SINUS)
+		if(gen.shape==SHAPE_SINE)
 		{
 			val=sin(gen.current_rad);
 			gen.current_rad+=gen.radstep;
 		}
-		else if(gen.shape==SHAPE_RECTANGLE)
+		else if(gen.shape==SHAPE_SQUARE)
 		{
 			if(gen.current_sample_in_period>=freq.samples_per_period)
 			{
@@ -879,15 +878,15 @@ double samples_to_beats(double samples)
 {
 	return samples/beats_to_samples(1);
 }
-double nth_cycle_to_samples(double nth_cycle)
+double jack_cycles_to_samples(double jack_cycles)
 {
-	if(nth_cycle==1)
+	if(jack_cycles==1)
 	{
 		return jack.samples_per_period;
 	}
-	return nth_cycle*jack.samples_per_period;
+	return jack_cycles*jack.samples_per_period;
 }
-double samples_to_nth_cycle(double samples)
+double samples_to_jack_cycles(double samples)
 {
 	if(samples==jack.samples_per_period)
 	{
@@ -910,12 +909,12 @@ double samples_to_wavelength(double samples)
 {
 	return herz_to_wavelength(samples_to_herz(samples));
 }
-double time_to_samples(double duration)
+double ms_to_samples(double duration)
 {
 	return duration*jack.sampling_rate/1000;
 }
 //[ms]
-double samples_to_time(double samples)
+double samples_to_ms(double samples)
 {
 	return 1000*samples/jack.sampling_rate; 
 }
@@ -958,19 +957,19 @@ void set_all_duration(double samples)
 		dur.infinite=1;
 		dur.samples=0;
 		dur.beats=0;
-		dur.nth_cycle=0;
-		dur.time=0;
+		dur.jack_cycles=0;
+		dur.ms=0;
 	}
 	else
 	{
 		dur.infinite=0;
 		dur.samples=samples;
 		dur.beats=samples_to_beats(samples);
-		dur.nth_cycle=samples_to_nth_cycle(samples);
-		dur.time=samples_to_time(samples);
+		dur.jack_cycles=samples_to_jack_cycles(samples);
+		dur.ms=samples_to_ms(samples);
 	}
 
-	//printf("%d %f %f %i %f\n",dur.infinite,dur.samples,dur.beats,dur.nth_cycle,dur.time);
+	//printf("%d %f %f %i %f\n",dur.infinite,dur.samples,dur.beats,dur.jack_cycles,dur.ms);
 }
 
 void set_all_freq(double samples)
@@ -978,8 +977,8 @@ void set_all_freq(double samples)
 	freq.samples_per_period=samples;
 	freq.herz=samples_to_herz(samples);
 	freq.beats_per_minute=samples_to_bpm(samples);
-	freq.nth_cycle=samples_to_nth_cycle(samples);
-	freq.period_duration=samples_to_time(samples);
+	freq.jack_cycles=samples_to_jack_cycles(samples);
+	freq.period_duration=samples_to_ms(samples);
 	freq.wavelength=samples_to_wavelength(samples);
 
 	if(gen.pulse_length_auto==1)
@@ -1011,7 +1010,7 @@ void print_all_properties()
 	fprintf(stderr,"samples per shape period: %f\n",freq.samples_per_period);
 	fprintf(stderr,"herz: %f\n",freq.herz);
 	fprintf(stderr,"bpm: %f\n",freq.beats_per_minute);
-	fprintf(stderr,"nth cycle: %f\n",freq.nth_cycle);
+	fprintf(stderr,"nth cycle: %f\n",freq.jack_cycles);
 	fprintf(stderr,"period duration [ms]: %f\n",freq.period_duration);
 
 	fprintf(stderr,"a4 ref [hz]: %f\n",freq.a4_ref);
@@ -1036,8 +1035,8 @@ void print_all_properties()
 	fprintf(stderr,"follow transport: %d\n",dur.follow_transport);
 	fprintf(stderr,"duration samples: %f\n",dur.samples);
 	fprintf(stderr,"duration beats: %f\n",dur.beats);
-	fprintf(stderr,"duration nth_cycle: %f\n",dur.nth_cycle);
-	fprintf(stderr,"duration time [ms]: %f\n",dur.time);
+	fprintf(stderr,"duration jack_cycles: %f\n",dur.jack_cycles);
+	fprintf(stderr,"duration time [ms]: %f\n",dur.ms);
 
         fprintf(stderr,"radstep [rad]: %f\n",gen.radstep);
 
