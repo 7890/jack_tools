@@ -21,7 +21,7 @@ standard communication live cycle of sender and receiver
            |            ...
            |           /offer            receiver
            |-------------------------------->|---.
-           |           /accept               |   | check compatiblity
+           |           /accept               |   | check compatibility
        .---|<--------------------------------|---|
        |   |2)         /audio                |
        |---|-------------------------------->|- fill pre-play buffer
@@ -50,7 +50,7 @@ shutting down sender on incompatibility
          sender
            |           /offer            receiver
            |-------------------------------->|---.
-           |           /deny                 |   | check compatiblity
+           |           /deny                 |   | check compatibility
  stop    --|<--------------------------------|---|  -> incompatible
  offering, |                                 |
  shut down _                                 | wait for (another) sender
@@ -63,14 +63,14 @@ shutting down receiver on incompatibility
 =========================================
 
 -if receiver started with option --close, it will shut down when
- imcompatible data was received and won't send /deny to sender.
+ incompatible data was received and won't send /deny to sender.
  this applies both to /offer and to /audio messages.
 -sender will continue to offer / send
 
 
          sender
            |           /offer            receiver
-           |-------------------------------->|--- check compatiblity
+           |-------------------------------->|--- check compatibility
            |                                 |     -> incompatible 
            |                                 _   shut down
            |           /offer
@@ -83,7 +83,7 @@ shutting down receiver on incompatibility
 
          sender
            |           /audio            receiver
-           |-------------------------------->|--- check compatiblity
+           |-------------------------------->|--- check compatibility
            |                                 |     -> incompatible 
            |                                 _   shut down
            |           /audio
@@ -103,7 +103,7 @@ running sender in broadcast mode
  for that, the sender must be started with option --nopause
 
 
-         sender                           reciever
+         sender                           receiver
            |           /audio                ?                       
 immediate  |-------------------------------->?                     
 send,      |           /audio                ?
@@ -111,7 +111,7 @@ no offer   |-------------------------------->?
            |            ...                  ?
 
 
-         sender                           reciever
+         sender                           receiver
            |            ...                  |    
            |           /accept               |                       
  ignore  --|<--------------------------------|                     
