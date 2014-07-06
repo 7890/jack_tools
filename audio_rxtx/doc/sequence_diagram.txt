@@ -21,7 +21,7 @@ standard communication live cycle of sender and receiver
            |            ...
            |           /offer            receiver
            |-------------------------------->|---.
-           |           /accpet               |   | check compatiblity
+           |           /accept               |   | check compatiblity
        .---|<--------------------------------|---|
        |   |2)         /audio                |
        |---|-------------------------------->|- fill pre-play buffer
