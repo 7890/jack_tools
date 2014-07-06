@@ -136,7 +136,7 @@ controlling the receiver buffer
 
 -lockfree ringbuffers are a common scenario in producer/consumer systems
 
--a buffer can overflow (not enouth buffer write space):
+-a buffer can overflow (not enough buffer write space):
  -the desired amount of data cannot be written to the buffer
 
 -a buffer can underflow (not enough buffer read space):
