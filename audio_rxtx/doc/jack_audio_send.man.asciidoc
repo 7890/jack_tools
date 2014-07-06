@@ -157,7 +157,7 @@ OSC FORMAT
 
 The OSC messages that are sent by jack_audio_send are defined as follows:
 
-*/offer ffiiiifh*
+*/offer fiiiifh*
 
 	1) f: audio rx/tx format version
 	2) i: sampling rate
