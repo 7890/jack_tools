@@ -124,6 +124,8 @@ int close_on_incomp=0;
 int rebuffer_on_restart=0;
 int rebuffer_on_underflow=0;
 
+int channel_offset=0;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
@@ -182,15 +184,26 @@ void print_info()
 {
 	size_t can_read_count=jack_ringbuffer_read_space(rb);
 
+	char* offset_string;
+	if(channel_offset>0)
+	{
+		asprintf(&offset_string, "(%d+)", (channel_offset));
+	}
+	else
+	{
+		offset_string="";
+	}
+
 	//this is per channel, not per cycle. *port_count
 	if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
 		|| last_test_cycle==1
 	)
 	{
-		fprintf(stderr,"\r# %" PRId64 " i: %d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
+		fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
 			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",/* d: %.1f%s",*/
 
 			message_number,
+			offset_string,
 			input_port_count,
 			(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
 			can_read_count,
@@ -397,6 +410,7 @@ static void print_help (void)
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text:                 --help\n");
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
+	fprintf (stderr, "  Channel Offset:                (0) --offset <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
 	fprintf (stderr, "  JACK client name:        (receive) --name   <string>\n");
 	fprintf (stderr, "  JACK server name:        (default) --sname  <string>\n");
@@ -436,6 +450,7 @@ main (int argc, char *argv[])
 	{
 		{"help",	no_argument,		0, 'h'},
 		{"out",		required_argument, 	0, 'o'},
+		{"offset",	required_argument, 	0, 'f'},
 		{"connect",	no_argument,	&autoconnect, 1},
 		{"name",	required_argument,	0, 'n'},
 		{"sname",	required_argument,	0, 's'},
@@ -498,6 +513,10 @@ main (int argc, char *argv[])
 					output_port_count=max_channel_count;
 				}
 				port_count=fmin(input_port_count,output_port_count);
+				break;
+
+			case 'f':
+				channel_offset=atoi(optarg);
 				break;
 
 			case 'n':
@@ -595,6 +614,7 @@ main (int argc, char *argv[])
 	print_common_jack_properties();
 
 	fprintf(stderr,"channels (playback): %d\n",output_port_count);
+	fprintf(stderr,"channel offset: %d\n",channel_offset);
 
 	fprintf(stderr,"multi-channel period size: %d bytes\n",
 		output_port_count*period_size*bytes_per_sample
@@ -1083,8 +1103,26 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	//first blob is at data_offset+1 (one-based)
 	int data_offset=4;
 
+	//ignore first n channels/blobs
+	data_offset+=channel_offset;
+
 	//the messages are numbered sequentially. first msg is numberd 1
 	message_number=argv[0]->h;
+
+	//total args count minus metadata args count = number of blobs
+	input_port_count=argc-data_offset;
+
+	//only process useful number of channels
+	port_count=fmin(input_port_count,output_port_count);
+
+	if(port_count < 1)
+	{
+		fprintf(stderr,"channel offset %d >= available input channels %d! (nothing to receive). shutting down...\n"
+			,channel_offset
+			,channel_offset+input_port_count);
+		shutdown_in_progress=1;
+		return 0;
+	}
 
 	//check sample rate and period size if sender (re)started or values not yet initialized (=no /offer received)
 	if(message_number_prev>message_number || message_number==1 || remote_sample_rate==0 || remote_period_size==0 )
@@ -1179,21 +1217,13 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		time_interval_sum=0;
 	}
 
-	//total args count minus metadata args count = number of blobs
-	input_port_count=argc-data_offset;
-
-	//only process useful number of channels
-	port_count=fmin(input_port_count,output_port_count);
-
 	if(pre_buffer_counter >= pre_buffer_size && process_enabled == 0)
 	{
 		//if buffer filled, start to output audio in process()
 		process_enabled=1;
 	}
 
-
 	int mc_period_bytes=period_size*bytes_per_sample*port_count;
-
 
 	//check if a whole mc period can be written to the ringbuffer
 	size_t can_write_count=jack_ringbuffer_write_space(rb);
@@ -1204,7 +1234,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			fprintf(stderr,"\rBUFFER OVERFLOW! this is bad -----%s","\033[0J");
 			return 0;
 	}
-
 
 	//========================================
 	//new: support different period sizes on sender / receiver (still need same SR)
