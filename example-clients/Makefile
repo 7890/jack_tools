@@ -1,7 +1,10 @@
 CC ?= gcc
 CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
 CFLAGS_JACK_ONLY ?= `pkg-config --libs --cflags jack` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
-CFLAGS_LO_ONLY ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE -lm
+
+CFLAGS_METADATA ?= -DHAS_JACK_METADATA_API
+#CFLAGS_METADATA = 
+
 PREFIX ?= /usr/local
 INSTALLDIR ?= $(PREFIX)/bin
 #MANDIR ?= $(PREFIX)/share/man/man1
@@ -35,10 +38,10 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 	$(CC) -o $(BLD)/jack_xlsp xlsp.c $(CFLAGS_JACK_ONLY)
 	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
 
-	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_in.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_out.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_osc_filter $(SRC)/osc_filter.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_in.c $(CFLAGS) $(CFLAGS_METADATA)
+	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_out.c $(CFLAGS) $(CFLAGS_METADATA)
+	$(CC) -o $(BLD)/jack_osc_filter $(SRC)/osc_filter.c $(CFLAGS) $(CFLAGS_METADATA)
+	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS_METADATA)
 
 	@echo ""
 	@echo "done. next (if there were no errors) is: sudo make install"
