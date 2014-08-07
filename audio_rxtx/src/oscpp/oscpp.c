@@ -298,7 +298,7 @@ static void signal_handler(int sig)
 
 	usleep(100000);
 
-	fprintf(stderr,"\n\ntotal running time: %f seconds\n",diff);
+	fprintf(stderr,"\n\ntotal running time: %f seconds\n",start_end_diff);
 	fprintf(stderr,"total sent ping messages:     %lu\n",ping_send_counter);
 	fprintf(stderr,"total received pong messages: %lu\n",pong_receive_counter);
 
