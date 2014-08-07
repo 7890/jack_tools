@@ -1,23 +1,18 @@
 CC ?= gcc
-CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm
+CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
+CFLAGS_JACK_ONLY ?= `pkg-config --libs --cflags jack` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
+CFLAGS_LO_ONLY ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE -lm
 PREFIX ?= /usr/local
 INSTALLDIR ?= $(PREFIX)/bin
-MANDIR ?= $(PREFIX)/share/man/man1
+#MANDIR ?= $(PREFIX)/share/man/man1
 
-SRC = ./
+#http://gcc.gnu.org/onlinedocs/gcc-3.4.3/gcc/Warning-Options.html
+
+SRC = .
 BLD = build
 DOC = doc
 
-#.deb package
-SRC_URL="https://github.com/7890/jack_tools"
-MAINTAINER="tom@trellis.ch"
-LICENSE="GPL"
-VERSION=0
-RELEASE=1
-
 default: compile
-
-all: compile manpage
 
 compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SRC)/gen.c
 
@@ -37,6 +32,9 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 
 	mkdir -p $(BLD)
 
+	$(CC) -o $(BLD)/jack_xlsp xlsp.c $(CFLAGS_JACK_ONLY)
+	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
+
 	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_in.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_out.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_osc_filter $(SRC)/osc_filter.c $(CFLAGS)
@@ -46,23 +44,8 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 	@echo "done. next (if there were no errors) is: sudo make install"
 	@echo ""
 
-manpage:
-	@echo ""
-	@echo "creating manpage with asciidoc"
-	@echo "------------------------------"
-	@echo ""
-
-#	a2x --doctype manpage --format manpage $(DOC)/jack_audio_send.man.asciidoc
-#	gzip -9 -f $(DOC)/jack_audio_send.1
-
-	@echo ""
-	@echo "done."
-	@echo ""
-
 clean:
-	rm -f ./$(BLD)/*.o
-	rm -f ./$(BLD)/jack_osc_*
-	rm -f ./$(BLD)/jack_gen*
+	rm -rf $(BLD)/*
 
 	@echo ""
 	@echo "done."
@@ -70,8 +53,12 @@ clean:
 
 install: 
 	@echo ""
-	@echo "installing jack_osc_bridge_in, jack_osc_bridge_out, jack_osc_filter, jack_gen"
-	@echo "-----------------------------------------------------------------------------"
+	@echo "install"
+	@echo "-------"
+	@echo ""
+	@echo "jack_osc_bridge_in, jack_osc_bridge_out, jack_osc_filter"
+	@echo "jack_gen"
+	@echo ""
 	@echo ""
 	@echo "INSTALLDIR: $(INSTALLDIR)"
 	@echo ""
@@ -82,11 +69,14 @@ install:
 
 	mkdir -p $(DESTDIR)$(INSTALLDIR)/
 #	mkdir -p $(DESTDIR)$(MANDIR)/
+
+	install -m755 $(BLD)/jack_xlsp $(DESTDIR)$(INSTALLDIR)/
+	install -m755 $(BLD)/jack_oscev $(DESTDIR)$(INSTALLDIR)/
+
 	install -m755 $(BLD)/jack_osc_bridge_in $(DESTDIR)$(INSTALLDIR)/
 	install -m755 $(BLD)/jack_osc_bridge_out $(DESTDIR)$(INSTALLDIR)/
 	install -m755 $(BLD)/jack_osc_filter $(DESTDIR)$(INSTALLDIR)/
 	install -m755 $(BLD)/jack_gen $(DESTDIR)$(INSTALLDIR)/
-#	install -m644 $(DOC)/jack_audio_send.1.gz $(DESTDIR)$(MANDIR)/
 
 	@echo ""
 	@echo "done!"
@@ -94,8 +84,11 @@ install:
 
 uninstall:
 	@echo ""
-	@echo "uninstalling jack_osc_bridge_in, jack_osc_bridge_out, jack_osc_filter, jack_gen"
-	@echo "-------------------------------------------------------------------------------"
+	@echo "uninstall"
+	@echo "---------"
+	@echo ""
+	@echo "jack_osc_bridge_in, jack_osc_bridge_out, jack_osc_filter"
+	@echo "jack_gen
 	@echo ""
 	@echo "INSTALLDIR: $(INSTALLDIR)"
 	@echo ""
@@ -104,31 +97,16 @@ uninstall:
 	@echo "sudo make uninstall"
 	@echo ""
 
+	rm -f $(DESTDIR)$(INSTALLDIR)/jack_xlsp
+	rm -f $(DESTDIR)$(INSTALLDIR)/jack_oscev
+
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_osc_bridge_in
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_osc_bridge_out
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_osc_filter
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_gen
 
-#	rm -f $(DESTDIR)$(MANDIR)/jack_audio_send.1.gz
-#	rm -f $(DESTDIR)$(MANDIR)/jack_audio_receive.1.gz
-
 	@echo ""
 	@echo "done."
 	@echo ""
 
-deb64:
-#	checkinstall -D --arch=amd64 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-#	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
-#	sudo make deb64 PREFIX=/usr
-
-deb32:
-#	checkinstall -D --arch=i386 --pkgname=audio-rxtx --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-#	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="liblo7,jackd" --install=no make install
-#	sudo make deb32 PREFIX=/usr
-
-debarmhf: 
-#	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-#	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="shellutils" --requires="liblo7,libncurses5" --install=no make install
-#	sudo make debarmhf PREFIX=/usr
-
-.PHONY: all
+.PHONY: clean install uninstall
