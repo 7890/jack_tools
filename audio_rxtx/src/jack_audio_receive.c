@@ -1123,8 +1123,16 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	//ignore first n channels/blobs
 	data_offset+=channel_offset;
 
+	message_number_prev=message_number;
+
 	//the messages are numbered sequentially. first msg is numberd 1
 	message_number=argv[0]->h;
+
+	if(message_number_prev<message_number-1)
+	{
+		fprintf(stderr,"\ngap in message sequence! possibly lost %" PRId64" message(s) on the way.\n"
+			,message_number-message_number_prev-1);
+	}
 
 	//total args count minus metadata args count = number of blobs
 	input_port_count=argc-data_offset;
@@ -1209,8 +1217,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			fprintf(stderr,"equal sender and receiver period size\n\n");
 		}
 	}//end if "no-offer init" was needed
-
-	message_number_prev=message_number;
 
 	remote_xrun_counter=argv[1]->h;
 
