@@ -69,7 +69,10 @@ float host_to_host_time_offset=0;
 
 struct timeval tv;
 
-int nopause=0;
+int nopause=0; //param
+
+int drop_every_nth_message=0; //param
+int drop_counter=0;
 
 //ctrl+c etc
 static void signal_handler(int sig)
@@ -295,8 +298,26 @@ process(jack_nframes_t nframes, void *arg)
 			lo_message_add_blob(msg,blob[i]);		
 		}
 
-		//==================================
-		lo_send_message (loa, "/audio", msg);
+		//drop messages for test purposes
+		if(drop_every_nth_message>0)
+		{
+			drop_counter++;
+
+			if(drop_counter>=drop_every_nth_message)
+			{
+				drop_counter=0;
+			}
+			else
+			{
+				lo_send_message (loa, "/audio", msg);
+			}
+		}
+		else
+		{
+			//==================================
+			lo_send_message (loa, "/audio", msg);
+		}
+
 		//fprintf(stderr,"msg size %d\n",lo_message_length(msg,"/audio"));
 
 		//free resources to keep memory clean
@@ -373,6 +394,7 @@ static void print_help (void)
 	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
 	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
+	fprintf (stderr, "  Drop every nth message (test)   (0) --drop   <integer>\n");
 	fprintf (stderr, "target_host:   <string>\n");
 	fprintf (stderr, "target_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
@@ -410,6 +432,7 @@ main (int argc, char *argv[])
 		{"update",	required_argument,	0, 'u'},
 		{"limit",	required_argument,	0, 't'},
 		{"nopause",	no_argument,	&nopause, 1},
+		{"drop",	required_argument,	0, 'd'},
 		{0, 0, 0, 0}
 	};
 
@@ -481,14 +504,16 @@ main (int argc, char *argv[])
 				send_max=fmax(1,(uint64_t)atoll(optarg));
 				test_mode=1;
 				fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",send_max);
+				break;
 
+			case 'd':
+				drop_every_nth_message=atoi(optarg);
 				break;
 
 			case '?': //invalid commands
 				/* getopt_long already printed an error message. */
 				fprintf (stderr, "Wrong arguments, try --help.\n\n");
 				exit(1);
-
 				break;
  	 
 			default:
@@ -559,6 +584,11 @@ main (int argc, char *argv[])
 	else
 	{
 		fprintf(stderr, "immediate send, no pause or shutdown: no\n");
+	}
+
+	if(drop_every_nth_message>0)
+	{
+		fprintf(stderr, "artificial message drops: every %d\n",drop_every_nth_message);
 	}
 
 	fprintf(stderr,"multi-channel period size: %d bytes\n",
