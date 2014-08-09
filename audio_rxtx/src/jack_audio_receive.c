@@ -78,6 +78,9 @@ uint64_t multi_channel_drop_counter=0;
 //if the network cable is plugged out, this can sound awful
 int zero_on_underflow=1; //param
 
+//if set to 0, /buffer ii messages are ignored
+int allow_remote_buffer_control=1; //param
+
 //limit messages from sender
 //"signaling" not included
 uint64_t receive_max=10000; //param
@@ -119,12 +122,13 @@ float sample_drift_sum=0;
 int remote_period_size=0;
 int remote_sample_rate=0;
 
-int close_on_incomp=0;
+int close_on_incomp=0; //param
 
-int rebuffer_on_restart=0;
-int rebuffer_on_underflow=0;
+int rebuffer_on_restart=0; //param
 
-int channel_offset=0;
+int rebuffer_on_underflow=0; //param
+
+int channel_offset=0; //param
 
 //ctrl+c etc
 static void signal_handler(int sig)
@@ -419,6 +423,7 @@ static void print_help (void)
 	fprintf (stderr, "  Rebuffer on sender restart:  (off) --rere\n");
 	fprintf (stderr, "  Rebuffer on underflow:       (off) --reuf\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
+	fprintf (stderr, "  Allow ext. buffer control    (yes) --norbc\n");
 //	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
@@ -459,6 +464,7 @@ main (int argc, char *argv[])
 		{"rere",	no_argument,	&rebuffer_on_restart, 1},
 		{"reuf",	no_argument,	&rebuffer_on_underflow, 1},
 		{"nozero",	no_argument,	&zero_on_underflow, 0},
+		{"norbc",	no_argument,	&allow_remote_buffer_control, 0},
 		/*{"drift",	required_argument,	0, 'd'},*/
 		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
 		{"limit",	required_argument,	0, 't'},//test, stop after n processed
@@ -646,6 +652,15 @@ main (int argc, char *argv[])
 	else
 	{
 		fprintf(stderr,"rebuffer on underflow: no\n");
+	}
+
+	if(allow_remote_buffer_control==1)
+	{
+		fprintf(stderr,"allow external buffer control: yes\n");
+	}
+	else
+	{
+		fprintf(stderr,"allow external buffer control: no\n");
 	}
 
 	if(close_on_incomp==1)
@@ -866,6 +881,8 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/offer", "fiiiifh", offer_handler, NULL);
 
 /*
+	currently not used
+
 	/trip it
 
 	1) i: id/sequence/any number that will be replied
@@ -900,7 +917,7 @@ void registerOSCMessagePatterns(const char *port)
 	68) b: up to 64 channels
 */
 
-	//support 1-8 blobs / channels per message
+	//support 1-64 blobs / channels per message
 	lo_server_thread_add_method(lo_st, "/audio", "hhtib", audio_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/audio", "hhtibb", audio_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/audio", "hhtibbb", audio_handler, NULL);
@@ -1370,6 +1387,12 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 {
 	if(shutdown_in_progress==1)
 	{
+		return 0;
+	}
+
+	if(allow_remote_buffer_control==0)
+	{
+		fprintf(stderr,"\nremote buffer control /buffer ii disabled! ignoring.\n");
 		return 0;
 	}
 
