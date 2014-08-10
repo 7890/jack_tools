@@ -182,9 +182,6 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		void *data, void *user_data);
 
-int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
-		void *data, void *user_data);
-
 //jack calls this method on every xrun
 int xrun()
 {
@@ -907,17 +904,6 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/offer", "fiiiifh", offer_handler, NULL);
 
 /*
-	currently not used
-
-	/trip it
-
-	1) i: id/sequence/any number that will be replied
-	2) t: timestamp from sender that will be replied
-*/
-
-	lo_server_thread_add_method(lo_st, "/trip", "it", trip_handler, NULL);
-
-/*
 	experimental
 
 	/buffer ii
@@ -1145,15 +1131,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	msg_received_counter++;
 
 	gettimeofday(&tv, NULL);
-
-/*
-	lo_address loa = lo_message_get_source(data);
-	strcpy(sender_host,lo_address_get_hostname(loa));
-	strcpy(sender_port,lo_address_get_port(loa));
-	fprintf(stderr,"receiving from %s:%s",
-		lo_address_get_hostname(loa),lo_address_get_port(loa)
-	);
-*/
 
 	//first blob is at data_offset+1 (one-based)
 	int data_offset=4;
@@ -1413,41 +1390,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		}
 	}
 
-
 	return 0;
 }//end audio_handler
-
-// /trip
-//not used for now
-//send back with local time received timetag
-int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
-	void *data, void *user_data)
-{
-	if(shutdown_in_progress==1)
-	{
-		return 0;
-	}
-
-//	fprintf(stderr,"\rtripping...");
-
-	gettimeofday(&tv, NULL);
-	lo_timetag tt;
-	tt.sec=tv.tv_sec;
-	tt.frac=tv.tv_usec;
-
-	lo_address loa = lo_message_get_source(data);
-
-	lo_message msg=lo_message_new();
-
-	lo_message_add_int32(msg,argv[0]->i);
-	lo_message_add_timetag(msg,argv[1]->t);
-	lo_message_add_timetag(msg,tt);
-	lo_send_message (loa, "/trip", msg);
-
-	lo_message_free(msg);
-
-	return 0;
-}
 
 // /buffer
 int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,

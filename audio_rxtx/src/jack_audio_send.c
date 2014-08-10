@@ -61,12 +61,6 @@ float expected_network_data_rate=0;
 //0: receiver denied  1: receiver accepted
 int receiver_accepted=-1;
 
-//for misc measurements
-float trip_time_interval=0;
-float trip_time_interval_sum=0;
-float trip_time_interval_avg=0;
-float host_to_host_time_offset=0;
-
 struct timeval tv;
 
 int nopause=0; //param
@@ -107,11 +101,6 @@ int deny_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 int pause_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data);
-
-int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
-	void *data, void *user_data);
-
-void trip();
 
 //create a dummy message, return size in bytes (message length)
 //don't forget to update when changing the real message in process()
@@ -554,7 +543,6 @@ main (int argc, char *argv[])
 	lo_server_thread_add_method(lo_st, "/deny", "fi", deny_handler, NULL);
 
 	lo_server_thread_add_method(lo_st, "/pause", "", pause_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/trip", "itt", trip_handler, NULL);
 
 	//create an array of input ports
 	ioPortArray = (jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
@@ -776,8 +764,6 @@ main (int argc, char *argv[])
 	//start the osc server
 	lo_server_thread_start(lo_st);
 
-	//trip();
-
 	process_enabled=1;
 
 	/* keep running until the Ctrl+C */
@@ -793,61 +779,6 @@ main (int argc, char *argv[])
 
 	exit (0);
 }
-
-//not used for now
-void trip()
-{
-	fprintf(stderr,"measure round trip latency...");
-
-	//lo_address loa = lo_message_get_source(data);
-	int i;
-	for(i=0;i<100;i++)
-	{
-		gettimeofday(&tv, NULL);
-		lo_timetag tt;
-		tt.sec=tv.tv_sec;
-		tt.frac=tv.tv_usec;
-
-		lo_message msg=lo_message_new();
-		lo_message_add_int32(msg,i);
-		lo_message_add_timetag(msg,tt);
-
-		lo_send_message (loa, "/trip", msg);
-		//lo_message_free(msg);
-	}
-
-	fprintf(stderr,"done.\n");
-}
-
-// /trip itt
-int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
-	void *data, void *user_data)
-{
-	//don't accept if shutdown is ongoing
-	if(shutdown_in_progress==1)
-	{
-		return 0;
-	}
-	gettimeofday(&tv, NULL);
-
-	int id=argv[0]->i;
-	lo_timetag tt_sent=argv[1]->t;
-	lo_timetag tt_received_on_receiver=argv[2]->t;
-
-	double sent_time=tt_sent.sec+(double)tt_sent.frac/1000000;
-	double received_on_receiver_time=tt_received_on_receiver.sec+(double)tt_received_on_receiver.frac/1000000;
-	double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
-
-	trip_time_interval=time_now-sent_time;
-	trip_time_interval_sum+=trip_time_interval;
-	trip_time_interval_avg=(float)trip_time_interval_sum/id+1;
-
-	host_to_host_time_offset=received_on_receiver_time-sent_time+((float)trip_time_interval_avg/2);
-
-	//fprintf(stderr,"%d %d %f %f\n",tt_sent.sec,tt_sent.frac,trip_time_interval_avg,host_to_host_time_offset);
-
-	return 0;
-} //end trip_handler
 
 // /accept
 int accept_handler(const char *path, const char *types, lo_arg **argv, int argc,
