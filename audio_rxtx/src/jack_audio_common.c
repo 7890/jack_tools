@@ -9,7 +9,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.66f;
+float version = 0.67f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;

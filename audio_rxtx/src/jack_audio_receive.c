@@ -130,6 +130,11 @@ int rebuffer_on_underflow=0; //param
 
 int channel_offset=0; //param
 
+int use_tcp=0; //param
+int lo_proto=LO_UDP;
+
+char* remote_tcp_server_port;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
@@ -138,7 +143,10 @@ static void signal_handler(int sig)
 	if(close_on_incomp==0)
 	{
 		fprintf(stderr,"telling sender to pause.\n");
-		lo_address loa = lo_address_new(sender_host,sender_port);
+
+		//lo_address loa = lo_address_new(sender_host,sender_port);
+		lo_address loa = lo_address_new_with_proto(lo_proto, sender_host,sender_port);
+
 		lo_message msg=lo_message_new();
 		lo_send_message (loa, "/pause", msg);
 		lo_message_free(msg);
@@ -428,6 +436,7 @@ static void print_help (void)
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
 	fprintf (stderr, "  Quit on incompatibility:     (off) --close\n");
+	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
 	fprintf (stderr, "listening_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
@@ -435,7 +444,6 @@ static void print_help (void)
 	//needs manpage
 	exit (1);
 }
-
 int
 main (int argc, char *argv[])
 {
@@ -467,9 +475,9 @@ main (int argc, char *argv[])
 		{"norbc",	no_argument,	&allow_remote_buffer_control, 0},
 		/*{"drift",	required_argument,	0, 'd'},*/
 		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
-		{"limit",	required_argument,	0, 't'},//test, stop after n processed
+		{"limit",	required_argument,	0, 'l'},//test, stop after n processed
 		{"close",	no_argument,	&close_on_incomp, 1},//close client rather than telling sender to stop
-
+		{"tcp",		required_argument,	0, 't'}, //server port of remote host
 		{0, 0, 0, 0}
 	};
 
@@ -552,11 +560,16 @@ main (int argc, char *argv[])
 				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
-			case 't':
+			case 'l':
 				receive_max=fmax(1,(uint64_t)atoll(optarg));
 				test_mode=1;
 				fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",receive_max);
 
+				break;
+
+			case 't':
+				use_tcp=1;
+				remote_tcp_server_port=optarg;
 				break;
 
 			case '?': //invalid commands
@@ -579,6 +592,11 @@ main (int argc, char *argv[])
 	}
 
 	listenPort=argv[optind];
+
+	if(use_tcp==1)
+	{
+		lo_proto=LO_TCP;
+	}
 
 	//initialize time
 	gettimeofday(&tv, NULL);
@@ -672,7 +690,14 @@ main (int argc, char *argv[])
 		fprintf(stderr,"shutdown receiver when incompatible data received: no\n");
 	}
 
-
+	if(use_tcp==1)
+	{
+		fprintf(stderr, "network transmission style: TCP\n");
+	}
+	else
+	{
+		fprintf(stderr, "network transmission style: UDP\n");
+	}
 
 #if 0 //ndef __APPLE__
 	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
@@ -864,7 +889,8 @@ main (int argc, char *argv[])
 void registerOSCMessagePatterns(const char *port)
 {
 	/* osc server */
-	lo_st = lo_server_thread_new(port, error);
+	//lo_st = lo_server_thread_new(port, error);
+	lo_st = lo_server_thread_new_with_proto(port, lo_proto, error);
 
 /*
 	/offer fiiiifh
@@ -1034,7 +1060,19 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	lo_message msg=lo_message_new();
 
 	//send back to host that offered audio
-	lo_address loa = lo_message_get_source(data);
+	//lo_address loa = lo_message_get_source(data);
+
+	lo_address loa;
+
+	if(use_tcp==1)
+	{
+		lo_address loa_ = lo_message_get_source(data);
+		loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+	}
+	else
+	{
+		loa = lo_message_get_source(data);
+	}
 
 	//check if compatible with sender
 	//could check more stuff (channel count, data rate, sender host/port, ...)
@@ -1152,7 +1190,18 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	//check sample rate and period size if sender (re)started or values not yet initialized (=no /offer received)
 	if(message_number_prev>message_number || message_number==1 || remote_sample_rate==0 || remote_period_size==0 )
 	{
-		lo_address loa = lo_message_get_source(data);
+		lo_address loa;
+
+		if(use_tcp==1)
+		{
+			lo_address loa_ = lo_message_get_source(data);
+			loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+		}
+		else
+		{
+			loa = lo_message_get_source(data);
+		}
+
 		strcpy(sender_host,lo_address_get_hostname(loa));
 		strcpy(sender_port,lo_address_get_port(loa));
 
@@ -1195,7 +1244,19 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			}
 			else
 			{
-				lo_address loa = lo_message_get_source(data);
+
+				lo_address loa;
+
+				if(use_tcp==1)
+				{
+					lo_address loa_ = lo_message_get_source(data);
+					loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+				}
+				else
+				{
+					loa = lo_message_get_source(data);
+				}
+
 				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings on sender: SR: %d.\nshutting down (see option --close)...\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
 				);
@@ -1375,6 +1436,7 @@ int trip_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	tt.frac=tv.tv_usec;
 
 	lo_address loa = lo_message_get_source(data);
+
 	lo_message msg=lo_message_new();
 
 	lo_message_add_int32(msg,argv[0]->i);

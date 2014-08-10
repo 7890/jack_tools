@@ -74,6 +74,9 @@ int nopause=0; //param
 int drop_every_nth_message=0; //param
 int drop_counter=0;
 
+int use_tcp=0; //param
+int lo_proto=LO_UDP;
+
 //ctrl+c etc
 static void signal_handler(int sig)
 {
@@ -395,6 +398,7 @@ static void print_help (void)
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
 	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
 	fprintf (stderr, "  Drop every nth message (test)   (0) --drop   <integer>\n");
+	fprintf (stderr, "  Use TCP instead of UDP        (UDP) --tcp\n");
 	fprintf (stderr, "target_host:   <string>\n");
 	fprintf (stderr, "target_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
@@ -433,6 +437,7 @@ main (int argc, char *argv[])
 		{"limit",	required_argument,	0, 't'},
 		{"nopause",	no_argument,	&nopause, 1},
 		{"drop",	required_argument,	0, 'd'},
+		{"tcp",		no_argument,	&use_tcp, 1},
 		{0, 0, 0, 0}
 	};
 
@@ -531,11 +536,18 @@ main (int argc, char *argv[])
 	sendToHost=argv[optind];
 	sendToPort=argv[++optind];
 
+	if(use_tcp==1)
+	{
+		lo_proto=LO_TCP;
+	}
+
 	//osc server
-	lo_st = lo_server_thread_new(localPort, error);
+	//lo_st = lo_server_thread_new(localPort, error);
+	lo_st = lo_server_thread_new_with_proto(localPort, lo_proto, error);
 
 	//destination address
-	loa = lo_address_new(sendToHost, sendToPort);
+	//loa = lo_address_new(sendToHost, sendToPort);
+	loa = lo_address_new_with_proto(lo_proto, sendToHost, sendToPort);
 
 	lo_server_thread_add_method(lo_st, "/accept", "", accept_handler, NULL);
 
@@ -584,6 +596,15 @@ main (int argc, char *argv[])
 	else
 	{
 		fprintf(stderr, "immediate send, no pause or shutdown: no\n");
+	}
+
+	if(use_tcp==1)
+	{
+		fprintf(stderr, "network transmission style: TCP\n");
+	}
+	else
+	{
+		fprintf(stderr, "network transmission style: UDP\n");
 	}
 
 	if(drop_every_nth_message>0)
