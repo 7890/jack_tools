@@ -387,7 +387,7 @@ static void print_help (void)
 	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
 	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
 	fprintf (stderr, "  Drop every nth message (test)   (0) --drop   <integer>\n");
-	fprintf (stderr, "  Use TCP instead of UDP        (UDP) --tcp\n");
+//	fprintf (stderr, "  Use TCP instead of UDP        (UDP) --tcp\n");
 	fprintf (stderr, "target_host:   <string>\n");
 	fprintf (stderr, "target_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
@@ -586,6 +586,7 @@ main (int argc, char *argv[])
 		fprintf(stderr, "immediate send, no pause or shutdown: no\n");
 	}
 
+/*
 	if(use_tcp==1)
 	{
 		fprintf(stderr, "network transmission style: TCP\n");
@@ -594,6 +595,7 @@ main (int argc, char *argv[])
 	{
 		fprintf(stderr, "network transmission style: UDP\n");
 	}
+*/
 
 	if(drop_every_nth_message>0)
 	{

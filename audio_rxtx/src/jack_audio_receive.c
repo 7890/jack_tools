@@ -111,14 +111,6 @@ int starting_transmission=0;
 char sender_host[255];
 char sender_port[10];
 
-//insert(copy last): positive number
-//drop samples: negative number
-/*
-float sample_drift_per_second=0;
-float sample_drift_per_cycle=0;
-float sample_drift_sum=0;
-*/
-
 int remote_period_size=0;
 int remote_sample_rate=0;
 
@@ -209,8 +201,7 @@ void print_info()
 	)
 	{
 		fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
-			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",/* d: %.1f%s",*/
-
+			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",
 			message_number,
 			offset_string,
 			input_port_count,
@@ -222,7 +213,6 @@ void print_info()
 			multi_channel_drop_counter,
 			buffer_overflow_counter,
 			(float)frames_since_cycle_start_avg/(float)period_size,
-			/*sample_drift_sum,*/
 			"\033[0J"
 		);
 		relaxed_display_counter=0;
@@ -294,8 +284,6 @@ process (jack_nframes_t nframes, void *arg)
 		{
 			last_test_cycle=1;
 		}
-
-		//sample_drift_sum+=sample_drift_per_cycle;
 	}
 
 	//init to 0. increment before use
@@ -429,11 +417,10 @@ static void print_help (void)
 	fprintf (stderr, "  Rebuffer on underflow:       (off) --reuf\n");
 	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
 	fprintf (stderr, "  Allow ext. buffer control    (yes) --norbc\n");
-//	fprintf (stderr, "  Sample drift per second:       (0) --drift    <float +/->\n");
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
 	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
 	fprintf (stderr, "  Quit on incompatibility:     (off) --close\n");
-	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
+//	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
 	fprintf (stderr, "listening_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
@@ -470,7 +457,6 @@ main (int argc, char *argv[])
 		{"reuf",	no_argument,	&rebuffer_on_underflow, 1},
 		{"nozero",	no_argument,	&zero_on_underflow, 0},
 		{"norbc",	no_argument,	&allow_remote_buffer_control, 0},
-		/*{"drift",	required_argument,	0, 'd'},*/
 		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
 		{"limit",	required_argument,	0, 'l'},//test, stop after n processed
 		{"close",	no_argument,	&close_on_incomp, 1},//close client rather than telling sender to stop
@@ -547,12 +533,6 @@ main (int argc, char *argv[])
 				max_buffer_size=fmax(1,(uint64_t)atoll(optarg));
 				break;
 
-/*
-			case 'd':
-				sample_drift_per_second=(float)atof(optarg);
-				break;
-*/
-
 			case 'u':
 				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
 				break;
@@ -625,8 +605,6 @@ main (int argc, char *argv[])
 		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
 	}
 
-	//sample_drift_per_cycle=(float)sample_drift_per_second/((float)sample_rate/(float)period_size);
-
 	//print startup info
 
 	fprintf(stderr,"listening on osc port: %s\n",listenPort);
@@ -646,8 +624,6 @@ main (int argc, char *argv[])
 	{
 		strat="re-use last available period";
 	}
-
-	//fprintf(stderr,"sample drift: %.1f samples per second\n", sample_drift_per_second);
 
 	fprintf(stderr,"underflow strategy: %s\n",strat);
 
@@ -687,6 +663,7 @@ main (int argc, char *argv[])
 		fprintf(stderr,"shutdown receiver when incompatible data received: no\n");
 	}
 
+/*
 	if(use_tcp==1)
 	{
 		fprintf(stderr, "network transmission style: TCP\n");
@@ -695,10 +672,7 @@ main (int argc, char *argv[])
 	{
 		fprintf(stderr, "network transmission style: UDP\n");
 	}
-
-#if 0 //ndef __APPLE__
-	fprintf(stderr,"free memory: %" PRId64 " mb\n",get_free_mem()/1000/1000);
-#endif
+*/
 
 	char buf[64];
 	format_seconds(buf,(float)pre_buffer_size*period_size/(float)sample_rate);
@@ -744,15 +718,6 @@ main (int argc, char *argv[])
 		(float)rb_size/1000/1000
 	);
 	buf[0] = '\0';
-
-#if 0//ndef __APPLE__
-	if(rb_size > get_free_mem())
-	{
-		fprintf(stderr,"not enough memory to create the ringbuffer.\n");
-		fprintf(stderr,"try --max <smaller size>.\n");
-		exit(1);
-	}
-#endif
 
 	//====================================
 	//main ringbuffer osc blobs -> jack output
