@@ -409,18 +409,18 @@ static void print_help (void)
 	fprintf (stderr, "  Show program version and quit       --version\n");
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
 	fprintf (stderr, "  Channel Offset:                (0) --offset <integer>\n");
-	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
+	fprintf (stderr, "  Autoconnect ports:                 --connect\n");
 	fprintf (stderr, "  JACK client name:        (receive) --name   <string>\n");
 	fprintf (stderr, "  JACK server name:        (default) --sname  <string>\n");
 	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre    <integer>\n");
 	fprintf (stderr, "  Max buffer size (>= init):  (auto) --max    <integer>\n");
-	fprintf (stderr, "  Rebuffer on sender restart:  (off) --rere\n");
-	fprintf (stderr, "  Rebuffer on underflow:       (off) --reuf\n");
-	fprintf (stderr, "  Re-use old data on underflow: (no) --nozero\n");
-	fprintf (stderr, "  Allow ext. buffer control    (yes) --norbc\n");
+	fprintf (stderr, "  Rebuffer on sender restart:        --rere\n");
+	fprintf (stderr, "  Rebuffer on underflow:             --reuf\n");
+	fprintf (stderr, "  Re-use old data on underflow:      --nozero\n");
+	fprintf (stderr, "  Disallow ext. buffer control       --norbc\n");
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
-	fprintf (stderr, "  Limit processing count:      (off) --limit  <integer>\n");
-	fprintf (stderr, "  Quit on incompatibility:     (off) --close\n");
+	fprintf (stderr, "  Limit processing count:            --limit  <integer>\n");
+	fprintf (stderr, "  Quit on incompatibility:           --close\n");
 //	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
 	fprintf (stderr, "listening_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
@@ -467,7 +467,7 @@ main (int argc, char *argv[])
 	};
 
 	//print program header
-	if(argc==2 && strcmp(argv[1],"--version"))
+	if(argc>1 && strcmp(argv[1],"--version"))
 	{
 		print_header("jack_audio_receive");
 	}

@@ -380,12 +380,12 @@ static void print_help (void)
 	fprintf (stderr, "  Show program version and quit       --version\n");
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
 	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
-	fprintf (stderr, "  Autoconnect ports:            (off) --connect\n");
+	fprintf (stderr, "  Autoconnect ports:                  --connect\n");
 	fprintf (stderr, "  JACK client name:            (send) --name   <string>\n");
 	fprintf (stderr, "  JACK server name:         (default) --sname  <string>\n");
 	fprintf (stderr, "  Update info every nth cycle    (99) --update <integer>\n");
-	fprintf (stderr, "  Limit totally sent messages:  (off) --limit  <integer>\n");
-	fprintf (stderr, "  Immediate send, ignore /pause (off) --nopause\n");
+	fprintf (stderr, "  Limit totally sent messages:        --limit  <integer>\n");
+	fprintf (stderr, "  Immediate send, ignore /pause       --nopause\n");
 	fprintf (stderr, "  (Use with multiple receivers. Ignore /pause, /deny)\n");
 	fprintf (stderr, "  Drop every nth message (test)   (0) --drop   <integer>\n");
 //	fprintf (stderr, "  Use TCP instead of UDP        (UDP) --tcp\n");
@@ -433,7 +433,7 @@ main (int argc, char *argv[])
 	};
 
 	//print program header
-	if(argc==2 && strcmp(argv[1],"--version"))
+	if(argc>1 && strcmp(argv[1],"--version"))
 	{
 		print_header("jack_audio_send");
 	}
