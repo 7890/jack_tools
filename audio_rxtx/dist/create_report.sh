@@ -40,8 +40,10 @@ sudo apt-get -y remove "$PACKAGE"
 echo ""
 
 #install new package
-echo "\$ sudo dpkg -i --ignore-depends="jackd,liblo7" $FILE"
-sudo dpkg -i --ignore-depends="jackd,liblo7" "$FILE"
+#echo "\$ sudo dpkg -i --ignore-depends="jackd,liblo7" $FILE"
+#sudo dpkg -i --ignore-depends="jackd,liblo7" "$FILE"
+echo "\$ sudo dpkg -i $FILE"
+sudo dpkg -i "$FILE"
 echo ""
 
 echo "\$ dpkg -L $PACKAGE"

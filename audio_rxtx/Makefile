@@ -18,7 +18,10 @@ LICENSE ?= "GPL2"
 VERSION ?= 0
 RELEASE ?= 7
 RELEASE_DATE ?= 140827
-REQUIRES ?= "liblo7, jackd, libjack0, libc6"
+#remove for now
+#REQUIRES ?= "liblo7, jackd, libjack0, libc6"
+REQUIRES ?= "libc6"
+
 PKG_GROUP ?= "sound"
 
 ARCH ?= "i386"
