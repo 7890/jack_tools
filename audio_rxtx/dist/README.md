@@ -4,6 +4,7 @@ Notes on bulding .deb, procedure:
 sudo make uninstall
 make clean
 make
+make manpage
 make prepare_checkinstall
 sudo make deb ARCH=amd64
 make deb_dist ARCH=amd64
