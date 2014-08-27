@@ -1,0 +1,84 @@
+audio-rxtx
+28K	build/audio-rxtx_140827_0-7_amd64.deb
+Wed Aug 27 18:16:02 CEST 2014
+********************
+
+$ md5sum build/audio-rxtx_140827_0-7_amd64.deb
+63f96e276475ab69328e562ee204d4e5  build/audio-rxtx_140827_0-7_amd64.deb
+
+$ lintian build/audio-rxtx_140827_0-7_amd64.deb
+W: audio-rxtx: control-file-is-empty conffiles
+
+$ sudo apt-get -y remove audio-rxtx
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages will be REMOVED:
+  audio-rxtx
+0 upgraded, 0 newly installed, 1 to remove and 90 not upgraded.
+After this operation, 147 kB disk space will be freed.
+(Reading database ... 175258 files and directories currently installed.)
+Removing audio-rxtx (0-7) ...
+Processing triggers for man-db (2.6.7.1-1) ...
+
+$ sudo dpkg -i --ignore-depends=jackd,liblo7 build/audio-rxtx_140827_0-7_amd64.deb
+Selecting previously unselected package audio-rxtx.
+(Reading database ... 175246 files and directories currently installed.)
+Preparing to unpack .../audio-rxtx_140827_0-7_amd64.deb ...
+Unpacking audio-rxtx (0-7) ...
+Setting up audio-rxtx (0-7) ...
+Processing triggers for man-db (2.6.7.1-1) ...
+
+$ dpkg -L audio-rxtx
+/.
+/usr
+/usr/bin
+/usr/bin/jack_audio_receive
+/usr/bin/jack_audio_send
+/usr/share
+/usr/share/doc
+/usr/share/doc/audio-rxtx
+/usr/share/doc/audio-rxtx/README.md
+/usr/share/doc/audio-rxtx/copyright
+/usr/share/doc/audio-rxtx/doc
+/usr/share/doc/audio-rxtx/doc/sequence_diagram.txt
+/usr/share/doc/audio-rxtx/doc/jack_audio_receive.man.asciidoc
+/usr/share/doc/audio-rxtx/doc/jack_audio_send.man.asciidoc
+/usr/share/doc/audio-rxtx/changelog.Debian.gz
+/usr/share/man
+/usr/share/man/man1
+/usr/share/man/man1/jack_audio_send.1.gz
+/usr/share/man/man1/jack_audio_receive.1.gz
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_send
+	linux-vdso.so.1 =>  (0x00007fff44bfe000)
+	libjack.so.0 => /usr/local/lib/libjack.so.0 (0x00002ba9aca85000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x00002ba9accde000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002ba9aceee000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002ba9ad1f4000)
+	libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00002ba9ad5ba000)
+	librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00002ba9ad7d8000)
+	libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00002ba9ad9e0000)
+	libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002ba9adbe4000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002ba9adee8000)
+	/lib64/ld-linux-x86-64.so.2 (0x00002ba9ac860000)
+
+$ LD_LIBRARY_PATH=/usr/lib ldd /usr/bin/jack_audio_receive
+	linux-vdso.so.1 =>  (0x00007fff847fe000)
+	libjack.so.0 => /usr/local/lib/libjack.so.0 (0x00002b5f37eec000)
+	liblo.so.7 => /usr/lib/liblo.so.7 (0x00002b5f38145000)
+	libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00002b5f38355000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00002b5f3865b000)
+	libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00002b5f38a21000)
+	librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00002b5f38c3f000)
+	libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00002b5f38e47000)
+	libstdc++.so.6 => /usr/lib/x86_64-linux-gnu/libstdc++.so.6 (0x00002b5f3904b000)
+	libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00002b5f3934f000)
+	/lib64/ld-linux-x86-64.so.2 (0x00002b5f37cc7000)
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_send --version
+0.70
+
+$ LD_LIBRARY_PATH=/usr/lib /usr/bin/jack_audio_receive --version
+0.70
+
