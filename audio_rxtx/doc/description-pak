@@ -1,0 +1,4 @@
+Transmit lossless audio data in a LAN using JACK
+Client programs (jack_audio_send, jack_audio_receive) 
+for the JACK Audio Connection Kit to transmit lossless audio 
+data in a LAN via UDP OSC. No resampling provided.
