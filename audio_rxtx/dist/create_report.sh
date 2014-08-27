@@ -13,8 +13,6 @@ then
 fi
 
 
-
-
 FILE="$1"
 #FILE=audio-rxtx_140525_0-1_amd64.deb
 PACKAGE=audio-rxtx
@@ -23,35 +21,46 @@ BIN2=/usr/bin/jack_audio_receive
 LDP="/usr/lib"
 
 echo "$PACKAGE"
-du -h $FILE
+du -h "$FILE"
 date
 echo "********************"
 
 echo ""
 echo "\$ md5sum $FILE"
-md5sum $FILE
+md5sum "$FILE"
 echo ""
 
-echo "\$ sudo dpkg -i $FILE"
-sudo dpkg -i $FILE
+echo "\$ lintian $FILE"
+lintian "$FILE"
+echo ""
+
+#remove (possible) .deb installation of package first
+echo "\$ sudo apt-get -y remove $PACKAGE"
+sudo apt-get -y remove "$PACKAGE"
+echo ""
+
+#install new package
+echo "\$ sudo dpkg -i --ignore-depends="jackd,liblo7" $FILE"
+sudo dpkg -i --ignore-depends="jackd,liblo7" "$FILE"
 echo ""
 
 echo "\$ dpkg -L $PACKAGE"
-dpkg -L $PACKAGE
+dpkg -L "$PACKAGE"
 echo ""
 
 echo "\$ LD_LIBRARY_PATH=$LDP ldd $BIN1"
-LD_LIBRARY_PATH=$LDP ldd $BIN1
+LD_LIBRARY_PATH="$LDP" ldd "$BIN1"
 echo ""
 
 echo "\$ LD_LIBRARY_PATH=$LDP ldd $BIN2"
-LD_LIBRARY_PATH=$LDP ldd $BIN2
+LD_LIBRARY_PATH="$LDP" ldd "$BIN2"
 echo ""
 
-echo "\$ LD_LIBRARY_PATH=$LDP $BIN1"
-LD_LIBRARY_PATH=$LDP $BIN1
+echo "\$ LD_LIBRARY_PATH=$LDP $BIN1 --version"
+LD_LIBRARY_PATH="$LDP" "$BIN1" --version
 echo ""
 
-echo "\$ LD_LIBRARY_PATH=$LDP $BIN2"
-LD_LIBRARY_PATH=$LDP $BIN2
+echo "\$ LD_LIBRARY_PATH=$LDP $BIN2 --version"
+LD_LIBRARY_PATH="$LDP" "$BIN2" --version
 echo ""
+
