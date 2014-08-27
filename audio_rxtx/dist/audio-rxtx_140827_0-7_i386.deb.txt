@@ -1,10 +1,10 @@
 audio-rxtx
 28K	build/audio-rxtx_140827_0-7_i386.deb
-Mit Aug 27 18:20:36 CEST 2014
+Mit Aug 27 20:47:11 CEST 2014
 ********************
 
 $ md5sum build/audio-rxtx_140827_0-7_i386.deb
-713028aab74f8ee70705515c84eb0bda  build/audio-rxtx_140827_0-7_i386.deb
+a78f72a67f5c167da1ff1380ff302682  build/audio-rxtx_140827_0-7_i386.deb
 
 $ lintian build/audio-rxtx_140827_0-7_i386.deb
 W: audio-rxtx: control-file-is-empty conffiles
@@ -18,10 +18,10 @@ The following packages will be REMOVED:
 0 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.
 After this operation, 147 kB disk space will be freed.
 (Reading database ... 282570 files and directories currently installed.)
-Removing audio-rxtx (0-68) ...
+Removing audio-rxtx (0-7) ...
 Processing triggers for man-db (2.6.7.1-1) ...
 
-$ sudo dpkg -i --ignore-depends=jackd,liblo7 build/audio-rxtx_140827_0-7_i386.deb
+$ sudo dpkg -i build/audio-rxtx_140827_0-7_i386.deb
 Selecting previously unselected package audio-rxtx.
 (Reading database ... 282559 files and directories currently installed.)
 Preparing to unpack .../audio-rxtx_140827_0-7_i386.deb ...
