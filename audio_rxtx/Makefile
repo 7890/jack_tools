@@ -154,7 +154,7 @@ prepare_checkinstall:
 deb64: 
 	rm -f doc-pak/changelog.Debian.gz
 	cp $(DOC)/changelog.Debian.amd64 doc-pak/changelog.Debian
-	gzip -9 doc-pak/changelog.Debian	
+	gzip -9 doc-pak/changelog.Debian
 	chmod 0644 doc-pak/changelog.Debian.gz
 
 	checkinstall -D --exclude="/home/*" --arch=amd64 --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
@@ -165,13 +165,13 @@ deb64:
 
 deb64_dist:
 	mkdir -p $(DIST)
-	mv audio-rxtx_$(VERSION)-$(RELEASE)_amd64.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb
-	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb.txt 2>&1
+	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_amd64.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb
+	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb.txt 2>&1
 
 deb32: 
 	rm -f doc-pak/changelog.Debian.gz
 	cp $(DOC)/changelog.Debian.i386 doc-pak/changelog.Debian
-	gzip -9 doc-pak/changelog.Debian	
+	gzip -9 doc-pak/changelog.Debian
 	chmod 0644 doc-pak/changelog.Debian.gz
 
 	checkinstall -D --exclude="/home/*" --arch=i386 --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
@@ -182,8 +182,8 @@ deb32:
 
 deb32_dist:
 	mkdir -p $(DIST)
-	mv audio-rxtx_$(VERSION)-$(RELEASE)_i386.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb
-	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb.txt 2>&1
+	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_i386.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb
+	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb.txt 2>&1
 
 #debarmhf: 
 #	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
@@ -192,7 +192,7 @@ deb32_dist:
 
 #debarmhf_dist:
 #	mkdir -p $(DIST)
-#	mv audio-rxtx_$(VERSION)-$(RELEASE)_armhf.deb  $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb
-#	$(DIST)/create_report.sh $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb > $(DIST)/audio-rxtx_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb.txt 2>&1
+#	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_armhf.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb
+#	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb.txt 2>&1
 
 .PHONY: compile manpage clean install uninstall prepare_checkinstall deb64 deb64_dist deb32 deb32_dist debarmhf debarmhf_dist
