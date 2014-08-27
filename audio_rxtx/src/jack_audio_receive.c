@@ -398,14 +398,15 @@ void
 jack_shutdown (void *arg)
 {
 	lo_server_thread_free(lo_st);
-	exit (1);
+	exit (0);
 }
 
 static void print_help (void)
 {
 	fprintf (stderr, "Usage: jack_audio_receive [Options] listening_port.\n");
 	fprintf (stderr, "Options:\n");
-	fprintf (stderr, "  Display this text:                 --help\n");
+	fprintf (stderr, "  Display this text and quit          --help\n");
+	fprintf (stderr, "  Show program version and quit       --version\n");
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
 	fprintf (stderr, "  Channel Offset:                (0) --offset <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:           (off) --connect\n");
@@ -426,7 +427,7 @@ static void print_help (void)
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
 	//needs manpage
-	exit (1);
+	exit (0);
 }
 int
 main (int argc, char *argv[])
@@ -446,6 +447,7 @@ main (int argc, char *argv[])
 	static struct option long_options[] =
 	{
 		{"help",	no_argument,		0, 'h'},
+		{"version",     no_argument,            0, 'v'},
 		{"out",		required_argument, 	0, 'o'},
 		{"offset",	required_argument, 	0, 'f'},
 		{"connect",	no_argument,	&autoconnect, 1},
@@ -465,11 +467,14 @@ main (int argc, char *argv[])
 	};
 
 	//print program header
-	print_header("jack_audio_receive");
+	if(argc==2 && strcmp(argv[1],"--version"))
+	{
+		print_header("jack_audio_receive");
+	}
 
 	if (argc - optind < 1)
 	{
-		fprintf (stderr, "Missing arguments, try --help.\n\n");
+		fprintf (stderr, "Missing arguments, see --help.\n\n");
 		exit(1);
 	}
 
@@ -499,6 +504,10 @@ main (int argc, char *argv[])
 
 			case 'h':
 				print_help();
+				break;
+
+			case 'v':
+				print_version();
 				break;
 
 			case 'o':
@@ -551,7 +560,7 @@ main (int argc, char *argv[])
 
 			case '?': //invalid commands
 				/* getopt_long already printed an error message. */
-				fprintf (stderr, "Wrong arguments, try --help.\n\n");
+				fprintf (stderr, "Wrong arguments, see --help.\n\n");
 				exit(1);
 
 				break;
@@ -564,7 +573,7 @@ main (int argc, char *argv[])
 	//remaining non optional parameters listening port
 	if(argc-optind != 1)
 	{
-		fprintf (stderr, "Wrong arguments, try --help.\n\n");
+		fprintf (stderr, "Wrong arguments, see --help.\n\n");
 		exit(1);
 	}
 

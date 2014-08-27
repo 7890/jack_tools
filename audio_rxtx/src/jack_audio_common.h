@@ -53,6 +53,8 @@ uint64_t get_free_mem(void);
 
 void print_header(char *prgname);
 
+void print_version();
+
 void periods_to_HMS(char *buf,uint64_t periods);
 
 void format_seconds(char *buf, float seconds); 

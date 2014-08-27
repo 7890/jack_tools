@@ -369,14 +369,15 @@ void
 jack_shutdown (void *arg)
 {
 	lo_server_thread_free(lo_st);
-	exit (1);
+	exit (0);
 }
 
 static void print_help (void)
 {
 	fprintf (stderr, "Usage: jack_audio_send [Options] target_host target_port.\n");
 	fprintf (stderr, "Options:\n");
-	fprintf (stderr, "  Display this text:                  --help\n");
+	fprintf (stderr, "  Display this text and quit          --help\n");
+	fprintf (stderr, "  Show program version and quit       --version\n");
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
 	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:            (off) --connect\n");
@@ -394,7 +395,7 @@ static void print_help (void)
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
 	//needs manpage
-	exit (1);
+	exit (0);
 }
 
 int
@@ -417,6 +418,7 @@ main (int argc, char *argv[])
 	static struct option long_options[] =
 	{
 		{"help",	no_argument,		0, 'h'},
+		{"version",	no_argument,		0, 'v'},
 		{"lport",	required_argument,	0, 'p'},
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
@@ -431,11 +433,14 @@ main (int argc, char *argv[])
 	};
 
 	//print program header
-	print_header("jack_audio_send");
+	if(argc==2 && strcmp(argv[1],"--version"))
+	{
+		print_header("jack_audio_send");
+	}
 
 	if (argc - optind < 1)
 	{
-		fprintf (stderr, "Missing arguments, try --help.\n\n");
+		fprintf (stderr, "Missing arguments, see --help.\n\n");
 		exit(1);
 	}
 
@@ -465,6 +470,10 @@ main (int argc, char *argv[])
 
 			case 'h':
 				print_help();
+				break;
+
+			case 'v':
+				print_version();
 				break;
 
 			case 'p':
@@ -506,7 +515,7 @@ main (int argc, char *argv[])
 
 			case '?': //invalid commands
 				/* getopt_long already printed an error message. */
-				fprintf (stderr, "Wrong arguments, try --help.\n\n");
+				fprintf (stderr, "Wrong arguments, see --help.\n\n");
 				exit(1);
 				break;
  	 
@@ -518,7 +527,7 @@ main (int argc, char *argv[])
 	//remaining non optional parameters target host, port
 	if(argc-optind != 2)
 	{
-		fprintf (stderr, "Wrong arguments, try --help.\n\n");
+		fprintf (stderr, "Wrong arguments, see --help.\n\n");
 		exit(1);
 	}
 

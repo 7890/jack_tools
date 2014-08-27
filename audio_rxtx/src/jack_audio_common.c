@@ -1,6 +1,7 @@
 //jack_audio_common.c
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <jack/jack.h>
 #include <lo/lo.h>
 #ifndef __APPLE__
@@ -9,7 +10,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.67f;
+float version = 0.68f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;
@@ -81,6 +82,12 @@ void print_header (char *prgname)
 {
 	fprintf (stderr, "\n%s v%.2f (format v%.2f)\n", prgname,version,format_version);
 	fprintf (stderr, "(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>\n");
+}
+
+void print_version ()
+{
+	fprintf (stderr, "%.2f\n",version);
+	exit (0);
 }
 
 void periods_to_HMS(char *buf, uint64_t periods)
