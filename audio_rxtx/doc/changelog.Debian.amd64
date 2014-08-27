@@ -1,0 +1,7 @@
+audio-rxtx (0.6.7) amd64; urgency=low
+
+  * Add ChangeLog
+  * shout v0.6.7
+    - https://www.debian.org/doc/debian-policy/ch-source.html#s-dpkgchangelog
+
+ -- Thomas Brand <tom@trellis.ch>  Wed, 27 Aug 2014 01:10:12 +0200
