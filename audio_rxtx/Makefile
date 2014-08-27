@@ -16,9 +16,10 @@ SRC_URL ?= "https://github.com/7890/jack_tools"
 MAINTAINER ?= "Thomas Brand \<tom@trellis.ch\>"
 LICENSE ?= "GPL2"
 VERSION ?= 0
-RELEASE ?= 68
+RELEASE ?= 7
 RELEASE_DATE ?= 140827
 REQUIRES ?= "liblo7, jackd, libjack0, libc6"
+PKG_GROUP ?= "sound"
 
 ARCH ?= "i386"
 #ARCH ?= "amd64"
@@ -141,16 +142,11 @@ prepare_checkinstall:
 	cp $(DOC)/jack_audio_receive.man.asciidoc doc-pak/doc
 	cp $(DOC)/jack_audio_send.man.asciidoc doc-pak/doc
 	cp $(DOC)/sequence_diagram.txt doc-pak/doc
+	cp $(DOC)/description-pak .
 
 	chmod 0644 doc-pak/doc/jack_audio_receive.man.asciidoc
 	chmod 0644 doc-pak/doc/jack_audio_send.man.asciidoc
 	chmod 0644 doc-pak/doc/sequence_diagram.txt
-
-	echo "Transmit lossless audio data in a LAN using JACK" > description-pak
-	echo "jack_audio_send, jack_audio_receive" >> description-pak
-	echo "Client programs (jack_audio_send, jack_audio_receive) " >> description-pak
-	echo "for the JACK Audio Connection Kit to transmit lossless audio " >> description-pak
-	echo "data in a LAN via UDP OSC. No resampling provided." >> description-pak
 
 	@echo "done."
 	@echo "next: sudo make deb ARCH=i386|amd64|armhf"
@@ -163,13 +159,13 @@ deb:
 	chmod 0644 doc-pak/changelog.Debian.gz
 
 	checkinstall -D --exclude="/home/*" --arch=$(ARCH) --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--requires=$(REQUIRES) --maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="text" --backup=no --install=no make install PREFIX=$(PREFIX_PACKAGES)
+	--requires=$(REQUIRES) --maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup=$(PKG_GROUP) --backup=no --install=no make install PREFIX=$(PREFIX_PACKAGES)
 
 	@echo "done."
 	@echo "next: make deb_dist ARCH=i386|amd64|armhf"
 
 deb_dist:
-	@echo "doing installation test, creating report..."
+	@echo "doing lintian check of deb, installation test, creating report..."
 
 	mkdir -p $(DIST)
 	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_$(ARCH).deb  $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb
