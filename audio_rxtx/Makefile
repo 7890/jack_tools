@@ -16,9 +16,13 @@ SRC_URL ?= "https://github.com/7890/jack_tools"
 MAINTAINER ?= "Thomas Brand \<tom@trellis.ch\>"
 LICENSE ?= "GPL2"
 VERSION ?= 0
-RELEASE ?= 6
-RELEASE_DATE ?= 140826
+RELEASE ?= 68
+RELEASE_DATE ?= 140827
 REQUIRES ?= "liblo7, jackd, libjack0, libc6"
+
+ARCH ?= "i386"
+#ARCH ?= "amd64"
+#ARCH ?= "armhf"
 
 default: compile
 
@@ -149,50 +153,36 @@ prepare_checkinstall:
 	echo "data in a LAN via UDP OSC. No resampling provided." >> description-pak
 
 	@echo "done."
-	@echo "next: sudo make deb64"
+	@echo "next: sudo make deb ARCH=i386|amd64|armhf"
 
-deb64: 
+#set ARCH to i386, amd64 or armhf
+deb:
 	rm -f doc-pak/changelog.Debian.gz
-	cp $(DOC)/changelog.Debian.amd64 doc-pak/changelog.Debian
+	cp $(DOC)/changelog.Debian.$(ARCH) doc-pak/changelog.Debian
 	gzip -9 doc-pak/changelog.Debian
 	chmod 0644 doc-pak/changelog.Debian.gz
 
-	checkinstall -D --exclude="/home/*" --arch=amd64 --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--requires=$(REQUIRES) --maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="text" --install=no make install PREFIX=$(PREFIX_PACKAGES)
+	checkinstall -D --exclude="/home/*" --arch=$(ARCH) --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
+	--requires=$(REQUIRES) --maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="text" --backup=no --install=no make install PREFIX=$(PREFIX_PACKAGES)
 
 	@echo "done."
-	@echo "next: lintian <created package>"
+	@echo "next: make deb_dist ARCH=i386|amd64|armhf"
 
-deb64_dist:
+deb_dist:
+	@echo "doing installation test, creating report..."
+
 	mkdir -p $(DIST)
-	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_amd64.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb
-	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_amd64.deb.txt 2>&1
-
-deb32: 
-	rm -f doc-pak/changelog.Debian.gz
-	cp $(DOC)/changelog.Debian.i386 doc-pak/changelog.Debian
-	gzip -9 doc-pak/changelog.Debian
-	chmod 0644 doc-pak/changelog.Debian.gz
-
-	checkinstall -D --exclude="/home/*" --arch=i386 --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-	--requires=$(REQUIRES) --maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="text" --install=no make install PREFIX=$(PREFIX_PACKAGES)
+	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_$(ARCH).deb  $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb
+	$(DIST)/create_report.sh $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb > $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb.txt 2>&1
 
 	@echo "done."
-	@echo "next: lintian <created package>"
+	@echo ""
+	cat $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb.txt
+	@echo ""
+	@echo "files created:"
+	@echo "$(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb"
+	@echo "$(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb.txt"
+	@echo ""
+	@echo "if package is ok to release, move to $(DIST) and add to repository"
 
-deb32_dist:
-	mkdir -p $(DIST)
-	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_i386.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb
-	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_i386.deb.txt 2>&1
-
-#debarmhf: 
-#	checkinstall -D --arch=armhf --pkgname=$(PROGNAME) --pkgsource=$(SRC_URL) --pkgversion=$(VERSION) --pkgrelease=$(RELEASE) \
-#	--maintainer=$(MAINTAINER) --pkglicense=$(LICENSE) --pkggroup="audioutils" --requires="" --install=no make install
-#	sudo make debarmhf PREFIX=/usr
-
-#debarmhf_dist:
-#	mkdir -p $(DIST)
-#	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_armhf.deb  $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb
-#	$(DIST)/create_report.sh $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb > $(DIST)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_armhf.deb.txt 2>&1
-
-.PHONY: compile manpage clean install uninstall prepare_checkinstall deb64 deb64_dist deb32 deb32_dist debarmhf debarmhf_dist
+.PHONY: compile manpage clean install uninstall prepare_checkinstall deb deb_dist
