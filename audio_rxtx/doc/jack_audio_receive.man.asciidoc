@@ -1,5 +1,5 @@
 jack_audio_receive(1)
-====================
+=====================
 :doctype: manpage
 
 NAME
@@ -8,7 +8,7 @@ jack_audio_receive - JACK client to transmit audio data in a LAN
 
 SYNOPSIS
 --------
-*jack_audio_receive* [options] listening_port
+*jack_audio_receive* [OPTIONS] listening_port
 
 DESCRIPTION
 -----------
@@ -16,8 +16,9 @@ DESCRIPTION
 allowing to transmit uncompressed native JACK 32 bit float 
 audio data on the network using UDP OSC messages.
 
-All involved JACK servers must share the same 
-sampling rate but can run at different period sizes.
+All involved JACK servers must share the same sampling rate 
+but can run at different period sizes. NO resampling is involved. 
+Diverging clocks of distributed audio interfaces can pose an issue.
 
 - The main purpose is to transmit audio in one direction from host a to host(s) b(, c, ...)
 - Sender and receiver are seperate programs
@@ -32,57 +33,68 @@ audio_rxtx uses liblo >= 0.27
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
+jack_audio_receive version is 0.7
 
 OPTIONS
 -------
-*--help*::
+*--help* (w/o argument)::
 	Display help
 
-*--out*::
+*--version* (w/o argument)::
+	Display version and quit
+
+*--out* (integer)::
 	Number of output/playback channels.
 	Default: 2
 
-*--connect*::
+*--offset* (integer)::
+	Ignore first n (=offset) channels from incoming audio data
+	This allows a receiver to pick a specific (contiguous) channel range from the input
+
+*--connect* (w/o argument)::
 	Autoconnect ports.
 	This will connect all jack_audio_receive ports to physical output/playback ports.
 	Default: off
 
-*--name*::
+*--name* (string)::
 	Jack client name.
 	Default: jack_audio_receive
 
-*--sname*::
+*--sname* (string)::
 	Jack server name.
 	Default: default //:)
 
-*--pre*::
+*--pre* (integer)::
 	Initial buffer size. Default: 4 mc periods
 
-*--max*::
+*--max* (integer)::
 	Max buffer size (>= init). Default: (auto)
 
-*--rere*::
+*--rere* (w/o argument)::
 	Rebuffer on sender restart. Default: off
 
-*--reuf*::
+*--reuf* (w/o argument)::
 	Rebuffer on underflow. Default: off
 
-*--nozero*::
+*--nozero* (w/o argument)::
 	Re-use old data on underflow: Default: off
 
-*---update*::
+*--norbc* (w/o argument)::
+	Disallow external buffer control via /buffer ii
+
+*---update* (integer)::
 	Update info displayed in terminal every nth JACK cycle.
 	Default: 99
 
-*--limit*::
+*--limit* (integer)::
 	Limit totally received messages.
 	This is useful for tests. Receive an exact amount of messages, then quit program.
 	Default: off
 
-*--close*::
+*--close* (w/o argument)::
 	Quit if received data is incompatible. Default: off
 
-*listening_port*::
+*listening_port* (integer)::
 	Local port to listen for audio.
 
 EXAMPLES
@@ -90,24 +102,33 @@ EXAMPLES
 
 Receive 2 channels on port 1234, automatically connect ports, rebuffer on underflow:
 
-	$ jack_audio_receive --in 2 --connect --rere 4444
+	$ jack_audio_receive --out 4 --connect --rere 4444
 
 Example output of jack_audio_receive:
 
 	listening on osc port: 4444
 	sample rate: 44100
 	bytes per sample: 4
-	period size: 256 samples (5.805 ms, 1024 bytes)
-	channels (playback): 2
+	period size: 128 samples (2.902 ms, 512 bytes)
+	channels (playback): 4
+	channel offset: 0
 	multi-channel period size: 2048 bytes
 	underflow strategy: fill with zero (silence)
-	rebuffer on sender restart: no
-	rebuffer on underflow: yes
+	rebuffer on sender restart: yes
+	rebuffer on underflow: no
+	allow external buffer control: yes
 	shutdown receiver when incompatible data received: no
-	initial buffer size: 4 mc periods (23.220 ms, 8192 bytes, 0.01 mb)
-	allocated buffer size: 91 mc periods (528.254 ms, 186368 bytes, 0.19 mb)
+	initial buffer size: 4 mc periods (11.610 ms, 8192 bytes, 0.01 mb)
+	allocated buffer size: 177 mc periods (513.742 ms, 362496 bytes, 0.36 mb)
 
-	# 1384 i: 4 f: 4.5 b: 9216 s: 0.0261 i: 5.82 r: 0 l: 0 d: 0 o: 0 p: 0.1
+	autoconnect: receive:output_1 -> firewire_pcm:000a9200d6012385_MainOut 1L_out
+	autoconnect: receive:output_2 -> firewire_pcm:000a9200d6012385_MainOut 2R_out
+	autoconnect: receive:output_3 -> firewire_pcm:000a9200d6012385_LineOut 3L_out
+	autoconnect: receive:output_4 -> firewire_pcm:000a9200d6012385_LineOut 4R_out
+
+	sender was (re)started. equal sender and receiver period size
+
+	# 5048 i: 4 f: 4.2 b: 8704 s: 0.0123 i: 2.90 r: 0 l: 0 d: 0 o: 0 p: 0.0
 
 Legend:
 
@@ -126,9 +147,21 @@ Legend:
 
 Receive 16 channels on port 1234, pre-buffer 100 mc periods, close receiver when incompatible:
 
-	$ jack_audio_receive --in 16 --pre 100 --close 1234 
+	$ jack_audio_receive --out 16 --pre 100 --close 1234 
 
+ERROR MESSAGES
+--------------
 
+jack_audio_receive does not automatically start a JACK default server if there is none running.
+This will lead to the following message:
+
+Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+jack_client_open() failed, status = 0x11
+Unable to connect to JACK server
+
+Simply start JACK before using jack_audio_receive
 
 PROGRAM STATUSES
 ----------------
@@ -177,8 +210,8 @@ OR
 
 	-> telling sender to pause (if --close NOT set)
 
-OSC FORMAT
-----------
+OSC FORMAT Version 1.0
+----------------------
 
 The OSC messages that are sent by jack_audio_received are defined as follows:
 
@@ -233,7 +266,7 @@ Please report any bugs as issues to the github repository. Patches and pull requ
 
 SEE ALSO
 --------
-*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1)
+*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1) *zita-njbridge(1)*
 
 AUTHORS
 -------
