@@ -1,4 +1,14 @@
 ```
+Notes on bulding .deb, procedure:
+
+sudo make uninstall
+make clean
+make
+make prepare_checkinstall
+sudo make deb ARCH=amd64
+make deb_dist ARCH=amd64
+(mv ...deb dist/)
+
 .deb created with checkinstall
 
 .rpm derived from .deb with alien
