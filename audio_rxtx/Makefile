@@ -16,8 +16,8 @@ SRC_URL ?= "https://github.com/7890/jack_tools"
 MAINTAINER ?= "Thomas Brand \<tom@trellis.ch\>"
 LICENSE ?= "GPL2"
 VERSION ?= 0
-RELEASE ?= 7
-RELEASE_DATE ?= 140827
+RELEASE ?= 71
+RELEASE_DATE ?= 140928
 #remove for now
 #REQUIRES ?= "liblo7, jackd, libjack0, libc6"
 REQUIRES ?= "libc6"
@@ -46,6 +46,9 @@ compile:
 	@echo "to change these variables either edit the Makefile or use i.e.:"
 	@echo "sudo make install PREFIX=/usr"
 	@echo ""
+
+	@echo "testing for liblo version >= 0.27"
+	pkg-config --atleast-version 0.27 liblo || [ $$? -eq 0 ]
 
 	mkdir -p $(BLD)
 
