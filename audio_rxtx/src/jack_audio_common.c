@@ -10,7 +10,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.7f;
+float version = 0.71f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;
@@ -34,7 +34,8 @@ int bytes_per_sample=4;
 //connect output to first n physical channels on startup
 int autoconnect=0; //param
 
-int max_channel_count=64;
+//int max_channel_count=64;
+int max_channel_count=256;
 
 jack_options_t jack_opts = JackNoStartServer;
 
@@ -135,5 +136,56 @@ void print_common_jack_properties()
 	fprintf(stderr,"period size: %d samples (%s, %d bytes)\n",period_size,
 		buf,period_size*bytes_per_sample
 	);
+}
+
+int check_lo_props(int debug)
+{
+	int ret=0;
+
+	int major, minor, lt_maj, lt_min, lt_bug;
+	char extra[256];
+	char string[256];
+
+	lo_version(string, 256,
+			   &major, &minor, extra, 256,
+			   &lt_maj, &lt_min, &lt_bug);
+
+	if(debug==1)
+	{
+		printf("liblo version string `%s'\n", string);
+		printf("liblo version: %d.%d%s\n", major, minor, extra);
+	}
+
+	if(major==0 && minor < 27)
+	{
+		printf(" /!\\ version < 0.27. audio-rxtx won't work, sorry.\n");
+		ret=1;
+	}
+
+	if(debug==1)
+	{
+		printf("liblo libtool version: %d.%d.%d\n", lt_maj, lt_min, lt_bug);
+		printf("liblo MAX_MSG_SIZE: %d\n", LO_MAX_MSG_SIZE);
+	}
+
+	if(debug==1)
+	{
+		printf("liblo LO_MAX_UDP_MSG_SIZE: %d\n", LO_MAX_UDP_MSG_SIZE);
+	}
+	if(LO_MAX_UDP_MSG_SIZE==LO_MAX_MSG_SIZE)
+	{
+		printf("/!\\ LO_MAX_UDP_MSG_SIZE is only %d\n",LO_MAX_UDP_MSG_SIZE);
+	}
+
+	if(debug==1)
+	{
+		printf("liblo LO_DEFAULT_MAX_MSG_SIZE: %d\n", LO_DEFAULT_MAX_MSG_SIZE);
+	}
+	if(LO_DEFAULT_MAX_MSG_SIZE==LO_MAX_MSG_SIZE)
+	{
+		printf("/!\\ LO_DEFAULT_MAX_MSG_SIZE is only %d\n",LO_DEFAULT_MAX_MSG_SIZE);
+	}
+
+	return ret;
 }
 

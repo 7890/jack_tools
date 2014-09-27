@@ -3,6 +3,18 @@
 
 //jack_audio_common.h
 
+#define MIN_(a,b) ( ((a) < (b)) ? (a) : (b) )
+#define MAX_(a,b) ( ((a) > (b)) ? (a) : (b) )
+
+//recompilation needed when liblo is updated
+
+#ifndef LO_MAX_UDP_MSG_SIZE
+#define LO_MAX_UDP_MSG_SIZE LO_MAX_MSG_SIZE
+#endif
+#ifndef LO_DEFAULT_MAX_MSG_SIZE
+#define LO_DEFAULT_MAX_MSG_SIZE LO_MAX_MSG_SIZE
+#endif
+
 extern float version;
 extern float format_version;
 
@@ -62,5 +74,7 @@ void format_seconds(char *buf, float seconds);
 void read_jack_properties();
 
 void print_common_jack_properties();
+
+int check_lo_props();
 
 #endif //JACK_AUDIO_COMMON_H_INCLUDED

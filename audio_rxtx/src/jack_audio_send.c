@@ -53,7 +53,9 @@ int msg_size=0;
 
 //msg_size + more
 int transfer_size=0;
-int max_transfer_size=32000;
+//int max_transfer_size=32000;
+//int max_transfer_size=65535;
+int max_transfer_size=LO_MAX_MSG_SIZE;
 
 //expected kbit/s that will arrive on receiver
 float expected_network_data_rate=0;
@@ -68,7 +70,6 @@ int nopause=0; //param
 int drop_every_nth_message=0; //param
 int drop_counter=0;
 
-int use_tcp=0; //param
 int lo_proto=LO_UDP;
 
 //ctrl+c etc
@@ -378,6 +379,7 @@ static void print_help (void)
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, "  Display this text and quit          --help\n");
 	fprintf (stderr, "  Show program version and quit       --version\n");
+	fprintf (stderr, "  Show liblo properties and quit      --loinfo\n");
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
 	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:                  --connect\n");
@@ -419,6 +421,7 @@ main (int argc, char *argv[])
 	{
 		{"help",	no_argument,		0, 'h'},
 		{"version",	no_argument,		0, 'v'},
+		{"loinfo",	no_argument,		0, 'l'},
 		{"lport",	required_argument,	0, 'p'},
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
@@ -428,7 +431,6 @@ main (int argc, char *argv[])
 		{"limit",	required_argument,	0, 't'},
 		{"nopause",	no_argument,	&nopause, 1},
 		{"drop",	required_argument,	0, 'd'},
-		{"tcp",		no_argument,	&use_tcp, 1},
 		{0, 0, 0, 0}
 	};
 
@@ -475,7 +477,9 @@ main (int argc, char *argv[])
 			case 'v':
 				print_version();
 				break;
-
+			case 'l':
+				check_lo_props(1);
+				return 0;
 			case 'p':
 				localPort=optarg;
 				break;
@@ -531,13 +535,15 @@ main (int argc, char *argv[])
 		exit(1);
 	}
 
+	if(check_lo_props(0)>0)
+	{
+		return 1;
+	}
+	//LO_MAX_UDP_MSG_SIZE & LO_DEFAULT_MAX_MSG_SIZE are now defined
+	max_transfer_size=MIN_(LO_MAX_UDP_MSG_SIZE,LO_DEFAULT_MAX_MSG_SIZE);
+
 	sendToHost=argv[optind];
 	sendToPort=argv[++optind];
-
-	if(use_tcp==1)
-	{
-		lo_proto=LO_TCP;
-	}
 
 	//osc server
 	//lo_st = lo_server_thread_new(localPort, error);
@@ -594,17 +600,6 @@ main (int argc, char *argv[])
 	{
 		fprintf(stderr, "immediate send, no pause or shutdown: no\n");
 	}
-
-/*
-	if(use_tcp==1)
-	{
-		fprintf(stderr, "network transmission style: TCP\n");
-	}
-	else
-	{
-		fprintf(stderr, "network transmission style: UDP\n");
-	}
-*/
 
 	if(drop_every_nth_message>0)
 	{
@@ -665,6 +660,11 @@ main (int argc, char *argv[])
 		100-100*(float)input_port_count*period_size*bytes_per_sample/(float)transfer_size
 	);
 
+	if(transfer_size >= LO_MAX_MSG_SIZE)
+	{
+		fprintf(stderr,"/!\\ receiver(s) must support message size > %d\n",LO_MAX_MSG_SIZE);
+	}
+
 	if(transfer_size>max_transfer_size)
 	{
 		fprintf(stderr,"sry, can't do. max transfer length: %d. reduce input channel count.\n",max_transfer_size);
@@ -675,10 +675,18 @@ main (int argc, char *argv[])
 		* transfer_size
 		* 8 / 1000;
 
-	fprintf(stderr, "expected network data rate: %.1f kbit/s (%.2f mb/s)\n\n",
+	fprintf(stderr, "expected network data rate: %.1f kbit/s (%.2f mb/s)\n",
 		expected_network_data_rate,
 		(float)expected_network_data_rate/1000/8
 	);
+
+	//when near to 100 / 1000 mbit limit
+	if(expected_network_data_rate/1000/8 > 12)
+	{
+		fprintf(stderr,"/!\\ high data rate (OK on localhost), use GigE\n");
+	}
+
+	fprintf(stderr,"\n");
 
 	/* tell the JACK server to call `process()' whenever 
 	   there is work to be done.
