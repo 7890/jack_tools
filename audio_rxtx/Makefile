@@ -32,8 +32,7 @@ default: compile
 
 all: compile manpage
 
-compile: $(SRC)/jack_audio_send.c $(SRC)/jack_audio_receive.c
-
+compile: 
 	@echo ""
 	@echo "compiling jack_audio_send, jack_audio_recieve"
 	@echo "---------------------------------------------"
