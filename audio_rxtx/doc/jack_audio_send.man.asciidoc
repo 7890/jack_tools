@@ -33,7 +33,7 @@ audio_rxtx uses liblo >= 0.27
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_send version is 0.7
+jack_audio_send version is 0.71
 
 OPTIONS
 -------
@@ -43,12 +43,15 @@ OPTIONS
 *--version* (w/o argument)::
 	Display version and quit
 
+*--loinfo* (w/o argument)::
+	Display liblo props and quit
+
 *--lport* (integer)::
 	Local port. Default: 9990
 
 *--in* (integer)::
 	Number of input/capture channels.
-	Up to 64 channels are possible. Use small JACK period sizes with high channel counts.
+	Up to 256 channels are possible. Use small JACK period sizes with high channel counts. Also Gigabit networking might be required.
 	Default: 2
 
 *--connect* (w/o argument)::

@@ -33,7 +33,7 @@ audio_rxtx uses liblo >= 0.27
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_receive version is 0.7
+jack_audio_receive version is 0.71
 
 OPTIONS
 -------
@@ -42,6 +42,9 @@ OPTIONS
 
 *--version* (w/o argument)::
 	Display version and quit
+
+*--loinfo* (w/o argument)::
+        Display liblo props and quit
 
 *--out* (integer)::
 	Number of output/playback channels.
