@@ -238,73 +238,67 @@ process (jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
-	//if no data for this cycle (all channels) 
-	//is available (!), fill buffers with 0 or re-use old buffers and return
-	if(jack_ringbuffer_read_space(rb) < port_count * bytes_per_sample*nframes
-			&& process_enabled==1
-	)
-	{
-
-		int i;
-		for( i=0; i < output_port_count; i++ )
-		{
-			if(zero_on_underflow==1)
-			{
-				jack_default_audio_sample_t *o1;
-				o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
-				memset ( o1, 0, bytes_per_sample*nframes );
-			}
-			print_info();
-		}
-
-		multi_channel_drop_counter++;
-
-		if(rebuffer_on_underflow==1)
-		{
-			pre_buffer_counter=0;
-			process_enabled=0;
-		}
-
-		//reset avg calculation
-		time_interval_avg=0;
-		msg_received_counter=0;
-		fscs_avg_counter=0;
-
-		return 0;
-	}
-
 	if(process_enabled==1)
 	{
+		//if no data for this cycle (all channels) 
+		//is available (!), fill buffers with 0 or re-use old buffers and return
+		if(jack_ringbuffer_read_space(rb) < port_count * bytes_per_sample*nframes)
+		{
+			int i;
+			for( i=0; i < output_port_count; i++ )
+			{
+				if(zero_on_underflow==1)
+				{
+					jack_default_audio_sample_t *o1;
+					o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+					memset ( o1, 0, bytes_per_sample*nframes );
+				}
+				print_info();
+			}
+
+			multi_channel_drop_counter++;
+
+			if(rebuffer_on_underflow==1)
+			{
+				pre_buffer_counter=0;
+				process_enabled=0;
+			}
+
+			//reset avg calculation
+			time_interval_avg=0;
+			msg_received_counter=0;
+			fscs_avg_counter=0;
+
+			return 0;
+		}//end enough data available in ringbuffer
+
 		process_cycle_counter++;
 
 		if(process_cycle_counter>receive_max-1 && test_mode==1)
 		{
 			last_test_cycle=1;
 		}
-	}
 
-	//init to 0. increment before use
-	fscs_avg_counter++;
+		//init to 0. increment before use
+		fscs_avg_counter++;
 
-	frames_since_cycle_start_sum+=frames_since_cycle_start;
-	frames_since_cycle_start_avg=frames_since_cycle_start_sum/fscs_avg_counter;
+		frames_since_cycle_start_sum+=frames_since_cycle_start;
+		frames_since_cycle_start_avg=frames_since_cycle_start_sum/fscs_avg_counter;
 
-	//check and reset after use
-	if(fscs_avg_calc_interval>=fscs_avg_counter)
-	{
-		fscs_avg_counter=0;
-		frames_since_cycle_start_sum=0;	
-	}
-
-	//if sender sends more channels than we have output channels, ignore them
-	int i;
-	for( i=0; i < port_count; i++ )
-	{
-		jack_default_audio_sample_t *o1;
-		o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
-
-		if(process_enabled==1)
+		//check and reset after use
+		if(fscs_avg_calc_interval>=fscs_avg_counter)
 		{
+			fscs_avg_counter=0;
+			frames_since_cycle_start_sum=0;	
+		}
+
+		//if sender sends more channels than we have output channels, ignore them
+		int i;
+		for( i=0; i < port_count; i++ )
+		{
+			jack_default_audio_sample_t *o1;
+			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+
 			jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
 
 			/*
@@ -315,10 +309,28 @@ process (jack_nframes_t nframes, void *arg)
 
 			print_info();
 
-		} // end if process enabled
-		//process not yet enabled, buffering
-		else
+		}//end for i < port_count
+
+		//requested via /buffer, for test purposes (make buffer "tight")
+		if(requested_drop_count>0)
 		{
+			size_t drop_bytes_count=requested_drop_count
+				*port_count*period_size*bytes_per_sample;
+
+			jack_ringbuffer_read_advance(rb,drop_bytes_count);
+
+			requested_drop_count=0;
+			multi_channel_drop_counter=0;
+		}
+	}//end if process_enabled==1
+	else //if process_enabled==0
+	{
+		int i;
+		for( i=0; i < port_count; i++ )
+		{
+			jack_default_audio_sample_t *o1;
+			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+
 			//this is per channel, not per cycle. *port_count
 			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
 				|| last_test_cycle==1
@@ -344,31 +356,20 @@ process (jack_nframes_t nframes, void *arg)
 
 			//set output buffer silent
 			memset ( o1, 0, port_count*bytes_per_sample*nframes );
-		}
-	}
+
+		}//end for i < port_count
+	}//end process_enabled==0
+
+	//tasks independent of process_enabled 0/1
 
 	//if sender sends less channels than we have output channels, wee need to fill them with 0
 	if(input_port_count < output_port_count)
 	{
+		int i;
 		for(i=0;i < (output_port_count-input_port_count);i++)
 		{
 			jack_default_audio_sample_t *o1;
 			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[input_port_count+i], nframes);
-		}
-	}
-
-	if(process_enabled==1)
-	{
-		//requested via /buffer, for test purposes (make buffer "tight")
-		if(requested_drop_count>0)
-		{
-			size_t drop_bytes_count=requested_drop_count
-				*port_count*period_size*bytes_per_sample;
-
-			jack_ringbuffer_read_advance(rb,drop_bytes_count);
-
-			requested_drop_count=0;
-			multi_channel_drop_counter=0;
 		}
 	}
 
@@ -885,9 +886,8 @@ void registerOSCMessagePatterns(const char *port)
 	4) i: sampling rate
 	5) b: blob of channel 1 (period size * bytes per sample) bytes long
 	...
-	68) b: up to 64 channels
+	...b: up to n channels
 */
-
 
 	char typetag_string[1024];
 	int v=0;
@@ -919,20 +919,7 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/audio", "hhtibbb", audio_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbb", audio_handler, NULL);
 */
-//128 channels: this only works if max allowed OSC UDP msg size is 65535 (liblo fixmax branch)
-
-/*
-100 mbit
-p 512: max 31
-p 256: max 62
-p 128: max 123
-p <128: max 128 (clamped
-
-1000 mbit
-p 64 max 245 :)
-
-*/
-
+//the max possible channel count depends on JACK period size, SR, liblo version (fixmax), 16/32 bit, 100/1000 mbit/s network
 
 }//end registerocsmessages
 
@@ -940,7 +927,7 @@ p 64 max 245 :)
 void error(int num, const char *msg, const char *path)
 {
 	if(close_on_incomp==1 && shutdown_in_progress==0)
-        {
+	{
 		fprintf(stderr,"/!\\ liblo server error %d: %s %s\n", num, path, msg);
 
 		fprintf(stderr,"telling sender to pause.\n");
@@ -958,7 +945,7 @@ void error(int num, const char *msg, const char *path)
 		//lo_server_thread_free(lo_st);
 		jack_ringbuffer_free(rb);
 		jack_ringbuffer_free(rb_helper);
-	        fprintf(stderr,"done.\n");
+		fprintf(stderr,"done.\n");
 
 		exit(1);
 	}
@@ -1147,11 +1134,10 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 				message_number_prev=0;
 				remote_sample_rate=0;
 				remote_period_size=0;
-//				pre_buffer_counter=0;
+				//pre_buffer_counter=0;
 			}
 			else
 			{
-
 				lo_address loa;
 
 				loa = lo_message_get_source(data);
