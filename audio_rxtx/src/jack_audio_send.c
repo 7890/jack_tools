@@ -286,8 +286,27 @@ process(jack_nframes_t nframes, void *arg)
 			//get "the" buffer
 			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i],nframes);
 
-			//fill blob from buffer
-			blob[i]=lo_blob_new(bytes_per_sample*nframes,o1);
+			//32 bit float
+			if(bytes_per_sample==4)
+			{
+				//fill blob from buffer
+				blob[i]=lo_blob_new(bytes_per_sample*nframes,o1);
+			}
+			//16 bit pcm
+			else
+			{
+				int16_t o1_16[nframes];
+
+				int w;
+				for(w=0;w<nframes;w++)
+				{
+					o1_16[w]=o1[w]*32760;
+				}
+
+				//fill blob from buffer
+				blob[i]=lo_blob_new(bytes_per_sample*nframes,o1_16);
+			}
+
 			lo_message_add_blob(msg,blob[i]);		
 		}
 
@@ -311,7 +330,7 @@ process(jack_nframes_t nframes, void *arg)
 			lo_send_message (loa, "/audio", msg);
 		}
 
-		//fprintf(stderr,"msg size %d\n",lo_message_length(msg,"/audio"));
+		//fprintf(stderr,"msg size %zu\n",lo_message_length(msg,"/audio"));
 
 		//free resources to keep memory clean
 		lo_message_free (msg);
@@ -381,8 +400,9 @@ static void print_help (void)
 	fprintf (stderr, "  Show program version and quit       --version\n");
 	fprintf (stderr, "  Show liblo properties and quit      --loinfo\n");
 	fprintf (stderr, "  Local port:                  (9990) --lport  <integer>\n");
-	fprintf (stderr, "  Number of capture channels :    (2) --in     <integer>\n");
+	fprintf (stderr, "  Number of capture channels:     (2) --in     <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:                  --connect\n");
+	fprintf (stderr, "  Send 16 bit samples  (32 bit float) --16\n");
 	fprintf (stderr, "  JACK client name:            (send) --name   <string>\n");
 	fprintf (stderr, "  JACK server name:         (default) --sname  <string>\n");
 	fprintf (stderr, "  Update info every nth cycle    (99) --update <integer>\n");
@@ -425,6 +445,7 @@ main (int argc, char *argv[])
 		{"lport",	required_argument,	0, 'p'},
 		{"in",		required_argument,	0, 'i'},
 		{"connect",	no_argument,	&autoconnect, 1},
+		{"16",		no_argument,		0, 'b'},
 		{"name",	required_argument,	0, 'n'},
 		{"sname",       required_argument,      0, 's'},
 		{"update",	required_argument,	0, 'u'},
@@ -492,6 +513,10 @@ main (int argc, char *argv[])
 					fprintf(stderr,"*** limiting capture ports to %d, sry\n",max_channel_count);
 					input_port_count=max_channel_count;
 				}	
+				break;
+
+			case 'b':
+				bytes_per_sample=2;
 				break;
 
 			case 'n':
@@ -667,7 +692,7 @@ main (int argc, char *argv[])
 
 	if(transfer_size>max_transfer_size)
 	{
-		fprintf(stderr,"sry, can't do. max transfer length: %d. reduce input channel count.\n",max_transfer_size);
+		fprintf(stderr,"sry, can't do. max transfer length: %d. reduce input channel count or use 16 bit.\n",max_transfer_size);
 		signal_handler(42);
 	}
 

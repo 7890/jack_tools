@@ -233,7 +233,9 @@ process (jack_nframes_t nframes, void *arg)
 		{
 			jack_default_audio_sample_t *o1;
 			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
-			memset ( o1, 0, bytes_per_sample*nframes );
+			//memset ( o1, 0, bytes_per_sample*nframes );
+			//always 4 bytes, 32 bit float
+			memset ( o1, 0, 4*nframes );
 		}
 		return 0;
 	}
@@ -251,7 +253,10 @@ process (jack_nframes_t nframes, void *arg)
 				{
 					jack_default_audio_sample_t *o1;
 					o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
-					memset ( o1, 0, bytes_per_sample*nframes );
+
+					//memset ( o1, 0, bytes_per_sample*nframes );
+					//always 4 bytes, 32 bit float
+					memset ( o1, 0, 4*nframes );
 				}
 				print_info();
 			}
@@ -299,7 +304,31 @@ process (jack_nframes_t nframes, void *arg)
 			jack_default_audio_sample_t *o1;
 			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
 
-			jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+			int16_t *o1_16;
+
+			if(bytes_per_sample==2)
+			{
+				o1_16=malloc(bytes_per_sample*nframes);
+			}
+
+			//32 bit float
+			if(bytes_per_sample==4)
+			{
+				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+			}
+			//16 bit pcm
+			else
+			{
+				jack_ringbuffer_read (rb, (char*)o1_16, bytes_per_sample*nframes);
+
+				int x;
+				for(x=0;x<nframes;x++)
+				{
+					o1[x]=(float)o1_16[x]/32760;
+				}
+
+				free(o1_16);
+			}
 
 			/*
 			fprintf(stderr,"\rreceiving from %s:%s",
@@ -355,8 +384,9 @@ process (jack_nframes_t nframes, void *arg)
 			relaxed_display_counter++;
 
 			//set output buffer silent
-			memset ( o1, 0, port_count*bytes_per_sample*nframes );
-
+			//memset ( o1, 0, port_count*bytes_per_sample*nframes );
+			//always 4 bytes, 32 bit float
+			memset ( o1, 0, port_count*4*nframes );
 		}//end for i < port_count
 	}//end process_enabled==0
 
@@ -409,6 +439,7 @@ static void print_help (void)
 	fprintf (stderr, "  Number of playback channels:   (2) --out    <integer>\n");
 	fprintf (stderr, "  Channel Offset:                (0) --offset <integer>\n");
 	fprintf (stderr, "  Autoconnect ports:                 --connect\n");
+	fprintf (stderr, "  Send 16 bit samples (32 bit float) --16\n");
 	fprintf (stderr, "  JACK client name:        (receive) --name   <string>\n");
 	fprintf (stderr, "  JACK server name:        (default) --sname  <string>\n");
 	fprintf (stderr, "  Initial buffer size:(4 mc periods) --pre    <integer>\n");
@@ -450,6 +481,7 @@ main (int argc, char *argv[])
 		{"out",		required_argument, 	0, 'o'},
 		{"offset",	required_argument, 	0, 'f'},
 		{"connect",	no_argument,	&autoconnect, 1},
+		{"16",          no_argument,            0, 'y'},
 		{"name",	required_argument,	0, 'n'},
 		{"sname",	required_argument,	0, 's'},
 		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
@@ -525,6 +557,10 @@ main (int argc, char *argv[])
 
 			case 'f':
 				channel_offset=atoi(optarg);
+				break;
+
+			case 'y':
+				bytes_per_sample=2;
 				break;
 
 			case 'n':
@@ -902,7 +938,7 @@ void registerOSCMessagePatterns(const char *port)
 	typetag_string[2]='t';
 	typetag_string[3]='i';
 
-	///////////////////
+	/////////////////
 	int data_offset=4;
 
 	v=0;
@@ -1020,8 +1056,8 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		lo_message_add_int32(msg,sample_rate);
 		lo_send_message (loa, "/deny", msg);
 
-		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender:\nformat version: %.2f\nSR: %d\ntelling sender to stop.\n",
-			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate
+		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender:\nformat version: %.2f\nSR: %d\nbytes per sample: %d\ntelling sender to stop.\n",
+			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate,offered_bytes_per_sample
 		);
 
 		//shutting down is not a good strategy for the receiver in this case

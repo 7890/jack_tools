@@ -10,7 +10,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.72f;
+float version = 0.8f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;
@@ -24,18 +24,21 @@ jack_port_t **ioPortArray;
 jack_default_audio_sample_t **ioBufferArray;
 
 //default values
-//sample_rate, period_size and bytes_per_sample must be
-//THE SAME on sender and receiver
+//sample_rate must be THE SAME on sender and receiver
 
 int sample_rate=44100;
 int period_size=1024;
+
+//2 bytes per sample: 16 bit (PCM wave)
+//4 bytes per sample: 32 bit float
 int bytes_per_sample=4;
 
 //connect output to first n physical channels on startup
 int autoconnect=0; //param
 
 //int max_channel_count=64;
-int max_channel_count=256;
+//int max_channel_count=256;
+int max_channel_count=512;
 
 jack_options_t jack_opts = JackNoStartServer;
 
@@ -122,14 +125,25 @@ void format_seconds(char *buf, float seconds)
 void read_jack_properties()
 {
 	sample_rate=jack_get_sample_rate(client);
-	bytes_per_sample = sizeof(jack_default_audio_sample_t);
+	//! new: assume JACK is always 32 bit float
+	//bytes_per_sample only refers to data transmission 
+	//param --16 will force to use 2 bytes
+	//bytes_per_sample = sizeof(jack_default_audio_sample_t);
 	period_size=jack_get_buffer_size(client);
 }
 
 void print_common_jack_properties()
 {
 	fprintf(stderr,"sample rate: %d\n",sample_rate);
-	fprintf(stderr,"bytes per sample: %d\n",bytes_per_sample);
+
+	if(bytes_per_sample==4)
+	{
+		fprintf(stderr,"bytes per sample: %d (32 bit float)\n",bytes_per_sample);
+	}
+	else
+	{
+		fprintf(stderr,"bytes per sample: %d (16 bit PCM)\n",bytes_per_sample);
+	}
 
 	char buf[64];
 	format_seconds(buf,(float)period_size/(float)sample_rate);
