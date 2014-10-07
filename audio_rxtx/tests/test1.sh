@@ -8,6 +8,8 @@
 CHANNEL_COUNT=80
 OUTPUT_DIR=/tmp/audio_rxtx_test_shots
 
+#AUDIO_RXTX_OPTS="--16"
+
 function checkAvail()
 {
 	which "$1" >/dev/null 2>&1
@@ -53,11 +55,11 @@ JACK_DEFAULT_SERVER=audio_rxtx xterm -e jalv.gtk "http://gareus.org/oss/lv2/sisc
 JALV_PID=$!
 
 echo "starting jack_audio_send ($CHANNEL_COUNT channels)"
-JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_send --in $CHANNEL_COUNT localhost 1234 &
+JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_send $AUDIO_RXTX_OPTS --in $CHANNEL_COUNT localhost 1234 &
 JACK_AUDIO_SEND_PID=$!
 
 echo "starting jack_audio_receive ($CHANNEL_COUNT channels)"
-JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_receive --out $CHANNEL_COUNT 1234 &
+JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_receive $AUDIO_RXTX_OPTS --out $CHANNEL_COUNT 1234 &
 JACK_AUDIO_RECEIVE_PID=$!
 
 sleep 1
