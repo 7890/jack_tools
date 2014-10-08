@@ -275,7 +275,7 @@ process (jack_nframes_t nframes, void *arg)
 			fscs_avg_counter=0;
 
 			return 0;
-		}//end enough data available in ringbuffer
+		}//end not enough data available in ringbuffer
 
 		process_cycle_counter++;
 
