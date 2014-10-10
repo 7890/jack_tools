@@ -464,7 +464,7 @@ main (int argc, char *argv[])
 	//jack
 	const char **ports;
 	const char *client_name="receive"; //param
-	const char *server_name = "default";
+	const char *server_name = NULL;
 	//jack_options_t options = JackNullOption;
 	jack_status_t status;
 
@@ -629,13 +629,22 @@ main (int argc, char *argv[])
 	//each pointer points to the start of an audio buffer, one for each capture channel
 	ioBufferArray = (jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
 
-
-       //check for default jack server env var
+	//check for default jack server env var
 	char *evar = getenv("JACK_DEFAULT_SERVER");
-	if(evar!=NULL && strcmp(server_name,"default"))
+	if(evar==NULL || strlen(evar)<1)
+	{
+		unsetenv("JACK_DEFAULT_SERVER");
+	}
+
+	else if(server_name==NULL)
 	{
 		//use env var if no server was given with --sname
 		server_name=evar;
+	}
+
+	if(server_name==NULL || strlen(server_name)<=0)
+	{
+		server_name="default";
 	}
 
 	//open a client connection to the JACK server
