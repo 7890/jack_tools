@@ -5,6 +5,10 @@
 #repeat multiple times
 #for i in {1..10}; do ./test1.sh; sleep 3; done
 
+OSC_PORT1=9998
+OSC_PORT2=9999
+OSC_PORT3=10101
+
 CHANNEL_COUNT=80
 OUTPUT_DIR=/tmp/audio_rxtx_test_shots
 
@@ -47,7 +51,7 @@ JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_gen &
 JACK_GEN_PID=$!
 
 echo "starting jack_osc_bridge_in"
-JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_osc_bridge_in &
+JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_osc_bridge_in $OSC_PORT3 &
 JACK_OSC_BRIDGE_IN_PID=$!
 
 echo "starting sisco"
@@ -55,22 +59,22 @@ JACK_DEFAULT_SERVER=audio_rxtx xterm -e jalv.gtk "http://gareus.org/oss/lv2/sisc
 JALV_PID=$!
 
 echo "starting jack_audio_send ($CHANNEL_COUNT channels)"
-JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_send $AUDIO_RXTX_OPTS --in $CHANNEL_COUNT localhost 1234 &
+JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_send $AUDIO_RXTX_OPTS --lport $OSC_PORT1 "--in" $CHANNEL_COUNT localhost $OSC_PORT2 &
 JACK_AUDIO_SEND_PID=$!
 
 echo "starting jack_audio_receive ($CHANNEL_COUNT channels)"
-JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_receive $AUDIO_RXTX_OPTS --out $CHANNEL_COUNT 1234 &
+JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_receive $AUDIO_RXTX_OPTS --out $CHANNEL_COUNT $OSC_PORT2 &
 JACK_AUDIO_RECEIVE_PID=$!
 
 sleep 1
 
 echo "creating JACK connections"
-JACK_DEFAULT_SERVER=audio_rxtx jack_connect "osc_bridge_in_3344:out" "gen:in"
+JACK_DEFAULT_SERVER=audio_rxtx jack_connect "osc_bridge_in_$OSC_PORT3:out" "gen:in"
 
 sleep 0.5
 
 echo "setting gen shape sine"
-oscsend localhost 3344 /shape/sine
+oscsend localhost $OSC_PORT3 /shape/sine
 
 JACK_DEFAULT_SERVER=audio_rxtx jack_connect "gen:out" "Simple Scope (Stereo) GTK:in1"
 JACK_DEFAULT_SERVER=audio_rxtx jack_connect "gen:out" "send:input_${CHANNEL_COUNT}"
@@ -81,10 +85,12 @@ sleep 2
 echo "creating screenshot"
 scrot --focused '%Y-%m-%d_%H-%M-%S_$wx$h_scrot.png' -e 'mv $f '"$OUTPUT_DIR"
 
-sleep 2
+sleep 5
 
 echo "screenshot in $OUTPUT_DIR:"
 ls -ltr "$OUTPUT_DIR" | tail -1
+
+sleep 1
 
 echo "shutting down / killing programs"
 kill -9 $JACK_GEN_PID
