@@ -348,7 +348,7 @@ process(jack_nframes_t nframes, void *arg)
 
 			//print info "in-place" with \r
 			fprintf(stderr,"\r# %" PRId64 
-				" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f mb) p: %.1f%s",
+				" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f MB) p: %.1f%s",
 				msg_sequence_number,hms,
 				xrun_counter,
 				transfer_size*msg_sequence_number,//+140, //140: minimal offer/accept
@@ -426,7 +426,7 @@ main (int argc, char *argv[])
 	//jack
 	const char **ports;
 	const char *client_name="send"; //param
-	const char *server_name = NULL;
+	const char *server_name = "default";
 	//jack_options_t options = JackNullOption;
 	jack_status_t status;
 
@@ -591,6 +591,15 @@ main (int argc, char *argv[])
 	//each pointer points to the start of an audio buffer, one for each capture channel
 	ioBufferArray = (jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
 
+
+	//check for default jack server env var
+	char *evar = getenv("JACK_DEFAULT_SERVER");
+	if(evar!=NULL && strcmp(server_name,"default"))
+	{
+		//use env var if no server was given with --sname
+		server_name=evar;
+	}
+
 	//open a client connection to the JACK server
 	client = jack_client_open (client_name, jack_opts, &status, server_name);
 	if (client == NULL) {
@@ -600,17 +609,17 @@ main (int argc, char *argv[])
 			fprintf (stderr, "Unable to connect to JACK server\n");
 		}
 		exit (1);
-		}
-	if (status & JackServerStarted) {
-		fprintf (stderr, "JACK server started\n");
-	}
-	if (status & JackNameNotUnique) {
-		client_name = jack_get_client_name(client);
-		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
 	}
 
-	fprintf(stderr,"sending from osc port: %s\n",localPort);
+	fprintf(stderr,"sending from UDP port: %s\n",localPort);
 	fprintf(stderr,"target host:port: %s:%s\n",sendToHost,sendToPort);
+
+	client_name = jack_get_client_name(client);
+
+	fprintf(stderr,"started JACK client '%s' on server '%s'\n",client_name,server_name);
+	if (status & JackNameNotUnique) {
+		fprintf (stderr, "/!\\ name '%s' was automatically assigned\n", client_name);
+	}
 
 	read_jack_properties();
 	print_common_jack_properties();
@@ -700,7 +709,7 @@ main (int argc, char *argv[])
 		* transfer_size
 		* 8 / 1000;
 
-	fprintf(stderr, "expected network data rate: %.1f kbit/s (%.2f mb/s)\n",
+	fprintf(stderr, "expected network data rate: %.1f kbit/s (%.2f MB/s)\n",
 		expected_network_data_rate,
 		(float)expected_network_data_rate/1000/8
 	);

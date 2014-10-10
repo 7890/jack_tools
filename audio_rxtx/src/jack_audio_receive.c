@@ -464,7 +464,7 @@ main (int argc, char *argv[])
 	//jack
 	const char **ports;
 	const char *client_name="receive"; //param
-	const char *server_name = NULL;
+	const char *server_name = "default";
 	//jack_options_t options = JackNullOption;
 	jack_status_t status;
 
@@ -629,6 +629,15 @@ main (int argc, char *argv[])
 	//each pointer points to the start of an audio buffer, one for each capture channel
 	ioBufferArray = (jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
 
+
+       //check for default jack server env var
+	char *evar = getenv("JACK_DEFAULT_SERVER");
+	if(evar!=NULL && strcmp(server_name,"default"))
+	{
+		//use env var if no server was given with --sname
+		server_name=evar;
+	}
+
 	//open a client connection to the JACK server
 	client = jack_client_open (client_name, jack_opts, &status, server_name);
 	if (client == NULL) {
@@ -638,18 +647,18 @@ main (int argc, char *argv[])
 			fprintf(stderr,"Unable to connect to JACK server.\n");
 		}
 		exit (1);
-		}
-	if (status & JackServerStarted) {
-		fprintf(stderr,"JACK server started\n");
 	}
+
+	fprintf(stderr,"listening on UDP port: %s\n",listenPort);
+
+	client_name = jack_get_client_name(client);
+
+	fprintf(stderr,"started JACK client '%s' on server '%s'\n",client_name,server_name);
 	if (status & JackNameNotUnique) {
-		client_name = jack_get_client_name(client);
-		fprintf (stderr, "*** unique name `%s' assigned\n", client_name);
+		fprintf (stderr, "/!\\ name '%s' was automatically assigned\n", client_name);
 	}
 
 	//print startup info
-
-	fprintf(stderr,"listening on osc port: %s\n",listenPort);
 
 	read_jack_properties();
 	print_common_jack_properties();
@@ -710,7 +719,7 @@ main (int argc, char *argv[])
 
 	size_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
 
-	fprintf(stderr,"initial buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n",
+	fprintf(stderr,"initial buffer size: %zu mc periods (%s, %zu bytes, %.2f MB)\n",
 		pre_buffer_size,
 		buf,
 		rb_size_pre,
@@ -742,7 +751,7 @@ main (int argc, char *argv[])
 	max_buffer_size=max_buffer_mc_periods;
 
 	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
-	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f mb)\n",
+	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f MB)\n",
 		max_buffer_size,
 		buf,
 		rb_size,
@@ -1367,7 +1376,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		char buf[64];
 		format_seconds(buf,(float)max_buffer_periods*period_size/(float)sample_rate);
 
-		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %zu bytes, %.2f mb)\n",
+		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %zu bytes, %.2f MB)\n",
 			max_buffer_periods,
 			buf,
 			rb_size,
