@@ -12,6 +12,9 @@
 ### Quick start
 ### one-time cowbuilder/pbuilder setup on the build-host
 #
+# the following commands are good to build on a 64 bit host (ubuntu)
+# for 32 bit hosts: 'amd64' -> 'i386'
+#
 # sudo apt-get install cowbuilder util-linux
 # sudo mkdir -p /var/cache/pbuilder/trusty-amd64/aptcache
 #
@@ -34,14 +37,22 @@
 # then call this (the one you read) script
 #
 # time /var/tmp/build_win.sh
-# -> in some minutes, there is a audio_rxtx_(number).tar in /tmp
+# -> if the build proceeds well there will be /tmp/audio_rxtx_(number).tar
 #
 
+###############################################################################
+
+# the standard variables are normally safe to use
+# to skip the build stack this script can be started (from inside cow):
+# NOSTACK=1 /var/tmp/build_win.sh
+# this will update and build the audio_rxtx sources
+
+: ${NOSTACK=}   # set to skip building the build-stack
+
+# windows 32 bit binaries will/should work also on 64 bit 
 : ${XARCH=i686} # or x86_64
 : ${MAKEFLAGS=-j1}
 : ${STACKCFLAGS="-O2 -g"}
-
-: ${NOSTACK=}   # set to skip building the build-stack
 
 : ${SRCDIR=/var/tmp/winsrc}  # source-code tgz cache
 : ${TMPDIR=/var/tmp}         # package is built (and zipped) here.
@@ -49,13 +60,18 @@
 : ${ROOT=/home/winbuild} # everything happens below here :)
                          # src, build and stack-install
 
-
 ###############################################################################
 
 if [ "$(id -u)" != "0" -a -z "$SUDO" ]; then
         echo "This script must be run as root in pbuilder" 1>&2
         exit 1
 fi
+
+echo "??? create build stack for win32 dependencies of audio_rxtx and create executables?"
+echo "(this command must be started from inside (--login) the minimal system or VM)"
+echo "please see comments in the script header how to bootstrap a minimal build system."
+echo "   do you want to continue? (ctrl+c to abort)"
+read a
 
 ###############################################################################
 set -e
@@ -91,7 +107,6 @@ if test -d /usr/lib/ccache -a -f /usr/bin/ccache; then
         test -L ${XPREFIX}-g++ || ln -s ../../bin/ccache ${XPREFIX}-g++
 fi
 
-
 ###############################################################################
 
 mkdir -p ${SRCDIR}
@@ -103,6 +118,10 @@ export XPREFIX
 export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
 export PREFIX
 export SRCDIR
+
+#prevent possible wrong $HOME env var, that could make ccache fail (cannot create /home/foo/.ccache)
+export HOME=${PREFIX}
+#export CCACHE_TEMPDIR=${PREFIX}/.ccache
 
 if test -n "$(which ${XPREFIX}-pkg-config)"; then
         export PKG_CONFIG=/usr/bin/pkg-config
