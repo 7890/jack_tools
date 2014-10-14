@@ -20,6 +20,7 @@
 #include <lo/lo.h>
 #include <sys/time.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include "jack_audio_common.h"
 
@@ -349,10 +350,11 @@ process(jack_nframes_t nframes, void *arg)
 			//print info "in-place" with \r
 			fprintf(stderr,"\r# %" PRId64 
 				" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f MB) p: %.1f%s",
-				msg_sequence_number,hms,
+				msg_sequence_number,
+				hms,
 				xrun_counter,
-				transfer_size*msg_sequence_number,//+140, //140: minimal offer/accept
-				(float)(transfer_size*msg_sequence_number)/1000/1000,//+140)/1000/1000,
+				transfer_size*msg_sequence_number,/*+140, //140: minimal offer/accept*/
+				(float)(transfer_size*msg_sequence_number)/1000/1000,/*+140)/1000/1000*/
 				(float)frames_since_cycle_start_avg/(float)period_size,
 				"\033[0J"
 			);
@@ -416,7 +418,6 @@ static void print_help (void)
 	fprintf (stderr, "Example: jack_audio_send --in 8 10.10.10.3 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
-	//needs manpage
 	exit (0);
 }
 

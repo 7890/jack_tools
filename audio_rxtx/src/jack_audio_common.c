@@ -81,14 +81,13 @@ void print_version ()
 
 void periods_to_HMS(char *buf, uint64_t periods)
 {
+	//calculate elapsed time
+	uint64_t seconds_elapsed_total=periods * period_size / sample_rate;
+	uint64_t hours_elapsed_total=seconds_elapsed_total / 3600;
+	uint64_t minutes_elapsed_total=seconds_elapsed_total / 60;
 
-//calculate elapsed time
-	size_t seconds_elapsed_total=periods * period_size / sample_rate;
-	size_t hours_elapsed_total=seconds_elapsed_total / 3600;
-	size_t minutes_elapsed_total=seconds_elapsed_total / 60;
-
-	size_t minutes_elapsed=minutes_elapsed_total % 60;
-	size_t seconds_elapsed=seconds_elapsed_total % 60;
+	uint64_t minutes_elapsed=minutes_elapsed_total % 60;
+	uint64_t seconds_elapsed=seconds_elapsed_total % 60;
 
 	sprintf(buf,"%02zu:%02zu:%02zu",
 		hours_elapsed_total,minutes_elapsed,seconds_elapsed

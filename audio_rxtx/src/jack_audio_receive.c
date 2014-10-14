@@ -21,11 +21,9 @@
 #include <lo/lo.h>
 #include <sys/time.h>
 #include <getopt.h>
+#include <unistd.h>
 
 #include "jack_audio_common.h"
-
-//asprintf is a GNU extensions that is only declared when __GNU_SOURCE is set
-#define __GNU_SOURCE
 
 //tb/130427/131206//131211//131216/131229/150523
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
@@ -47,13 +45,13 @@ int output_port_count=2; //param
 int port_count=2; //updated to minimum of in/out
 
 //fill n periods to buffer before playback
-size_t pre_buffer_size=4; //param
-size_t pre_buffer_counter=0;
+uint64_t pre_buffer_size=4; //param
+uint64_t pre_buffer_counter=0;
 
 //if no parameter given, buffer size
 //is calculated later on
 //periods
-size_t max_buffer_size=0; //param
+uint64_t max_buffer_size=0; //param
 
 //defined by sender
 uint64_t message_number=0;
@@ -98,7 +96,7 @@ int avg_calc_interval=76;
 uint64_t msg_received_counter=0;
 
 //how many periods to drop (/buffer)
-size_t requested_drop_count=0;
+uint64_t requested_drop_count=0;
 
 //to capture current time
 struct timeval tv;
@@ -180,7 +178,7 @@ int xrun()
 
 void print_info()
 {
-	size_t can_read_count=jack_ringbuffer_read_space(rb);
+	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
 
 	char* offset_string;
 	if(channel_offset>0)
@@ -197,7 +195,7 @@ void print_info()
 		|| last_test_cycle==1
 	)
 	{
-		fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %zu s: %.4f i: %.2f r: %" PRId64 
+		fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %" PRId64 " s: %.4f i: %.2f r: %" PRId64 
 			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",
 			message_number,
 			offset_string,
@@ -206,7 +204,8 @@ void print_info()
 			can_read_count,
 			(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
 			time_interval_avg*1000,
-			remote_xrun_counter,local_xrun_counter,
+			remote_xrun_counter,
+			local_xrun_counter,
 			multi_channel_drop_counter,
 			buffer_overflow_counter,
 			(float)frames_since_cycle_start_avg/(float)period_size,
@@ -343,7 +342,7 @@ process (jack_nframes_t nframes, void *arg)
 		//requested via /buffer, for test purposes (make buffer "tight")
 		if(requested_drop_count>0)
 		{
-			size_t drop_bytes_count=requested_drop_count
+			uint64_t drop_bytes_count=requested_drop_count
 				*port_count*period_size*bytes_per_sample;
 
 			jack_ringbuffer_read_advance(rb,drop_bytes_count);
@@ -372,7 +371,7 @@ process (jack_nframes_t nframes, void *arg)
 				}
 				else
 				{
-					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %zu%s",
+					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %" PRId64 "%s",
 						message_number,
 						pre_buffer_size-pre_buffer_counter,
 						"\033[0J"
@@ -398,8 +397,10 @@ process (jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0;i < (output_port_count-input_port_count);i++)
 		{
-			jack_default_audio_sample_t *o1;
-			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[input_port_count+i], nframes);
+			//jack_default_audio_sample_t *o1;
+			//o1 = (jack_default_audio_sample_t*)
+			/////?
+			jack_port_get_buffer (ioPortArray[input_port_count+i], nframes);
 		}
 	}
 
@@ -455,7 +456,6 @@ static void print_help (void)
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
-	//needs manpage
 	exit (0);
 }
 int
@@ -726,9 +726,9 @@ main (int argc, char *argv[])
 	char buf[64];
 	format_seconds(buf,(float)pre_buffer_size*period_size/(float)sample_rate);
 
-	size_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
+	uint64_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
 
-	fprintf(stderr,"initial buffer size: %zu mc periods (%s, %zu bytes, %.2f MB)\n",
+	fprintf(stderr,"initial buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
 		pre_buffer_size,
 		buf,
 		rb_size_pre,
@@ -737,7 +737,7 @@ main (int argc, char *argv[])
 	buf[0] = '\0';
 
 	//ringbuffer size bytes
-	size_t rb_size;
+	uint64_t rb_size;
 
 	//ringbuffer mc periods
 	int max_buffer_mc_periods;
@@ -760,7 +760,7 @@ main (int argc, char *argv[])
 	max_buffer_size=max_buffer_mc_periods;
 
 	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
-	fprintf(stderr,"allocated buffer size: %zu mc periods (%s, %zu bytes, %.2f MB)\n",
+	fprintf(stderr,"allocated buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
 		max_buffer_size,
 		buf,
 		rb_size,
@@ -959,22 +959,20 @@ void registerOSCMessagePatterns(const char *port)
 	/////////////////
 	int data_offset=4;
 
+//the max possible channel count depends on JACK period size, SR, liblo version (fixmax), 16/32 bit, 100/1000 mbit/s network
+/*
+	//support 1-n blobs / channels per message
+	lo_server_thread_add_method(lo_st, "/audio", "hhtib", audio_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/audio", "hhtibb", audio_handler, NULL);
+..
+*/
+
 	v=0;
 	for(v=0;v<max_channel_count;v++)
 	{
 		typetag_string[data_offset+v]='b';
 		lo_server_thread_add_method(lo_st, "/audio", typetag_string, audio_handler, NULL);
 	}
-/*
-//old
-	//support 1-64 blobs / channels per message
-	lo_server_thread_add_method(lo_st, "/audio", "hhtib", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtibb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtibbb", audio_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/audio", "hhtibbbb", audio_handler, NULL);
-*/
-//the max possible channel count depends on JACK period size, SR, liblo version (fixmax), 16/32 bit, 100/1000 mbit/s network
-
 }//end registerocsmessages
 
 //osc handlers
@@ -1025,10 +1023,11 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	int offered_sample_rate=argv[1]->i;
 	int offered_bytes_per_sample=argv[2]->i;
 	int offered_period_size=argv[3]->i;
-	int offered_channel_count=argv[4]->i;
 
-	float offered_data_rate=argv[5]->f;
-	uint64_t request_counter=argv[6]->h;
+//unused here
+//	int offered_channel_count=argv[4]->i;
+//	float offered_data_rate=argv[5]->f;
+//	uint64_t request_counter=argv[6]->h;
 
 	lo_message msg=lo_message_new();
 
@@ -1156,7 +1155,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//option --rebuff
 		if(rebuffer_on_restart==1)
 		{
-			size_t can_read_count=jack_ringbuffer_read_space(rb);
+			uint64_t can_read_count=jack_ringbuffer_read_space(rb);
 			pre_buffer_counter=fmax(0,(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count);
 			//start buffering
 			process_enabled=0;
@@ -1224,7 +1223,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	double msg_time=tt.sec+(double)tt.frac/1000000;
 	double msg_time_prev=tt_prev.sec+(double)tt_prev.frac/1000000;
-	double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
+//unused for now
+//	double time_now=tv.tv_sec+(double)tv.tv_usec/1000000;
 
 	time_interval=msg_time-msg_time_prev;
 
@@ -1249,7 +1249,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	int mc_period_bytes=period_size*bytes_per_sample*port_count;
 
 	//check if a whole mc period can be written to the ringbuffer
-	size_t can_write_count=jack_ringbuffer_write_space(rb);
+	uint64_t can_write_count=jack_ringbuffer_write_space(rb);
 	if(can_write_count < mc_period_bytes)
 	{
 			buffer_overflow_counter++;
@@ -1273,7 +1273,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 			//write to ringbuffer
 			//==========================================
-			int cnt=jack_ringbuffer_write(rb, (void *) data, 
+			//int cnt=
+			jack_ringbuffer_write(rb, (void *) data, 
 				period_size*bytes_per_sample);
 		}
 		pre_buffer_counter++;
@@ -1290,7 +1291,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 			//write to temporary ringbuffer until there is enough data
 			//==========================================
-			int cnt=jack_ringbuffer_write(rb_helper, (void *) data, 
+			//int cnt=
+			jack_ringbuffer_write(rb_helper, (void *) data, 
 				remote_period_size*bytes_per_sample);
 		}
 
@@ -1318,7 +1320,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 							+ i*remote_period_size*bytes_per_sample;
 
 					//write one channel snipped (remote_period_size) to main buffer
-					int w=jack_ringbuffer_write(rb,(void *)data,remote_period_size*bytes_per_sample);
+					//int w=
+					jack_ringbuffer_write(rb,(void *)data,remote_period_size*bytes_per_sample);
 				}
 			}
 			data=orig_data;
@@ -1345,7 +1348,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 				//==========================================
 				data+=k*period_size*bytes_per_sample;
 
-				int cnt=jack_ringbuffer_write(rb, (void *) data, 
+				//int cnt=
+				jack_ringbuffer_write(rb, (void *) data, 
 					period_size*bytes_per_sample);
 			}
 			pre_buffer_counter++;
@@ -1375,7 +1379,9 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	fprintf(stderr,"\n/buffer received pre,max: %d, %d\n",pre_buffer_periods,max_buffer_periods);
 
-	size_t rb_size=max_buffer_periods
+	fflush(stderr);
+
+	uint64_t rb_size=max_buffer_periods
 		*output_port_count*bytes_per_sample*period_size;
 
 	//create new buffer if not equal to current max
@@ -1385,7 +1391,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		char buf[64];
 		format_seconds(buf,(float)max_buffer_periods*period_size/(float)sample_rate);
 
-		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %zu bytes, %.2f MB)\n",
+		fprintf(stderr,"new ringbuffer size: %d mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
 			max_buffer_periods,
 			buf,
 			rb_size,
@@ -1399,14 +1405,14 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	}
 
 	//current size
-	size_t can_read_count = jack_ringbuffer_read_space(rb);
-	size_t can_read_periods_count = can_read_count/port_count/period_size/bytes_per_sample;
+	uint64_t can_read_count = jack_ringbuffer_read_space(rb);
+	uint64_t can_read_periods_count = can_read_count/port_count/period_size/bytes_per_sample;
 
 	if(pre_buffer_periods>can_read_periods_count)
 	{
 		//fill buffer
-		size_t fill_periods_count=pre_buffer_periods-can_read_periods_count;
-		fprintf(stderr,"-> FILL %zu\n",fill_periods_count);
+		uint64_t fill_periods_count=pre_buffer_periods-can_read_periods_count;
+		fprintf(stderr,"-> FILL %" PRId64 "\n",fill_periods_count);
 
 		pre_buffer_size=fill_periods_count;
 		pre_buffer_counter=0;
@@ -1416,7 +1422,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//do in process() (reader)
 		requested_drop_count+=can_read_periods_count-pre_buffer_periods;
-		fprintf(stderr," -> DROP %zu\n",requested_drop_count);
+		fprintf(stderr," -> DROP %" PRId64 "\n",requested_drop_count);
 	}
 	
 	return 0;
