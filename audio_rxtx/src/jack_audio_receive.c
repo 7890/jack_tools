@@ -663,7 +663,7 @@ main (int argc, char *argv[])
 		exit (1);
 	}
 
-	fprintf(stderr,"listening on UDP port: %s\n",listenPort);
+	fprintf(stderr,"receiving on UDP port: %s\n",listenPort);
 
 	client_name = jack_get_client_name(client);
 
