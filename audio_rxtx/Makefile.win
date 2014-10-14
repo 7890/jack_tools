@@ -1,0 +1,94 @@
+CC = i686-w64-mingw32-gcc
+CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE=1 -D_WIN=1 -lm -w
+
+#http://article.gmane.org/gmane.comp.gnu.mingw.user/27539/
+
+PROGNAME ?= audio-rxtx
+
+SRC = src
+BLD = build
+DOC = doc
+DIST = dist
+
+default: compile
+
+all: compile dist
+
+compile: 
+	@echo ""
+	@echo "compiling jack_audio_send, jack_audio_recieve"
+	@echo "---------------------------------------------"
+	@echo ""
+	@echo "CC        : $(CC)"
+	@echo "CFLAGS    : $(CFLAGS)"
+	@echo ""
+
+        mkdir -p $(BLD)
+
+	@echo ""
+	@echo "/!\\ audio_rxtx needs liblo fixmax branch for full operability"
+	@echo "https://github.com/radarsat1/liblo/tree/fixmax"
+	@echo "(alt.) https://github.com/7890/liblo/tree/fixmax"
+
+	@echo ""
+	@echo "testing for liblo version >= 0.28"
+	pkg-config --atleast-version 0.28 liblo || [ $$? -eq 0 ]
+
+	@echo ""
+	@echo "compiling small lo program"
+	$(CC) -o $(BLD)/test_lofixmax $(SRC)/test_lofixmax.c `pkg-config --libs --cflags liblo`
+
+	@echo ""
+	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
+	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
+
+	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
+
+	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(CFLAGS)
+
+	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(CFLAGS)
+
+#windows #########################################################
+	mv $(BLD)/jack_audio_receive $(BLD)/jack_audio_receive.exe
+	mv $(BLD)/jack_audio_send $(BLD)/jack_audio_send.exe
+
+	@echo ""
+	@echo "done. next (if there were no errors) is: sudo make install"
+	@echo ""
+
+dist:
+	mkdir -p $(BLD)/audio_rxtx/bin
+	mkdir -p $(BLD)/audio_rxtx/doc
+
+	cp $(BLD)/jack_audio_send.exe $(BLD)/audio_rxtx/bin
+	cp $(BLD)/jack_audio_receive.exe $(BLD)/audio_rxtx/bin
+
+#	unix2dos -n $(DOC)/jack_audio_send.1.asciidoc $(BLD)/audio_rxtx/doc/jack_audio_send.txt
+#	unix2dos -n $(DOC)/jack_audio_receive.1.asciidoc $(BLD)/audio_rxtx/doc/jack_audio_receive.txt
+	unix2dos -n $(DOC)/sequence_diagram.txt $(BLD)/audio_rxtx/doc/sequence_diagram.txt
+	cp $(DOC)/jack_audio_send.pdf $(BLD)/audio_rxtx/doc/
+	cp $(DOC)/jack_audio_receive.pdf $(BLD)/audio_rxtx/doc/
+
+#	tar xfvz win/archive.tgz -C $(BLD) 
+#	cp $(BLD)/archive/* $(BLD)/audio_rxtx/bin
+
+#add needed dlls
+#	##### outside Makefine / in build_win.sh
+#	cd $(BLD) && tar cfvz audio_rxtx_win.tgz audio_rxtx
+
+	@echo "result is in $(BLD)/audio_rxtx/"
+	@echo "done."
+	@echo ""
+
+clean:
+	rm -rf $(BLD)
+	rm -rf doc-pak
+	rm -f description-pak
+
+	@echo ""
+	@echo "done."
+	@echo ""
+
+.PHONY: compile manpage dist clean
