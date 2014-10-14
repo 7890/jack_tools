@@ -29,11 +29,11 @@ Diverging clocks of distributed audio interfaces can pose an issue.
 The term "mc" period refers to multichannel period which contains the period of each 
 channel for a given JACK cycle.
 
-audio_rxtx uses liblo >= 0.27
+audio_rxtx uses liblo >= 0.28 with a maximum message size (UDP) of 65k
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_send version is 0.71
+jack_audio_send version is 0.81
 
 OPTIONS
 -------
@@ -59,13 +59,16 @@ OPTIONS
 	This will connect all physical input/capture ports to jack_audio_send.
 	Default: off
 
+*--16* (w/o argument)::
+	convert JACK 32 bit float wave data to 16 bit integer (~PCM) data for the network transmission. This can save some bandwidth and/or allow more channels with large period sizes.
+
 *--name* (string)::
-	Jack client name.
+	JACK client name.
 	Default: jack_audio_send
 
 *--sname* (string)::
-	Jack server name.
-	Default: default //:)
+	JACK server name to start jack_audio_send in a specific JACK server. The env variable $DEFAULT_JACK_SEVER is supported.
+	Default: default
 
 *---update* (integer)::
 	Update info displayed in terminal every nth JACK cycle.
@@ -103,6 +106,7 @@ Example output of jack_audio_send:
 
 	sending from osc port: 9990
 	target host:port: 10.10.10.110:1234
+	started JACK client 'send' on server 'default'
 	sample rate: 44100
 	bytes per sample: 4
 	period size: 128 samples (2.902 ms, 512 bytes)
@@ -125,9 +129,9 @@ Legend:
 - p: how much of the available process cycle time was used to do the work (1=100%)
 
 
-Send 16 channels to subnet broadcast address 10.10.10.255, "bus" 1234:
+Send 8 channels as 16 bit wave data to subnet broadcast address 10.10.10.255, "bus" 1234:
 
-	$ jack_audio_send --in 16 --nopause 10.10.10.255 1234
+	$ jack_audio_send --in 8 --16 --nopause 10.10.10.255 1234
 
 jack_audio_send has no buffer. A message with all channels as blobs is sent in every JACK cycle.
 

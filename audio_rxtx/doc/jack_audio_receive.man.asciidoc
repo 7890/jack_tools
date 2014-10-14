@@ -29,16 +29,16 @@ Diverging clocks of distributed audio interfaces can pose an issue.
 The term "mc" period refers to multichannel period which contains the period of each 
 channel for a given JACK cycle.
 
-audio_rxtx uses liblo >= 0.27
+audio_rxtx uses liblo >= 0.28 with a maximum message size (UDP) of 65k
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_receive version is 0.71
+jack_audio_receive version is 0.81
 
 OPTIONS
 -------
 *--help* (w/o argument)::
-	Display help
+	Display help and quit
 
 *--version* (w/o argument)::
 	Display version and quit
@@ -59,13 +59,16 @@ OPTIONS
 	This will connect all jack_audio_receive ports to physical output/playback ports.
 	Default: off
 
+*--16* (w/o argument)::
+	convert JACK 32 bit float wave data to 16 bit integer (~PCM) data for the network transmission. This can save some bandwidth and/or allow more channels with large period sizes
+
 *--name* (string)::
 	Jack client name.
 	Default: jack_audio_receive
 
 *--sname* (string)::
-	Jack server name.
-	Default: default //:)
+	JACK server name to start jack_audio_receive in a specific JACK server. The env variable $DEFAULT_JACK_SEVER is supported.
+	Default: default
 
 *--pre* (integer)::
 	Initial buffer size. Default: 4 mc periods
@@ -109,7 +112,8 @@ Receive 2 channels on port 1234, automatically connect ports, rebuffer on underf
 
 Example output of jack_audio_receive:
 
-	listening on osc port: 4444
+	receiving on UDP port: 4444
+	started JACK client 'receive' on server 'default'
 	sample rate: 44100
 	bytes per sample: 4
 	period size: 128 samples (2.902 ms, 512 bytes)
@@ -148,9 +152,10 @@ Legend:
 - p: how much of the available process cycle time was used to do the work (1=100%)
 
 
-Receive 16 channels on port 1234, pre-buffer 100 mc periods, close receiver when incompatible:
+Receive max 8 channels ignoring the first 2 incoming channels, as 16 bit data, on port 1234, 
+pre-buffer 100 mc periods before playing, allow max 2000 mc periods buffer, close receiver when incompatible:
 
-	$ jack_audio_receive --out 16 --pre 100 --close 1234 
+	$ jack_audio_receive --out 8 --offset 2 --16 --pre 100 --max 2000 --close 1234 
 
 ERROR MESSAGES
 --------------
