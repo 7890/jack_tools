@@ -4,9 +4,6 @@
 #include <stdlib.h>
 #include <jack/jack.h>
 #include <lo/lo.h>
-#ifndef __APPLE__
-#include <sys/sysinfo.h>
-#endif
 
 #include "jack_audio_common.h"
 
@@ -69,18 +66,6 @@ int fscs_avg_calc_interval=88;
 int fscs_avg_counter=0;
 
 int process_enabled=0;
-
-#ifndef __APPLE__
-uint64_t get_free_mem(void)
-{
-	struct sysinfo sys_info;
-	if(sysinfo(&sys_info) != 0)
-	{
-		return -1;
-	}
-	return sys_info.freeram;
-}
-#endif
 
 void print_header (char *prgname)
 {
