@@ -23,7 +23,7 @@ compile:
 	@echo "CFLAGS    : $(CFLAGS)"
 	@echo ""
 
-        mkdir -p $(BLD)
+	mkdir -p $(BLD)
 
 	@echo ""
 	@echo "/!\\ audio_rxtx needs liblo fixmax branch for full operability"
@@ -34,13 +34,12 @@ compile:
 	@echo "testing for liblo version >= 0.28"
 	pkg-config --atleast-version 0.28 liblo || [ $$? -eq 0 ]
 
-	@echo ""
-	@echo "compiling small lo program"
-	$(CC) -o $(BLD)/test_lofixmax $(SRC)/test_lofixmax.c `pkg-config --libs --cflags liblo`
-
-	@echo ""
-	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
-	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
+#	@echo ""
+#	@echo "compiling small lo program"
+#	$(CC) -o $(BLD)/test_lofixmax $(SRC)/test_lofixmax.c $(CFLAGS)
+#	@echo ""
+#	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
+#	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
 
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
 

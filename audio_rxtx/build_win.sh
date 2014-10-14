@@ -41,8 +41,6 @@
 : ${MAKEFLAGS=-j1}
 : ${STACKCFLAGS="-O2 -g"}
 
-#: ${ARDOURCFG=--with-dummy --windows-vst --no-phone-home}
-
 : ${NOSTACK=}   # set to skip building the build-stack
 
 : ${SRCDIR=/var/tmp/winsrc}  # source-code tgz cache
