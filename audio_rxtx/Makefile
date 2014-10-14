@@ -88,8 +88,8 @@ manpage:
 	a2x --doctype manpage --format manpage $(DOC)/jack_audio_receive.man.asciidoc
 	gzip -9 -f $(DOC)/jack_audio_receive.1
 
-	man -l -Tps $(DOC)/jack_audio_send.1.gz | ps2pdf - $(DOC)/jack_audio_send.pdf
-	man -l -Tps $(DOC)/jack_audio_receive.1.gz | ps2pdf - $(DOC)/jack_audio_receive.pdf
+	man -l -Tps $(DOC)/jack_audio_send.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_audio_send.pdf
+	man -l -Tps $(DOC)/jack_audio_receive.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_audio_receive.pdf
 
 	@echo ""
 	@echo "done."
