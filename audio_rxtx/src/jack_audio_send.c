@@ -233,6 +233,8 @@ process(jack_nframes_t nframes, void *arg)
 					lo_address_get_hostname(loa),
 					lo_address_get_port(loa)
 				);
+				fflush(stderr);
+
 				relaxed_display_counter=0;
 			}
 			relaxed_display_counter++;
