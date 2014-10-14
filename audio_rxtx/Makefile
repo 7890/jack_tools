@@ -45,12 +45,25 @@ compile:
 	@echo ""
 	@echo "to change these variables either edit the Makefile or use i.e.:"
 	@echo "sudo make install PREFIX=/usr"
-	@echo ""
-
-	@echo "testing for liblo version >= 0.27"
-	pkg-config --atleast-version 0.27 liblo || [ $$? -eq 0 ]
 
 	mkdir -p $(BLD)
+
+	@echo ""
+	@echo "/!\\ audio_rxtx needs liblo fixmax branch for full operability"
+	@echo "https://github.com/radarsat1/liblo/tree/fixmax"
+	@echo "(alt.) https://github.com/7890/liblo/tree/fixmax"
+
+	@echo ""
+	@echo "testing for liblo version >= 0.28"
+	pkg-config --atleast-version 0.28 liblo || [ $$? -eq 0 ]
+
+	@echo ""
+	@echo "compiling small lo program"
+	$(CC) -o $(BLD)/test_lofixmax $(SRC)/test_lofixmax.c `pkg-config --libs --cflags liblo`
+
+	@echo ""
+	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
+	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
 
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
 
