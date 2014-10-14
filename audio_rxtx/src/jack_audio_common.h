@@ -15,6 +15,10 @@
 #define LO_DEFAULT_MAX_MSG_SIZE LO_MAX_MSG_SIZE
 #endif
 
+#ifdef _WIN
+#define PRId64 "llu"
+#endif
+
 extern float version;
 extern float format_version;
 

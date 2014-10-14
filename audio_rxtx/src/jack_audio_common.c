@@ -89,9 +89,16 @@ void periods_to_HMS(char *buf, uint64_t periods)
 	uint64_t minutes_elapsed=minutes_elapsed_total % 60;
 	uint64_t seconds_elapsed=seconds_elapsed_total % 60;
 
+#ifdef _WIN
+	sprintf(buf,"%02llu:%02llu:%02llu",
+		hours_elapsed_total,minutes_elapsed,seconds_elapsed
+	);
+#else
 	sprintf(buf,"%02zu:%02zu:%02zu",
 		hours_elapsed_total,minutes_elapsed,seconds_elapsed
 	);
+#endif
+
 }
 
 void format_seconds(char *buf, float seconds)

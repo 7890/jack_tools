@@ -211,6 +211,9 @@ void print_info()
 			(float)frames_since_cycle_start_avg/(float)period_size,
 			"\033[0J"
 		);
+
+		fflush(stderr);
+
 		relaxed_display_counter=0;
 	}
 	relaxed_display_counter++;
@@ -633,7 +636,9 @@ main (int argc, char *argv[])
 	char *evar = getenv("JACK_DEFAULT_SERVER");
 	if(evar==NULL || strlen(evar)<1)
 	{
+#ifndef _WIN
 		unsetenv("JACK_DEFAULT_SERVER");
+#endif
 	}
 
 	else if(server_name==NULL)
@@ -874,10 +879,14 @@ main (int argc, char *argv[])
 
 	free (ports);
 
+	fflush(stderr);
+
 	/* install a signal handler to properly quits jack client */
+#ifndef _WIN
 	signal(SIGQUIT, signal_handler);
-	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
+#endif
+	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
 	//add osc hooks & start server
@@ -891,7 +900,11 @@ main (int argc, char *argv[])
 		{
 			signal_handler(42);
 		}
-		sleep (1);
+#ifdef WIN_
+		Sleep(1000);
+#else
+		sleep(1);
+#endif
 	}
 
 	exit (0);
@@ -1091,6 +1104,8 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	lo_message_free(msg);
 
+	fflush(stderr);
+
 	return 0;
 } //end offer_handler
 
@@ -1125,6 +1140,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		fprintf(stderr,"\ngap in message sequence! possibly lost %" PRId64" message(s) on the way.\n"
 			,message_number-message_number_prev-1);
+		fflush(stderr);
 	}
 
 	//total args count minus metadata args count = number of blobs
@@ -1138,6 +1154,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		fprintf(stderr,"channel offset %d >= available input channels %d! (nothing to receive). shutting down...\n"
 			,channel_offset
 			,channel_offset+input_port_count);
+		fflush(stderr);
 		shutdown_in_progress=1;
 		return 0;
 	}
@@ -1182,6 +1199,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 				fprintf(stderr,"\ndenying transmission from %s:%s\n(incompatible JACK settings on sender: SR: %d). telling sender to stop.\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
 				);
+				fflush(stderr);
 
 				message_number=0;
 				message_number_prev=0;
@@ -1198,6 +1216,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings on sender: SR: %d.\nshutting down (see option --close)...\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
 				);
+				fflush(stderr);
 
 				shutdown_in_progress=1;
 				return 0;
@@ -1215,6 +1234,9 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		{
 			fprintf(stderr,"equal sender and receiver period size\n\n");
 		}
+
+		fflush(stderr);
+
 	}//end if "no-offer init" was needed
 
 	remote_xrun_counter=argv[1]->h;
@@ -1379,8 +1401,6 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	fprintf(stderr,"\n/buffer received pre,max: %d, %d\n",pre_buffer_periods,max_buffer_periods);
 
-	fflush(stderr);
-
 	uint64_t rb_size=max_buffer_periods
 		*output_port_count*bytes_per_sample*period_size;
 
@@ -1425,5 +1445,6 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		fprintf(stderr," -> DROP %" PRId64 "\n",requested_drop_count);
 	}
 	
+	fflush(stderr);
 	return 0;
 }//end buffer_handler

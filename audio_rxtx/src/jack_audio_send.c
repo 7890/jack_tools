@@ -359,6 +359,8 @@ process(jack_nframes_t nframes, void *arg)
 				"\033[0J"
 			);
 
+			fflush(stderr);
+
 			relaxed_display_counter=0;
 		}
 		relaxed_display_counter++;
@@ -596,7 +598,9 @@ main (int argc, char *argv[])
 	char *evar = getenv("JACK_DEFAULT_SERVER");
 	if(evar==NULL || strlen(evar)<1)
 	{
+#ifndef _WIN
 		unsetenv("JACK_DEFAULT_SERVER");
+#endif
 	}
 	else if(server_name==NULL)
 	{
@@ -817,10 +821,14 @@ main (int argc, char *argv[])
 
 	free (ports);
 
+	fflush(stderr);
+
 	/* install a signal handler to properly quits jack client */
+#ifndef _WIN
 	signal(SIGQUIT, signal_handler);
-	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
+#endif
+	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
 	//start the osc server
@@ -836,7 +844,11 @@ main (int argc, char *argv[])
 		{
 			signal_handler(42);
 		}
-		sleep (1);
+#ifdef WIN_
+		Sleep(1000);
+#else
+		sleep(1);
+#endif
 	}
 
 	exit (0);
@@ -873,6 +885,8 @@ int deny_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n",argv[0]->f,argv[1]->i);
 	}
 
+	fflush(stderr);
+
 	return 0;
 }
 
@@ -895,6 +909,8 @@ int pause_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		//fprintf(stderr,"\nsender is configured to ignore\n");
 	}
+
+	fflush(stderr);
 
 	return 0;
 }
