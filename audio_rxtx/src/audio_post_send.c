@@ -546,9 +546,11 @@ main (int argc, char *argv[])
 	}
 
 	/* install a signal handler to properly quits jack client */
+#ifndef _WIN
 	signal(SIGQUIT, signal_handler);
-	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
+#endif
+	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
 	//add osc hooks & start UDP server
