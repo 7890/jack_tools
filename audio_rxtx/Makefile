@@ -71,7 +71,7 @@ compile:
 	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(CFLAGS)
 
 	#experimental
-	$(CC) -c -o $(BLD)/audio_post_send.o $(SRC)/audio_post_send.c `pkg-config --libs --cflags liblo` -D_GNU_SOURCE -lm
+	$(CC) -c -o $(BLD)/audio_post_send.o $(SRC)/audio_post_send.c $(CFLAGS)
 	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(CFLAGS)
 
 	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
