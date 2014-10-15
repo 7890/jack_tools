@@ -1,4 +1,6 @@
 CC = i686-w64-mingw32-gcc
+
+#PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
 CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE=1 -D_WIN=1 -lm -w
 
 #http://article.gmane.org/gmane.comp.gnu.mingw.user/27539/
