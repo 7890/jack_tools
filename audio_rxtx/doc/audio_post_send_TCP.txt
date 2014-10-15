@@ -1,0 +1,100 @@
+notes on audio_post_send
+************************
+//tb/141015
+
+tcp post send scenario:
+
+main goal: have contiguous audio data in a network transmitted stream
+
+"no gaps in information" vs. "closest possible time to source aka small latency"
+
+-> use fault tolerant mechanisms of TCP combined with audio buffers
+
+-> after connection *and* audio loss:
+       -> continue possibly where the stream stopped (!)
+       -> this includes a constantly growing time offset at the receiver in relation to the live / source audio
+       -> the time offset is roughly a function of (JACK periodsize, ...) 
+          and the fill statuses of the buffers in sender and receiver
+       -> buffers need control & "auto" management caps
+
+jack_audio_send (in JACK context)
+-> sends to audio_post_send (outside JACK context) on *localhost*
+
+jack_audio_send <-> audio_post_send have a regular UDP sender/receiver relationship.
+
+audio_post_send is incorporating most of what jack_audio_receive does. it has a 
+receive buffer of specified size/duration.
+
+the receive buffer of audio_post_send is also used as TCP *send buffer* to forward audio to an external 
+jack_audio_receive that runs in TCP (--tcp) mode (which again has a receive buffer).
+
+audio_post_send <-> jack_audio_receive have a TCP "push" relationship.
+A sends to B (vs. B requests from A)
+
+the whole picture:
+
+-----> audio flow
+
+       JACK rt/non-JACK limit        host limit              JACK rt
+                |                         \         \        |
+jack_audio_send-|----->audio_post_send-----\--(net)--\-------|--->jack_audio_receive --tcp
+    in JACK     |                           \         \      |
+                |                            \         \     |
+  (no buffer)          A  [====-------]                               [=======----]
+                  A receive buffer = send buffer                    B receive buffer
+
+
+A receive buffer
+underflow: normal condition (!) no need to play out at fixed (JACK) cycle rate. 
+wait for more data to arrive. all data in buffer could be sent to receiver.
+
+overflow: receiver could not consume data.
+(i.e. was not reachable, too slow / to little bandwidth)
+
+strategy 1: leave buffer as is (drop new incoming data -> "lost time")
+strategy 2: drop buffer partially, hope effect was temporary (drop of existing data -> "lost time")
+special case of 2: always drop fully
+
+audio gap in 1: the most currently available data is dropped.
+
+audio gap in 2: already buffered data is dropped.
+this will make the overall latency of source signal to receiver playback shorter
+
+buffer control is essential to control overall latency and special cases
+
+fast alternating buffer overflows and drops will make an audio signal a pain to listen to
+
+B receive buffer
+this buffer in an over-the-internet TCP scenario should be chosen large enough.
+if a network error occurs, the buffer will drown.
+......................................................
+|                                                    |
+|-> while buffer B is going down, buffer A is filled |
+\..................................................../
+
+if the network comes back and the connection is good enough buffer B will be filled again 
+up to the point A hasn't more data to offer.
+no data or time is lost, the audio stream is contiguous in both audible and data-wise.
+
+/!\\ for this to work, several conditions must be met (that will need handling):
+
+-buffer B must have enough *data* to play out audio while the connection is broken (bridge the connection gap)
+-buffer A must have enough *space* to write live data that can not be sent at this time
+-the bandwidth / max possible datarate must exceed what's needed at regular transmission operation
+ i.e. it must be possible to refill a receivers buffer faster than it's being read for ~realtime playout
+
+for a contiguous audio and byte stream this means the following:
+-B must be filled to have enough "offline" data for the longest duration of a conection loss before starting playback
+-A must have enough free space for the longest duration of connection loss to store data for later transmission
+
+if a connection loss is infinitely long, the following happens:
+-B will have a buffer underflow, no data available / audible silence
+-A will have a buffer overflow, not enough space to save data for later forwarding
+
+to handle all cases, the sender and receiver should have minimal buffer coordination.
+for instance, (bad case):
+
+-A has data to send after connection loss (in the most speedy way)
+-B can not consume all data because buffer too small -> will drop data (either existing from buffer or incoming, depending on strategy)
+ -B needs to tell A to stop pushing (refill) data unless B buffer has space again
+
