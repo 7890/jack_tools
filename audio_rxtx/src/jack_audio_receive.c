@@ -918,8 +918,8 @@ main (int argc, char *argv[])
 
 	if(use_tcp==1)
 	{
-		///
-		int desired_max_tcp_size=1000000;
+		///                       .   .   //10 MB max
+		int desired_max_tcp_size=10000000;
 
 		lo_server s = lo_server_thread_get_server(lo_st);
 		int ret_set_size=lo_server_max_msg_size(s, desired_max_tcp_size);
