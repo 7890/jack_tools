@@ -120,7 +120,10 @@ int rebuffer_on_underflow=0; //param
 
 int channel_offset=0; //param
 
+int use_tcp=0; //param
 int lo_proto=LO_UDP;
+
+char* remote_tcp_server_port;
 
 //ctrl+c etc
 static void signal_handler(int sig)
@@ -455,6 +458,9 @@ static void print_help (void)
 	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
 	fprintf (stderr, "  Limit processing count             --limit  <integer>\n");
 	fprintf (stderr, "  Quit on incompatibility            --close\n");
+//	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
+//still borked
+//to test: --tcp (port of remote tcp host)
 	fprintf (stderr, "listening_port:   <integer>\n\n");
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
@@ -496,6 +502,7 @@ main (int argc, char *argv[])
 		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
 		{"limit",	required_argument,	0, 'l'},//test, stop after n processed
 		{"close",	no_argument,	&close_on_incomp, 1},//close client rather than telling sender to stop
+		{"tcp",		required_argument,	0, 't'}, //server port of remote host
 		{0, 0, 0, 0}
 	};
 
@@ -594,6 +601,11 @@ main (int argc, char *argv[])
 
 				break;
 
+			case 't':
+				use_tcp=1;
+				remote_tcp_server_port=optarg;
+				break;
+
 			case '?': //invalid commands
 				/* getopt_long already printed an error message. */
 				fprintf (stderr, "Wrong arguments, see --help.\n\n");
@@ -619,6 +631,11 @@ main (int argc, char *argv[])
 	}
 
 	listenPort=argv[optind];
+
+	if(use_tcp==1)
+	{
+		lo_proto=LO_TCP;
+	}
 
 	//initialize time
 	gettimeofday(&tv, NULL);
@@ -663,7 +680,14 @@ main (int argc, char *argv[])
 		exit (1);
 	}
 
-	fprintf(stderr,"receiving on UDP port: %s\n",listenPort);
+	if(use_tcp==1)
+	{
+		fprintf(stderr,"receiving on TCP port: %s\n",listenPort);
+	}
+	else
+	{
+		fprintf(stderr,"receiving on UDP port: %s\n",listenPort);
+	}
 
 	client_name = jack_get_client_name(client);
 
@@ -891,6 +915,17 @@ main (int argc, char *argv[])
 
 	//add osc hooks & start server
 	registerOSCMessagePatterns(listenPort);
+
+	if(use_tcp==1)
+	{
+		///
+		int desired_max_tcp_size=1000000;
+
+		lo_server s = lo_server_thread_get_server(lo_st);
+		int ret_set_size=lo_server_max_msg_size(s, desired_max_tcp_size);
+		printf("set tcp max size return: %d\n",ret_set_size);
+	}
+
 	lo_server_thread_start(lo_st);
 
 	/* keep running until the Ctrl+C */
@@ -1049,7 +1084,15 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	lo_address loa;
 
-	loa = lo_message_get_source(data);
+	if(use_tcp==1)
+	{
+		lo_address loa_ = lo_message_get_source(data);
+		loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+	}
+	else
+	{
+		loa = lo_message_get_source(data);
+	}
 
 	//check if compatible with sender
 	//could check more stuff (channel count, data rate, sender host/port, ...)
@@ -1164,7 +1207,15 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		lo_address loa;
 
-		loa = lo_message_get_source(data);
+		if(use_tcp==1)
+		{
+			lo_address loa_ = lo_message_get_source(data);
+			loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+		}
+		else
+		{
+			loa = lo_message_get_source(data);
+		}
 
 		strcpy(sender_host,lo_address_get_hostname(loa));
 		strcpy(sender_port,lo_address_get_port(loa));
@@ -1211,7 +1262,15 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			{
 				lo_address loa;
 
-				loa = lo_message_get_source(data);
+				if(use_tcp==1)
+				{
+					lo_address loa_ = lo_message_get_source(data);
+					loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+				}
+				else
+				{
+					loa = lo_message_get_source(data);
+				}
 
 				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings on sender: SR: %d.\nshutting down (see option --close)...\n",
 					lo_address_get_hostname(loa),lo_address_get_port(loa),remote_sample_rate
