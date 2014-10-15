@@ -94,7 +94,7 @@ void periods_to_HMS(char *buf, uint64_t periods)
 		hours_elapsed_total,minutes_elapsed,seconds_elapsed
 	);
 #else
-	sprintf(buf,"%02llu:%02llu:%02llu",
+	sprintf(buf,"%02" PRId64 ":%02" PRId64 ":%02" PRId64,
 		hours_elapsed_total,minutes_elapsed,seconds_elapsed
 	);
 #endif
