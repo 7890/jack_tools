@@ -384,6 +384,8 @@ process (jack_nframes_t nframes, void *arg)
 					);
 				}
 
+				fflush(stderr);
+
 				relaxed_display_counter=0;
 			}
 			relaxed_display_counter++;
