@@ -67,7 +67,7 @@ OPTIONS
 	Default: jack_audio_send
 
 *--sname* (string)::
-	JACK server name to start jack_audio_send in a specific JACK server. The env variable $DEFAULT_JACK_SEVER is supported.
+	JACK server name to start jack_audio_send in a specific JACK server. The env variable $JACK_DEFAULT_SEVER is supported.
 	Default: default
 
 *---update* (integer)::
