@@ -49,9 +49,15 @@ compile:
 	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(CFLAGS)
 
+	#experimental
+	$(CC) -c -o $(BLD)/audio_post_send.o $(SRC)/audio_post_send.c $(CFLAGS)
+	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(CFLAGS)
+
+
 #windows #########################################################
 	mv $(BLD)/jack_audio_receive $(BLD)/jack_audio_receive.exe
 	mv $(BLD)/jack_audio_send $(BLD)/jack_audio_send.exe
+	mv $(BLD)/audio_post_send $(BLD)/audio_post_send.exe
 
 	@echo ""
 	@echo "done. next (if there were no errors) is: sudo make install"
