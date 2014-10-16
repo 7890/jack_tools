@@ -63,8 +63,8 @@
 ###############################################################################
 
 if [ "$(id -u)" != "0" -a -z "$SUDO" ]; then
-        echo "This script must be run as root in pbuilder" 1>&2
-        exit 1
+	echo "This script must be run as root in pbuilder" 1>&2
+	exit 1
 fi
 
 echo "??? create build stack for win32 dependencies of audio_rxtx and create executables?"
@@ -77,34 +77,34 @@ read a
 set -e
 
 if test "$XARCH" = "x86_64" -o "$XARCH" = "amd64"; then
-        echo "Target: 64bit Windows (x86_64)"
-        XPREFIX=x86_64-w64-mingw32
-        HPREFIX=x86_64
-        WARCH=w64
-        DEBIANPKGS="mingw-w64"
+	echo "Target: 64bit Windows (x86_64)"
+	XPREFIX=x86_64-w64-mingw32
+	HPREFIX=x86_64
+	WARCH=w64
+	DEBIANPKGS="mingw-w64"
 else
-        echo "Target: 32 Windows (i686)"
-        XPREFIX=i686-w64-mingw32
-        HPREFIX=i386
-        WARCH=w32
-        DEBIANPKGS="gcc-mingw-w64-i686 g++-mingw-w64-i686 mingw-w64-tools mingw32"
+	echo "Target: 32 Windows (i686)"
+	XPREFIX=i686-w64-mingw32
+	HPREFIX=i386
+	WARCH=w32
+	DEBIANPKGS="gcc-mingw-w64-i686 g++-mingw-w64-i686 mingw-w64-tools mingw32"
 fi
 
 : ${PREFIX=${ROOT}/win-stack-$WARCH}
 : ${BUILDD=${ROOT}/win-build-$WARCH}
 
 apt-get -y install build-essential \
-        ${DEBIANPKGS} \
-        git autoconf automake libtool pkg-config \
-        curl unzip ed yasm cmake ca-certificates \
-	ne dos2unix locate
+	${DEBIANPKGS} \
+	git autoconf automake libtool pkg-config \
+	curl unzip ed yasm cmake ca-certificates \
+	ne dos2unix locate zip
 
 #fixup mingw64 ccache for now
 if test -d /usr/lib/ccache -a -f /usr/bin/ccache; then
-        export PATH="/usr/lib/ccache:${PATH}"
-        cd /usr/lib/ccache
-        test -L ${XPREFIX}-gcc || ln -s ../../bin/ccache ${XPREFIX}-gcc
-        test -L ${XPREFIX}-g++ || ln -s ../../bin/ccache ${XPREFIX}-g++
+	export PATH="/usr/lib/ccache:${PATH}"
+	cd /usr/lib/ccache
+	test -L ${XPREFIX}-gcc || ln -s ../../bin/ccache ${XPREFIX}-gcc
+	test -L ${XPREFIX}-g++ || ln -s ../../bin/ccache ${XPREFIX}-g++
 fi
 
 ###############################################################################
@@ -124,7 +124,7 @@ export HOME=${PREFIX}
 #export CCACHE_TEMPDIR=${PREFIX}/.ccache
 
 if test -n "$(which ${XPREFIX}-pkg-config)"; then
-        export PKG_CONFIG=/usr/bin/pkg-config
+	export PKG_CONFIG=/usr/bin/pkg-config
 #       export PKG_CONFIG=`which ${XPREFIX}-pkg-config`
 fi
 
@@ -145,12 +145,12 @@ function autoconfconf {
 set -e
 echo "======= $(pwd) ======="
 #CPPFLAGS="-I${PREFIX}/include -DDEBUG$CPPFLAGS" \
-        CPPFLAGS="-I${PREFIX}/include$CPPFLAGS" \
-        CFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CFLAGS" \
-        CXXFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CXXFLAGS" \
-        LDFLAGS="-L${PREFIX}/lib$LDFLAGS" \
-        ./configure --host=${XPREFIX} --build=${HPREFIX}-linux \
-        --prefix=$PREFIX $@
+	CPPFLAGS="-I${PREFIX}/include$CPPFLAGS" \
+	CFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CFLAGS" \
+	CXXFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CXXFLAGS" \
+	LDFLAGS="-L${PREFIX}/lib$LDFLAGS" \
+	./configure --host=${XPREFIX} --build=${HPREFIX}-linux \
+	--prefix=$PREFIX $@
 }
 
 function autoconfbuild {
@@ -221,8 +221,6 @@ then
 else
 	git clone https://github.com/7890/jack_tools.git jack_tools
 	cd jack_tools/audio_rxtx
-###
-	cp /var/tmp/Makefile.win .
 fi
 
 ###
@@ -249,9 +247,11 @@ ls -l $DESTDIR/bin
 
 cd $DESTDIR
 cd ..
-tar cvf $APPSTRING.tar $APPSTRING/
-pwd
-ls -l $APPSTRING.tar
+#tar cvf $APPSTRING.tar $APPSTRING/
+zip -r $APPSTRING.zip $APPSTRING/
+
+ls -l $APPSTRING.zip
+echo "(in `pwd`)"
 
 updatedb
 

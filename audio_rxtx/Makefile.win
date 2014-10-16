@@ -71,6 +71,7 @@ dist:
 
 	cp $(BLD)/jack_audio_send.exe $(BLD)/audio_rxtx/bin
 	cp $(BLD)/jack_audio_receive.exe $(BLD)/audio_rxtx/bin
+	cp $(BLD)/audio_post_send.exe $(BLD)/audio_rxtx/bin
 
 #	unix2dos -n $(DOC)/jack_audio_send.1.asciidoc $(BLD)/audio_rxtx/doc/jack_audio_send.txt
 #	unix2dos -n $(DOC)/jack_audio_receive.1.asciidoc $(BLD)/audio_rxtx/doc/jack_audio_receive.txt
@@ -78,14 +79,29 @@ dist:
 	cp $(DOC)/jack_audio_send.pdf $(BLD)/audio_rxtx/doc/
 	cp $(DOC)/jack_audio_receive.pdf $(BLD)/audio_rxtx/doc/
 
-#	tar xfvz win/archive.tgz -C $(BLD) 
-#	cp $(BLD)/archive/* $(BLD)/audio_rxtx/bin
+	unix2dos -n /usr/share/common-licenses/GPL-2 $(BLD)/audio_rxtx/COPYING.txt
 
-#add needed dlls
-#	##### outside Makefine / in build_win.sh
-#	cd $(BLD) && tar cfvz audio_rxtx_win.tgz audio_rxtx
+	echo "audio_rxtx on windows (x-compiled with mingw) EXPERIMENTAL" > /tmp/tmp.txt
+	echo "start JACK first (if not already running)" >> /tmp/tmp.txt
+	echo "start exe programs in directory 'bin'" >> /tmp/tmp.txt
+	echo "see --help" >> /tmp/tmp.txt
+	echo "audio_rxtx uses many other open software bits." >> /tmp/tmp.txt
+	echo "https://github.com/7890/jack_tools" >> /tmp/tmp.txt
+	echo "this is free software. no warranty or support. see COPYING" >> /tmp/tmp.txt
+	unix2dos -n /tmp/tmp.txt $(BLD)/audio_rxtx/README.txt
+
+	echo ":: adjust target host and options to your needs" > /tmp/tmp.txt
+	echo "start jack_audio_send.exe --in 2 --16 --connect --update 10 10.10.10.19 7878" >> /tmp/tmp.txt
+	unix2dos -n /tmp/tmp.txt $(BLD)/audio_rxtx/bin/send.bat
+
+	echo ":: adjust port and options to your needs" > /tmp/tmp.txt
+	echo "start jack_audio_receive.exe --out 2 --16 --connect --update 10 --pre 20 --max 300 7878" >> /tmp/tmp.txt
+	unix2dos -n /tmp/tmp.txt $(BLD)/audio_rxtx/bin/receive.bat
+
+	rm -f /tmp/tmp.txt
 
 	@echo "result is in $(BLD)/audio_rxtx/"
+	@echo "final tasks left to build_win.sh"
 	@echo "done."
 	@echo ""
 
