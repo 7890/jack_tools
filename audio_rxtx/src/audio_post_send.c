@@ -152,6 +152,8 @@ static void signal_handler(int sig)
 	jack_ringbuffer_free(rb_helper);
 
 	fprintf(stderr,"done.\n");
+	
+	fflush(stderr);
 
 	exit(0);
 }
@@ -209,6 +211,9 @@ void print_info()
 			port_count,(float)total_bytes_successfully_sent/1000/1000,
 			"\033[0J"
 		);
+
+		fflush(stderr);
+
 		relaxed_display_counter=0;
 	}
 	relaxed_display_counter++;
@@ -314,6 +319,8 @@ int process()
 				fprintf(stderr,"\rwaiting for audio input data...");
 			}
 
+			fflush(stderr);
+
 			relaxed_display_counter=0;
 		}
 		relaxed_display_counter++;
@@ -348,7 +355,6 @@ static void print_help (void)
 	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
 	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
-	//needs manpage
 	exit (0);
 }
 int
@@ -561,6 +567,7 @@ main (int argc, char *argv[])
 	lo_st_tcp = lo_server_thread_new_with_proto(listenPort, LO_TCP, error);
 	lo_server_thread_start(lo_st_tcp);
 
+	fflush(stderr);
 
 	/* keep running until the Ctrl+C */
 	while(1) 
@@ -735,6 +742,8 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate,offered_bytes_per_sample
 		);
 
+		fflush(stderr);
+
 		//shutting down is not a good strategy for the receiver in this case
 		//shutdown_in_progress=1;
 	}
@@ -776,6 +785,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 		fprintf(stderr,"\ngap in message sequence! possibly lost %" PRId64" message(s) on the way.\n"
 			,message_number-message_number_prev-1);
+		fflush(stderr);
 	}
 
 	//total args count minus metadata args and channel offset count = number of blobs
@@ -789,6 +799,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		fprintf(stderr,"\n\nchannel offset %d >= available input channels %d! (nothing to receive). shutting down...\n"
 			,channel_offset
 			,(argc-data_offset+channel_offset));
+		fflush(stderr);
 		shutdown_in_progress=1;
 		return 0;
 	}
@@ -842,6 +853,8 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		msg_received_counter=0;
 		time_interval_sum=0;
 	}
+
+	fflush(stderr);
 
 	//
 	process_enabled=1;
