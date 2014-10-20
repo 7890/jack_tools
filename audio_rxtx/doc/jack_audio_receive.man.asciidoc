@@ -33,26 +33,27 @@ audio_rxtx uses liblo >= 0.28 with a maximum message size (UDP) of 65k
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_receive version is 0.81
+jack_audio_receive version is 0.82
 
 OPTIONS
 -------
 *--help* (w/o argument)::
-	Display help and quit
+	Display help and quit.
 
 *--version* (w/o argument)::
-	Display version and quit
+	Display version and quit.
 
 *--loinfo* (w/o argument)::
-        Display liblo props and quit
+	Display liblo props and quit.
 
 *--out* (integer)::
 	Number of output/playback channels.
 	Default: 2
 
 *--offset* (integer)::
-	Ignore first n (=offset) channels from incoming audio data
-	This allows a receiver to pick a specific (contiguous) channel range from the input
+	Ignore first n (=offset) channels from incoming audio data.
+	This allows a receiver to pick a specific (contiguous) channel range from the input.
+	Default: 0
 
 *--connect* (w/o argument)::
 	Autoconnect ports.
@@ -60,7 +61,8 @@ OPTIONS
 	Default: off
 
 *--16* (w/o argument)::
-	convert JACK 32 bit float wave data to 16 bit integer (~PCM) data for the network transmission. This can save some bandwidth and/or allow more channels with large period sizes
+	convert JACK 32 bit float wave data to 16 bit integer (~PCM) data for the network transmission. This can save some bandwidth and/or allow more channels with large period sizes.
+	Default: 32 bit float
 
 *--name* (string)::
 	Jack client name.
@@ -71,22 +73,28 @@ OPTIONS
 	Default: default
 
 *--pre* (integer)::
-	Initial buffer size. Default: 4 mc periods
+	Initial buffer size.
+	Default: 4 mc periods
 
 *--max* (integer)::
-	Max buffer size (>= init). Default: (auto)
+	Max buffer size (>= init).
+	Default: (auto)
 
 *--rere* (w/o argument)::
-	Rebuffer on sender restart. Default: off
+	Rebuffer on sender restart.
+	Default: off
 
 *--reuf* (w/o argument)::
-	Rebuffer on underflow. Default: off
+	Rebuffer on underflow.
+	Default: off
 
 *--nozero* (w/o argument)::
-	Re-use old data on underflow: Default: off
+	Re-use old data on underflow.
+	Default: off
 
 *--norbc* (w/o argument)::
 	Disallow external buffer control via /buffer ii
+	Default: off (allow)
 
 *---update* (integer)::
 	Update info displayed in terminal every nth JACK cycle.
@@ -97,8 +105,33 @@ OPTIONS
 	This is useful for tests. Receive an exact amount of messages, then quit program.
 	Default: off
 
+*--quiet* (w/o argument)::
+	Don't display running info
+	Default: off
+
+*--shutup* (w/o argument)::
+	Don't output anything on std{out,err} except fatal errors.
+	Default: off
+
+*--io* (w/o argument)::
+	Enable Remote Control / GUI.
+	Default: off
+
+*--nopush* (w/o argument)::
+	Disable push to GUI.
+	Default: off
+
+*--iohost* (string)::
+	GUI host.
+	Default: localhost
+
+*--ioport* (string)::
+	GUI port (UDP).
+	Default: 20220
+
 *--close* (w/o argument)::
-	Quit if received data is incompatible. Default: off
+	Quit if received data is incompatible.
+	Default: off
 
 *listening_port* (integer)::
 	Local port to listen for audio.

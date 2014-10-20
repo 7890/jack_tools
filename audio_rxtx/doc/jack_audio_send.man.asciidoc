@@ -33,21 +33,22 @@ audio_rxtx uses liblo >= 0.28 with a maximum message size (UDP) of 65k
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-jack_audio_send version is 0.81
+jack_audio_send version is 0.82
 
 OPTIONS
 -------
 *--help* (w/o argument)::
-	Display help and quit
+	Display help and quit.
 
 *--version* (w/o argument)::
-	Display version and quit
+	Display version and quit.
 
 *--loinfo* (w/o argument)::
-	Display liblo props and quit
+	Display liblo props and quit.
 
 *--lport* (integer)::
-	Local port. Default: 9990
+	Local port. A port '0' will force to use a random port.
+	Default: 9990
 
 *--in* (integer)::
 	Number of input/capture channels.
@@ -61,6 +62,7 @@ OPTIONS
 
 *--16* (w/o argument)::
 	convert JACK 32 bit float wave data to 16 bit integer (~PCM) data for the network transmission. This can save some bandwidth and/or allow more channels with large period sizes.
+	Default: 32 bit float
 
 *--name* (string)::
 	JACK client name.
@@ -79,17 +81,42 @@ OPTIONS
 	This is useful for tests. Send an exact amount of messages, then quit program.
 	Default: off
 
+*--quiet* (w/o argument)::
+	Don't display running info.
+	Default: off
+
+*--shutup* (w/o argument)::
+	Don't output anything on std{out,err} except fatal errors.
+	Default: off
+
+*--io* (w/o argument)::
+	Enable Remote Control / GUI.
+	Default: off
+
+*--nopush* (w/o argument)::
+	Disable push to GUI.
+	Default: off
+
+*--iohost* (string)::
+	GUI host.
+	Default: localhost
+
+*--ioport* (string)::
+	GUI port (UDP).
+	Default: 20220
+
 *--nopause* (w/o argument)::
 	Immediate send, ignore /pause, /deny.
 	Use with multiple receivers.
 	Default: off
 
 *--drop* (integer)::
-	Drop (don't send) every nth message (for test purposes)
+	Drop (don't send) every nth message (for test purposes).
+	Default: off
 
 *target_host* (string)::
 	A valid target (receiver) hostname or IP address.
-	Broadcast IP addresses should work too (i.e. 10.10.10.255)
+	Broadcast IP addresses should work too (i.e. 10.10.10.255).
 
 *target_port* (integer)::
 	Port to send audio to.
