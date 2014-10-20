@@ -1,3 +1,15 @@
+/* part of audio_rxtx
+ *
+ * Copyright (C) 2013 - 2014 Thomas Brand <tom@trellis.ch>
+ *
+ * This program is free software; feel free to redistribute it and/or 
+ * modify it.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. bla.
+*/
+
 #ifndef JACK_AUDIO_COMMON_H_INCLUDED
 #define JACK_AUDIO_COMMON_H_INCLUDED
 
@@ -23,6 +35,9 @@ extern float version;
 extern float format_version;
 
 extern lo_server_thread lo_st;
+
+extern const char *server_name;
+extern const char *client_name;
 
 extern jack_client_t *client;
 
@@ -62,6 +77,7 @@ extern int fscs_avg_counter;
 extern int process_enabled;
 
 void print_header(char *prgname);
+void print_bytes_per_sample();
 
 void print_version();
 
@@ -74,5 +90,26 @@ void read_jack_properties();
 void print_common_jack_properties();
 
 int check_lo_props();
+
+int io_();
+int io_simple(char *path);
+int io_quit(char *token);
+
+void jack_shutdown_handler (void *arg);
+
+int xrun_handler();
+
+extern int quiet;
+extern int shutup;
+
+extern int io_enabled;
+extern int io_push_enabled;
+
+extern char* io_host;
+extern char* io_port;
+
+extern lo_address loio;
+
+extern uint64_t local_xrun_counter;
 
 #endif //JACK_AUDIO_COMMON_H_INCLUDED

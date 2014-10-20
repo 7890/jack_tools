@@ -1,4 +1,14 @@
-//jack_audio_common.c
+/* part of audio_rxtx
+ *
+ * Copyright (C) 2013 - 2014 Thomas Brand <tom@trellis.ch>
+ *
+ * This program is free software; feel free to redistribute it and/or 
+ * modify it.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. bla.
+*/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,10 +17,13 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.81f;
+float version = 0.82f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;
+
+const char *server_name = NULL;
+const char *client_name = NULL;
 
 jack_client_t *client;
 
@@ -67,18 +80,35 @@ int fscs_avg_counter=0;
 
 int process_enabled=0;
 
+int quiet=0;
+int shutup=0;
+
+int io_enabled=0;
+int io_push_enabled=1;
+
+char* io_host="localhost";
+char* io_port="20220";
+
+lo_address loio;
+
+//local xrun counter (since start of this jack client)
+uint64_t local_xrun_counter=0;
+
+//=========================================================
 void print_header (char *prgname)
 {
 	fprintf (stderr, "\n%s v%.2f (format v%.2f)\n", prgname,version,format_version);
 	fprintf (stderr, "(C) 2013 - 2014 Thomas Brand  <tom@trellis.ch>\n");
 }
 
+//=========================================================
 void print_version ()
 {
 	fprintf (stderr, "%.2f\n",version);
 	exit (0);
 }
 
+//=========================================================
 void periods_to_HMS(char *buf, uint64_t periods)
 {
 	//calculate elapsed time
@@ -101,6 +131,7 @@ void periods_to_HMS(char *buf, uint64_t periods)
 
 }
 
+//=========================================================
 void format_seconds(char *buf, float seconds)
 {
 	if(seconds>1)
@@ -113,6 +144,7 @@ void format_seconds(char *buf, float seconds)
 	}
 }
 
+//=========================================================
 void read_jack_properties()
 {
 	sample_rate=jack_get_sample_rate(client);
@@ -123,18 +155,10 @@ void read_jack_properties()
 	period_size=jack_get_buffer_size(client);
 }
 
+//=========================================================
 void print_common_jack_properties()
 {
 	fprintf(stderr,"sample rate: %d\n",sample_rate);
-
-	if(bytes_per_sample==4)
-	{
-		fprintf(stderr,"bytes per sample: %d (32 bit float)\n",bytes_per_sample);
-	}
-	else
-	{
-		fprintf(stderr,"bytes per sample: %d (16 bit PCM)\n",bytes_per_sample);
-	}
 
 	char buf[64];
 	format_seconds(buf,(float)period_size/(float)sample_rate);
@@ -143,6 +167,19 @@ void print_common_jack_properties()
 	);
 }
 
+void print_bytes_per_sample()
+{
+	if(bytes_per_sample==4)
+	{
+		fprintf(stderr,"bytes per sample: %d (32 bit float)\n",bytes_per_sample);
+	}
+	else
+	{
+		fprintf(stderr,"bytes per sample: %d (16 bit PCM)\n",bytes_per_sample);
+	}
+}
+
+//=========================================================
 int check_lo_props(int debug)
 {
 	int ret=0;
@@ -152,8 +189,8 @@ int check_lo_props(int debug)
 	char string[256];
 
 	lo_version(string, 256,
-			   &major, &minor, extra, 256,
-			   &lt_maj, &lt_min, &lt_bug);
+		&major, &minor, extra, 256,
+		&lt_maj, &lt_min, &lt_bug);
 
 	if(debug==1)
 	{
@@ -194,3 +231,52 @@ int check_lo_props(int debug)
 	return ret;
 }
 
+//=========================================================
+int io_()
+{
+	return (io_enabled==1 && io_push_enabled==1);
+}
+
+//=========================================================
+int io_simple(char *path)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//=========================================================
+int io_quit(char *token)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_string(msgio,token);
+		lo_send_message(loio, "/quit", msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//if JACK was shut down or the connection was otherwise lost
+//=========================================================
+void jack_shutdown_handler (void *arg)
+{
+	io_quit("jack_shutdown");
+
+//main udp osc server
+	lo_server_thread_free(lo_st);
+//check for tcp
+//
+
+	exit (0);
+}
+
+//=========================================================
+int xrun_handler()
+{
+	local_xrun_counter++;
+	return 0;
+}

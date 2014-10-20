@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include "jack_audio_common.h"
+#include "jack_audio_receive.h"
 
 //tb/130427/131206//131211//131216/131229/150523
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
@@ -63,7 +64,7 @@ uint64_t message_number_prev=0;
 uint64_t process_cycle_counter=0;
 
 //local xruns since program start of receiver
-uint64_t local_xrun_counter=0;
+//uint64_t local_xrun_counter=0;
 
 //remote xruns since program start of sender
 uint64_t remote_xrun_counter=0;
@@ -112,156 +113,614 @@ char sender_port[10];
 int remote_period_size=0;
 int remote_sample_rate=0;
 
+/*
 int close_on_incomp=0; //param
-
 int rebuffer_on_restart=0; //param
-
 int rebuffer_on_underflow=0; //param
-
 int channel_offset=0; //param
+*/
 
 int use_tcp=0; //param
 int lo_proto=LO_UDP;
 
 char* remote_tcp_server_port;
 
-//ctrl+c etc
-static void signal_handler(int sig)
+int not_yet_ready=1;
+
+//osc
+const char *localPort=NULL;
+
+//================================================================
+int main(int argc, char *argv[])
 {
-	shutdown_in_progress=1;
-	process_enabled=0;
+	//jack
+	const char **ports;
+	//jack_options_t options = JackNullOption;
+	jack_status_t status;
 
-	fprintf(stderr,"\nterminate signal %d received.\n",sig);
+//options struct was here
 
-	if(close_on_incomp==0)
+	if(argc-optind<1)
 	{
-		fprintf(stderr,"telling sender to pause.\n");
-
-		//lo_address loa = lo_address_new(sender_host,sender_port);
-		lo_address loa = lo_address_new_with_proto(lo_proto, sender_host,sender_port);
-
-		lo_message msg=lo_message_new();
-		lo_send_message (loa, "/pause", msg);
-		lo_message_free(msg);
+		print_header("jack_audio_receive");
+		fprintf(stderr, "Missing arguments, see --help.\n\n");
+		exit(1);
 	}
 
-	usleep(1000);
-
-	fprintf(stderr,"cleaning up...");
-
-	jack_client_close(client);
-	lo_server_thread_free(lo_st);
-	jack_ringbuffer_free(rb);
-	jack_ringbuffer_free(rb_helper);
-
-	fprintf(stderr,"done.\n");
-
-	exit(0);
-}
-
-void registerOSCMessagePatterns(const char *port);
-
-void error(int num, const char *m, const char *path);
-
-int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
-		void *data, void *user_data);
-
-int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
-		void *data, void *user_data);
-
-int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
-		void *data, void *user_data);
-
-//jack calls this method on every xrun
-int xrun()
-{
-	local_xrun_counter++;
-	return 0;
-}
-
-void print_info()
-{
-	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
-
-	char* offset_string;
-	if(channel_offset>0)
+	int opt;
+ 	//do until command line options parsed
+	while(1)
 	{
-		asprintf(&offset_string, "(%d+)", (channel_offset));
+		/* getopt_long stores the option index here. */
+		int option_index=0;
+
+		opt=getopt_long(argc, argv, "", long_options, &option_index);
+
+		/* Detect the end of the options. */
+		if(opt==-1)
+		{
+			break;
+		}
+		switch(opt)
+		{
+			case 0:
+
+			 /* If this option set a flag, do nothing else now. */
+			if(long_options[option_index].flag!=0)
+			{
+				break;
+			}
+
+			case 'h':
+				print_header("jack_audio_receive");
+				print_help();
+				break;
+
+			case 'v':
+				print_version();
+				break;
+
+			case 'x':
+				print_header("jack_audio_receive");
+				check_lo_props(1);
+				return 1;
+
+			case 'o':
+				output_port_count=atoi(optarg);
+
+				if(output_port_count>max_channel_count)
+				{
+					output_port_count=max_channel_count;
+				}
+				port_count=fmin(input_port_count,output_port_count);
+				break;
+
+			case 'f':
+				channel_offset=atoi(optarg);
+				break;
+
+			case 'y':
+				bytes_per_sample=2;
+				break;
+
+			case 'n':
+				client_name=optarg;
+				break;
+
+			case 's':
+				server_name=optarg;
+				jack_opts |= JackServerName;
+				break;
+
+			case 'b':
+				pre_buffer_size=fmax(1,(uint64_t)atoll(optarg));
+				break;
+
+			case 'm':
+				max_buffer_size=fmax(1,(uint64_t)atoll(optarg));
+				break;
+
+			case 'u':
+				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
+				break;
+
+			case 'l':
+				receive_max=fmax(1,(uint64_t)atoll(optarg));
+				test_mode=1;
+				break;
+
+			case 'a':
+				io_host=optarg;
+				break;
+
+			case 'c':
+				io_port=optarg;
+				break;
+
+			case 't':
+				use_tcp=1;
+				remote_tcp_server_port=optarg;
+				break;
+
+			case '?': //invalid commands
+				/* getopt_long already printed an error message. */
+				print_header("jack_audio_receive");
+				fprintf(stderr, "Wrong arguments, see --help.\n\n");
+				exit(1);
+
+				break;
+ 	 
+			default:
+				break;
+		 } //end switch op
+	}//end while(1)
+
+
+	//remaining non optional parameters listening port
+	if(argc-optind!=1)
+	{
+		print_header("jack_audio_receive");
+		fprintf(stderr, "Wrong arguments, see --help.\n\n");
+		exit(1);
+	}
+
+	localPort=argv[optind];
+
+	//for commuication with a gui / other controller / visualizer
+	loio=lo_address_new_with_proto(LO_UDP, io_host, io_port);
+
+	//if was set to use random port
+	if(atoi(localPort)==0)
+	{
+		//for lo_server_thread_new_with_proto
+		localPort=NULL;
+	}
+
+	//add osc hooks & start osc server early (~right after cmdline parsing)
+	registerOSCMessagePatterns(localPort);
+
+	lo_server_thread_start(lo_st);
+
+	//read back port (in case of random)
+	//could use 
+	//int lo_server_thread_get_port(lo_server_thread st)
+	const char *osc_server_url=lo_server_get_url(lo_server_thread_get_server(lo_st));
+	localPort=lo_url_get_port(osc_server_url);
+	//int lport=lo_server_thread_get_port(lo_st);
+
+	//notify osc gui
+	io_simple("/startup");
+
+	if(check_lo_props(0)>0)
+	{
+		return 1;
+	}
+
+
+	if(use_tcp==1)
+	{
+		lo_proto=LO_TCP;
+	}
+
+	if(shutup==0)
+	{
+		print_header("jack_audio_receive");
+
+		if(output_port_count>max_channel_count)
+		{
+			fprintf(stderr,"*** limiting playback ports to %d, sry\n",max_channel_count);
+		}
+
+		if(test_mode==1)
+		{
+			fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",receive_max);
+		}
+	}
+
+	//initialize time
+	gettimeofday(&tv, NULL);
+	tt_prev.sec=tv.tv_sec;
+	tt_prev.frac=tv.tv_usec;
+
+	//create an array of input ports
+	ioPortArray=(jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
+
+	//create an array of audio sample pointers
+	//each pointer points to the start of an audio buffer, one for each capture channel
+	ioBufferArray=(jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
+
+	//check for default jack server env var
+	char *evar=getenv("JACK_DEFAULT_SERVER");
+	if(evar==NULL || strlen(evar)<1)
+	{
+#ifndef _WIN
+		unsetenv("JACK_DEFAULT_SERVER");
+#endif
+	}
+
+	else if(server_name==NULL)
+	{
+		//use env var if no server was given with --sname
+		server_name=evar;
+	}
+
+	if(server_name==NULL || strlen(server_name)<=0)
+	{
+		server_name="default";
+	}
+
+	if(client_name==NULL)
+	{
+		client_name="receive";
+	}
+
+	//open a client connection to the JACK server
+	client=jack_client_open(client_name, jack_opts, &status, server_name);
+	if(client==NULL) 
+		{
+		fprintf(stderr,"jack_client_open() failed, status = 0x%2.0x\n", status);
+		if(status & JackServerFailed) 
+		{
+			fprintf(stderr,"Unable to connect to JACK server.\n");
+			io_quit("nojack");
+		}
+		exit(1);
+	}
+
+	if(use_tcp==1)
+	{
+
+		if(shutup==0)
+		{
+			fprintf(stderr,"receiving on TCP port: %s\n",localPort);
+		}
 	}
 	else
 	{
-		offset_string="";
+		if(shutup==0)
+		{
+			fprintf(stderr,"receiving on UDP port: %s\n",localPort);
+	}
 	}
 
-	//this is per channel, not per cycle. *port_count
-	if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
-		|| last_test_cycle==1
-	)
+	client_name=jack_get_client_name(client);
+
+	if(shutup==0)
 	{
-		fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %" PRId64 " s: %.4f i: %.2f r: %" PRId64 
-			" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",
-			message_number,
-			offset_string,
-			input_port_count,
-			(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
-			can_read_count,
-			(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
-			time_interval_avg*1000,
-			remote_xrun_counter,
-			local_xrun_counter,
-			multi_channel_drop_counter,
-			buffer_overflow_counter,
-			(float)frames_since_cycle_start_avg/(float)period_size,
-			"\033[0J"
+		fprintf(stderr,"started JACK client '%s' on server '%s'\n",client_name,server_name);
+		if(status & JackNameNotUnique) 
+		{
+			fprintf(stderr, "/!\\ name '%s' was automatically assigned\n", client_name);
+		}
+	}
+
+	if(status & JackNameNotUnique) 
+	{
+		io_simple("/client_name_changed");
+	}
+
+	//print startup info
+
+	read_jack_properties();
+
+	if(shutup==0)
+	{
+		print_common_jack_properties();
+
+		fprintf(stderr,"channels (playback): %d\n",output_port_count);
+		fprintf(stderr,"channel offset: %d\n",channel_offset);
+
+		print_bytes_per_sample();
+
+		fprintf(stderr,"multi-channel period size: %d bytes\n",
+			output_port_count*period_size*bytes_per_sample
 		);
 
-		fflush(stderr);
+		char *strat="fill with zero (silence)";
+		if(zero_on_underflow==0)
+		{
+			strat="re-use last available period";
+		}
 
-		relaxed_display_counter=0;
+		fprintf(stderr,"underflow strategy: %s\n",strat);
+
+		if(rebuffer_on_restart==1)
+		{
+			fprintf(stderr,"rebuffer on sender restart: yes\n");
+		}
+		else
+		{
+			fprintf(stderr,"rebuffer on sender restart: no\n");
+		}
+
+		if(rebuffer_on_underflow==1)
+		{
+			fprintf(stderr,"rebuffer on underflow: yes\n");
+		}
+		else
+		{
+			fprintf(stderr,"rebuffer on underflow: no\n");
+		}
+
+		if(allow_remote_buffer_control==1)
+		{
+			fprintf(stderr,"allow external buffer control: yes\n");
+		}
+		else
+		{
+			fprintf(stderr,"allow external buffer control: no\n");
+		}
+
+		if(close_on_incomp==1)
+		{
+			fprintf(stderr,"shutdown receiver when incompatible data received: yes\n");
+		}
+		else
+		{
+			fprintf(stderr,"shutdown receiver when incompatible data received: no\n");
+		}
+
+	}//end cond. print
+
+	char buf[64];
+	format_seconds(buf,(float)pre_buffer_size*period_size/(float)sample_rate);
+
+	uint64_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
+
+	if(shutup==0)
+	{
+		fprintf(stderr,"initial buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
+			pre_buffer_size,
+			buf,
+			rb_size_pre,
+			(float)rb_size_pre/1000/1000
+		);
 	}
-	relaxed_display_counter++;
-}//end print_info
+	buf[0]='\0';
 
-/**
- * The process callback for this JACK application is called in a
- * special realtime thread once for each audio cycle.
- *
- */
-int
-process (jack_nframes_t nframes, void *arg)
+	//ringbuffer size bytes
+	uint64_t rb_size;
+
+	//ringbuffer mc periods
+	int max_buffer_mc_periods;
+
+	//max given as param (user knows best. if pre=max, overflows are likely)
+	if(max_buffer_size>0)
+	{
+		max_buffer_mc_periods=fmax(pre_buffer_size,max_buffer_size);
+		rb_size=max_buffer_mc_periods
+			*output_port_count*period_size*bytes_per_sample;
+	}
+	else //"auto"
+	{
+		//make max buffer 0.5 seconds larger than pre buffer
+		max_buffer_mc_periods=pre_buffer_size+ceil(0.5*(float)sample_rate/period_size);
+		rb_size=max_buffer_mc_periods
+			*output_port_count*period_size*bytes_per_sample;
+	}
+
+	max_buffer_size=max_buffer_mc_periods;
+
+	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
+	if(shutup==0)
+	{
+		fprintf(stderr,"allocated buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
+			max_buffer_size,
+			buf,
+			rb_size,
+			(float)rb_size/1000/1000
+		);
+	}
+	buf[0]='\0';
+
+	//====================================
+	//main ringbuffer osc blobs -> jack output
+	rb=jack_ringbuffer_create(rb_size);
+	//helper ringbuffer: used when remote period size < local period size
+	rb_helper=jack_ringbuffer_create(rb_size);
+
+	if(rb==NULL)
+	{
+		fprintf(stderr,"could not create a ringbuffer with that size.\n");
+		fprintf(stderr,"try --max <smaller size>.\n");
+		io_quit("ringbuffer_too_large");
+		exit(1);
+	}
+
+	//JACK will call process() for every cycle (given by JACK)
+	//NULL could be config/data struct
+	jack_set_process_callback(client, process, NULL);
+
+	jack_set_xrun_callback(client, xrun_handler, NULL);
+
+	//register hook to know when JACK shuts down or the connection 
+	//was lost (i.e. client zombified)
+	jack_on_shutdown(client, jack_shutdown_handler, 0);
+
+	// Register each output port
+	int port;
+	for(port=0; port<output_port_count; port ++)
+	{
+		// Create port name
+		char* portName;
+		if(asprintf(&portName, "output_%d", (port+1)) < 0) 
+		{
+			fprintf(stderr,"Could not create portname for port %d", port);
+			io_quit("port_error");
+			exit(1);
+		}
+
+		// Register the output port
+		ioPortArray[port]=jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+		if(ioPortArray[port]==NULL) 
+		{
+			fprintf(stderr,"Could not create output port %d\n", (port+1));
+			io_quit("port_error");
+			exit(1);
+		}
+	}
+
+	/* Tell the JACK server that we are ready to roll. Our
+	 * process() callback will start running now. */
+	if(jack_activate(client)) 
+	{
+		fprintf(stderr, "cannot activate client");
+		io_quit("cannot_activate_client");
+		exit(1);
+	}
+
+	/* Connect the ports. You can't do this before the client is
+	 * activated, because we can't make connections to clients
+	 * that aren't running. Note the confusing (but necessary)
+	 * orientation of the driver backend ports: playback ports are
+	 * "input" to the backend, and capture ports are "output" from
+	 * it.
+	 */
+	//prevent to get physical midi ports
+	const char* pat="audio";
+
+	ports=jack_get_ports(client, NULL, pat, JackPortIsPhysical|JackPortIsInput);
+
+	if(ports==NULL) 
+	{
+		if(shutup==0)		
+		{
+			fprintf(stderr,"no physical playback ports\n");
+		}
+		//exit(1);
+	}
+	
+	if(autoconnect==1)
+	{
+		fprintf(stderr, "\n");
+
+		int j=0;
+		int i;
+		for(i=0;i<output_port_count;i++)
+		{
+			if(ports[i]!=NULL 
+				&& ioPortArray[j]!=NULL 
+				&& jack_port_name(ioPortArray[j])!=NULL)
+			{
+				if(!jack_connect(client, jack_port_name(ioPortArray[j]), ports[i]))
+				{
+					if(shutup==0)
+					{
+						fprintf(stderr, "autoconnect: %s -> %s\n",
+							jack_port_name(ioPortArray[j]),ports[i]
+						);
+					}
+					io_simple("/autoconnect_xxx");
+					j++;
+				}
+				else
+				{
+					if(shutup==0)
+					{
+						fprintf(stderr, "autoconnect: failed: %s -> %s\n",
+							jack_port_name(ioPortArray[j]),ports[i]
+						);
+					}
+				}
+			}
+
+		}//end for all output ports
+
+		if(shutup==0)
+		{
+			fprintf(stderr, "\n");
+		}
+	}
+
+	free(ports);
+
+	fflush(stderr);
+
+	io_dump_config();
+
+	/* install a signal handler to properly quits jack client */
+#ifndef _WIN
+	signal(SIGQUIT, signal_handler);
+	signal(SIGHUP, signal_handler);
+#endif
+	signal(SIGTERM, signal_handler);
+	signal(SIGINT, signal_handler);
+
+	if(use_tcp==1)
+	{
+		//10 MB max
+		int desired_max_tcp_size=10000000;
+
+		lo_server s=lo_server_thread_get_server(lo_st);
+		int ret_set_size=lo_server_max_msg_size(s, desired_max_tcp_size);
+
+		if(shutup==0)
+		{
+			printf("set tcp max size return: %d\n",ret_set_size);
+			io_simple("/tcp_max_size_xxxx");
+		}
+	}
+
+	not_yet_ready=0;
+
+	io_simple("/start_main_loop");
+
+	//run possibly forever until not interrupted by any means
+	while(1) 
+	{
+		//possibly clean shutdown without any glitches
+		if(shutdown_in_progress==1)
+		{
+			signal_handler(42);
+		}
+#ifdef WIN_
+		Sleep(1000);
+#else
+		sleep(1);
+#endif
+	}
+
+	exit(0);
+}//end main
+
+//================================================================
+int process(jack_nframes_t nframes, void *arg)
 {
+	//fprintf(stderr,".");
+	//return 0;
+
 	//if shutting down fill buffers with 0 and return
 	if(shutdown_in_progress==1)
 	{
 		int i;
-		for( i=0; i < output_port_count; i++ )
+		for(i=0; i < output_port_count; i++)
 		{
 			jack_default_audio_sample_t *o1;
-			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
-			//memset ( o1, 0, bytes_per_sample*nframes );
+			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
+			//memset(o1, 0, bytes_per_sample*nframes);
 			//always 4 bytes, 32 bit float
-			memset ( o1, 0, 4*nframes );
+			memset(o1, 0, 4*nframes);
 		}
 		return 0;
 	}
 
 	if(process_enabled==1)
 	{
-		//if no data for this cycle (all channels) 
-		//is available (!), fill buffers with 0 or re-use old buffers and return
+		//if no data for this cycle(all channels) 
+		//is available(!), fill buffers with 0 or re-use old buffers and return
 		if(jack_ringbuffer_read_space(rb) < port_count * bytes_per_sample*nframes)
 		{
 			int i;
-			for( i=0; i < output_port_count; i++ )
+			for(i=0; i < output_port_count; i++)
 			{
 				if(zero_on_underflow==1)
 				{
 					jack_default_audio_sample_t *o1;
-					o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+					o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
-					//memset ( o1, 0, bytes_per_sample*nframes );
+					//memset(o1, 0, bytes_per_sample*nframes);
 					//always 4 bytes, 32 bit float
-					memset ( o1, 0, 4*nframes );
+					memset(o1, 0, 4*nframes);
 				}
 				print_info();
 			}
@@ -304,10 +763,10 @@ process (jack_nframes_t nframes, void *arg)
 
 		//if sender sends more channels than we have output channels, ignore them
 		int i;
-		for( i=0; i < port_count; i++ )
+		for(i=0; i<port_count; i++)
 		{
 			jack_default_audio_sample_t *o1;
-			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 			int16_t *o1_16;
 
@@ -319,12 +778,12 @@ process (jack_nframes_t nframes, void *arg)
 			//32 bit float
 			if(bytes_per_sample==4)
 			{
-				jack_ringbuffer_read (rb, (char*)o1, bytes_per_sample*nframes);
+				jack_ringbuffer_read(rb, (char*)o1, bytes_per_sample*nframes);
 			}
 			//16 bit pcm
 			else
 			{
-				jack_ringbuffer_read (rb, (char*)o1_16, bytes_per_sample*nframes);
+				jack_ringbuffer_read(rb, (char*)o1_16, bytes_per_sample*nframes);
 
 				int x;
 				for(x=0;x<nframes;x++)
@@ -360,10 +819,10 @@ process (jack_nframes_t nframes, void *arg)
 	else //if process_enabled==0
 	{
 		int i;
-		for( i=0; i < port_count; i++ )
+		for(i=0; i<port_count; i++)
 		{
 			jack_default_audio_sample_t *o1;
-			o1 = (jack_default_audio_sample_t*)jack_port_get_buffer (ioPortArray[i], nframes);
+			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 			//this is per channel, not per cycle. *port_count
 			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
@@ -373,15 +832,33 @@ process (jack_nframes_t nframes, void *arg)
 				//only for init
 				if((int)message_number<=0 && starting_transmission==0)
 				{
-					fprintf(stderr,"\rwaiting for audio input data...");
+					if(shutup==0 && quiet==0)
+					{
+						fprintf(stderr,"\rwaiting for audio input data...");
+					}
+					io_simple("/wait_for_input");
 				}
 				else
 				{
-					fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %" PRId64 "%s",
-						message_number,
-						pre_buffer_size-pre_buffer_counter,
-						"\033[0J"
-					);
+					if(shutup==0 && quiet==0)
+					{
+						fprintf(stderr,"\r# %" PRId64 " buffering... mc periods to go: %" PRId64 "%s",
+							message_number,
+							pre_buffer_size-pre_buffer_counter,
+							"\033[0J"
+						);
+					}
+
+					if(io_())
+					{
+						lo_message msgio=lo_message_new();
+
+						lo_message_add_int64(msgio,message_number);
+						lo_message_add_int64(msgio,pre_buffer_size-pre_buffer_counter);
+
+						lo_send_message(loio, "/buffering", msgio);
+						lo_message_free(msgio);
+					}
 				}
 
 				fflush(stderr);
@@ -391,9 +868,9 @@ process (jack_nframes_t nframes, void *arg)
 			relaxed_display_counter++;
 
 			//set output buffer silent
-			//memset ( o1, 0, port_count*bytes_per_sample*nframes );
+			//memset(o1, 0, port_count*bytes_per_sample*nframes);
 			//always 4 bytes, 32 bit float
-			memset ( o1, 0, port_count*4*nframes );
+			memset(o1, 0, port_count*4*nframes);
 		}//end for i < port_count
 	}//end process_enabled==0
 
@@ -406,9 +883,9 @@ process (jack_nframes_t nframes, void *arg)
 		for(i=0;i < (output_port_count-input_port_count);i++)
 		{
 			//jack_default_audio_sample_t *o1;
-			//o1 = (jack_default_audio_sample_t*)
+			//o1=(jack_default_audio_sample_t*)
 			/////?
-			jack_port_get_buffer (ioPortArray[input_port_count+i], nframes);
+			jack_port_get_buffer(ioPortArray[input_port_count+i], nframes);
 		}
 	}
 
@@ -427,531 +904,97 @@ process (jack_nframes_t nframes, void *arg)
 	return 0;
 } //end process()
 
-/**
- * JACK calls this shutdown_callback if the server ever shuts down or
- * decides to disconnect the client.
- */
-void
-jack_shutdown (void *arg)
+//================================================================
+void print_info()
 {
-	lo_server_thread_free(lo_st);
-	exit (0);
-}
+	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
 
-static void print_help (void)
-{
-	fprintf (stderr, "Usage: jack_audio_receive [Options] listening_port.\n");
-	fprintf (stderr, "Options:\n");
-	fprintf (stderr, "  Display this text and quit         --help\n");
-	fprintf (stderr, "  Show program version and quit      --version\n");
-	fprintf (stderr, "  Show liblo properties and quit     --loinfo\n");
-	fprintf (stderr, "  Number of playback channels    (2) --out    <integer>\n");
-	fprintf (stderr, "  Channel Offset                 (0) --offset <integer>\n");
-	fprintf (stderr, "  Autoconnect ports                  --connect\n");
-	fprintf (stderr, "  Send 16 bit samples (32 bit float) --16\n");
-	fprintf (stderr, "  JACK client name         (receive) --name   <string>\n");
-	fprintf (stderr, "  JACK server name         (default) --sname  <string>\n");
-	fprintf (stderr, "  Initial buffer size (4 mc periods) --pre    <integer>\n");
-	fprintf (stderr, "  Max buffer size (>= init)   (auto) --max    <integer>\n");
-	fprintf (stderr, "  Rebuffer on sender restart         --rere\n");
-	fprintf (stderr, "  Rebuffer on underflow              --reuf\n");
-	fprintf (stderr, "  Re-use old data on underflow       --nozero\n");
-	fprintf (stderr, "  Disallow ext. buffer control       --norbc\n");
-	fprintf (stderr, "  Update info every nth cycle   (99) --update <integer>\n");
-	fprintf (stderr, "  Limit processing count             --limit  <integer>\n");
-	fprintf (stderr, "  Quit on incompatibility            --close\n");
-//	fprintf (stderr, "  Use TCP instead of UDP       (UDP) --tcp    <integer>\n");
-//still borked
-//to test: --tcp (port of remote tcp host)
-	fprintf (stderr, "listening_port:   <integer>\n\n");
-	fprintf (stderr, "Example: jack_audio_receive --out 8 --connect --pre 200 1234\n");
-	fprintf (stderr, "One message corresponds to one multi-channel (mc) period.\n");
-	fprintf (stderr, "See http://github.com/7890/jack_tools\n\n");
-	exit (0);
-}
-int
-main (int argc, char *argv[])
-{
-	//jack
-	const char **ports;
-	const char *client_name="receive"; //param
-	const char *server_name = NULL;
-	//jack_options_t options = JackNullOption;
-	jack_status_t status;
-
-	//osc
-	const char *listenPort;
-
-	//command line options parsing
-	//http://www.gnu.org/software/libc/manual/html_node/Using-Getopt.html
-	static struct option long_options[] =
+	char* offset_string;
+	if(channel_offset>0)
 	{
-		{"help",	no_argument,		0, 'h'},
-		{"version",     no_argument,            0, 'v'},
-		{"loinfo",      no_argument,            0, 'x'},
-		{"out",		required_argument, 	0, 'o'},
-		{"offset",	required_argument, 	0, 'f'},
-		{"connect",	no_argument,	&autoconnect, 1},
-		{"16",          no_argument,            0, 'y'},
-		{"name",	required_argument,	0, 'n'},
-		{"sname",	required_argument,	0, 's'},
-		{"pre",		required_argument,	0, 'b'},//pre (delay before playback) buffer
-		{"max",		required_argument,	0, 'm'},//max (allocate) buffer
-		{"rere",	no_argument,	&rebuffer_on_restart, 1},
-		{"reuf",	no_argument,	&rebuffer_on_underflow, 1},
-		{"nozero",	no_argument,	&zero_on_underflow, 0},
-		{"norbc",	no_argument,	&allow_remote_buffer_control, 0},
-		{"update",	required_argument,	0, 'u'},//screen info update every nth cycle
-		{"limit",	required_argument,	0, 'l'},//test, stop after n processed
-		{"close",	no_argument,	&close_on_incomp, 1},//close client rather than telling sender to stop
-		{"tcp",		required_argument,	0, 't'}, //server port of remote host
-		{0, 0, 0, 0}
-	};
-
-	//print program header
-	if(argc>1 && strcmp(argv[1],"--version"))
-	{
-		print_header("jack_audio_receive");
-	}
-
-	if (argc - optind < 1)
-	{
-		fprintf (stderr, "Missing arguments, see --help.\n\n");
-		exit(1);
-	}
-
-	int opt;
- 	//do until command line options parsed
-	while (1)
-	{
-		/* getopt_long stores the option index here. */
-		int option_index = 0;
-
-		opt = getopt_long (argc, argv, "", long_options, &option_index);
-
-		/* Detect the end of the options. */
-		if (opt == -1)
-		{
-			break;
-		}
-		switch (opt)
-		{
-			case 0:
-
-			 /* If this option set a flag, do nothing else now. */
-			if (long_options[option_index].flag != 0)
-			{
-				break;
-			}
-
-			case 'h':
-				print_help();
-				break;
-
-			case 'v':
-				print_version();
-				break;
-
-			case 'x':
-				check_lo_props(1);
-				return 1;
-
-			case 'o':
-				output_port_count=atoi(optarg);
-
-				if(output_port_count>max_channel_count)
-				{
-					fprintf(stderr,"*** limiting playback ports to %d, sry\n",max_channel_count);
-					output_port_count=max_channel_count;
-				}
-				port_count=fmin(input_port_count,output_port_count);
-				break;
-
-			case 'f':
-				channel_offset=atoi(optarg);
-				break;
-
-			case 'y':
-				bytes_per_sample=2;
-				break;
-
-			case 'n':
-				client_name=optarg;
-				break;
-
-			case 's':
-				server_name=optarg;
-				jack_opts |= JackServerName;
-				break;
-
-			case 'b':
-				pre_buffer_size=fmax(1,(uint64_t)atoll(optarg));
-				break;
-
-			case 'm':
-				max_buffer_size=fmax(1,(uint64_t)atoll(optarg));
-				break;
-
-			case 'u':
-				update_display_every_nth_cycle=fmax(1,(uint64_t)atoll(optarg));
-				break;
-
-			case 'l':
-				receive_max=fmax(1,(uint64_t)atoll(optarg));
-				test_mode=1;
-				fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",receive_max);
-
-				break;
-
-			case 't':
-				use_tcp=1;
-				remote_tcp_server_port=optarg;
-				break;
-
-			case '?': //invalid commands
-				/* getopt_long already printed an error message. */
-				fprintf (stderr, "Wrong arguments, see --help.\n\n");
-				exit(1);
-
-				break;
- 	 
-			default:
-				break;
-		 } //end switch op
-	}//end while(1)
-
-	//remaining non optional parameters listening port
-	if(argc-optind != 1)
-	{
-		fprintf (stderr, "Wrong arguments, see --help.\n\n");
-		exit(1);
-	}
-
-	if(check_lo_props(0)>0)
-	{
-		return 1;
-	}
-
-	listenPort=argv[optind];
-
-	if(use_tcp==1)
-	{
-		lo_proto=LO_TCP;
-	}
-
-	//initialize time
-	gettimeofday(&tv, NULL);
-	tt_prev.sec=tv.tv_sec;
-	tt_prev.frac=tv.tv_usec;
-
-	//create an array of input ports
-	ioPortArray = (jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
-
-	//create an array of audio sample pointers
-	//each pointer points to the start of an audio buffer, one for each capture channel
-	ioBufferArray = (jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
-
-	//check for default jack server env var
-	char *evar = getenv("JACK_DEFAULT_SERVER");
-	if(evar==NULL || strlen(evar)<1)
-	{
-#ifndef _WIN
-		unsetenv("JACK_DEFAULT_SERVER");
-#endif
-	}
-
-	else if(server_name==NULL)
-	{
-		//use env var if no server was given with --sname
-		server_name=evar;
-	}
-
-	if(server_name==NULL || strlen(server_name)<=0)
-	{
-		server_name="default";
-	}
-
-	//open a client connection to the JACK server
-	client = jack_client_open (client_name, jack_opts, &status, server_name);
-	if (client == NULL) {
-		fprintf(stderr,"jack_client_open() failed, "
-			 "status = 0x%2.0x\n", status);
-		if (status & JackServerFailed) {
-			fprintf(stderr,"Unable to connect to JACK server.\n");
-		}
-		exit (1);
-	}
-
-	if(use_tcp==1)
-	{
-		fprintf(stderr,"receiving on TCP port: %s\n",listenPort);
+		asprintf(&offset_string, "(%d+)", (channel_offset));
 	}
 	else
 	{
-		fprintf(stderr,"receiving on UDP port: %s\n",listenPort);
+		offset_string="";
 	}
 
-	client_name = jack_get_client_name(client);
-
-	fprintf(stderr,"started JACK client '%s' on server '%s'\n",client_name,server_name);
-	if (status & JackNameNotUnique) {
-		fprintf (stderr, "/!\\ name '%s' was automatically assigned\n", client_name);
-	}
-
-	//print startup info
-
-	read_jack_properties();
-	print_common_jack_properties();
-
-	fprintf(stderr,"channels (playback): %d\n",output_port_count);
-	fprintf(stderr,"channel offset: %d\n",channel_offset);
-
-	fprintf(stderr,"multi-channel period size: %d bytes\n",
-		output_port_count*period_size*bytes_per_sample
-	);
-
-	char *strat="fill with zero (silence)";
-	if(zero_on_underflow==0)
+	//this is per channel, not per cycle. *port_count
+	if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
+		|| last_test_cycle==1
+	)
 	{
-		strat="re-use last available period";
-	}
 
-	fprintf(stderr,"underflow strategy: %s\n",strat);
-
-	if(rebuffer_on_restart==1)
-	{
-		fprintf(stderr,"rebuffer on sender restart: yes\n");
-	}
-	else
-	{
-		fprintf(stderr,"rebuffer on sender restart: no\n");
-	}
-
-	if(rebuffer_on_underflow==1)
-	{
-		fprintf(stderr,"rebuffer on underflow: yes\n");
-	}
-	else
-	{
-		fprintf(stderr,"rebuffer on underflow: no\n");
-	}
-
-	if(allow_remote_buffer_control==1)
-	{
-		fprintf(stderr,"allow external buffer control: yes\n");
-	}
-	else
-	{
-		fprintf(stderr,"allow external buffer control: no\n");
-	}
-
-	if(close_on_incomp==1)
-	{
-		fprintf(stderr,"shutdown receiver when incompatible data received: yes\n");
-	}
-	else
-	{
-		fprintf(stderr,"shutdown receiver when incompatible data received: no\n");
-	}
-
-	char buf[64];
-	format_seconds(buf,(float)pre_buffer_size*period_size/(float)sample_rate);
-
-	uint64_t rb_size_pre=pre_buffer_size*output_port_count*period_size*bytes_per_sample;
-
-	fprintf(stderr,"initial buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
-		pre_buffer_size,
-		buf,
-		rb_size_pre,
-		(float)rb_size_pre/1000/1000
-	);
-	buf[0] = '\0';
-
-	//ringbuffer size bytes
-	uint64_t rb_size;
-
-	//ringbuffer mc periods
-	int max_buffer_mc_periods;
-
-	//max given as param (user knows best. if pre=max, overflows are likely)
-	if(max_buffer_size>0)
-	{
-		max_buffer_mc_periods=fmax(pre_buffer_size,max_buffer_size);
-		rb_size= max_buffer_mc_periods
-			*output_port_count*period_size*bytes_per_sample;
-	}
-	else //"auto"
-	{
-		//make max buffer 0.5 seconds larger than pre buffer
-		max_buffer_mc_periods=pre_buffer_size+ceil(0.5*(float)sample_rate/period_size);
-		rb_size=max_buffer_mc_periods
-			*output_port_count*period_size*bytes_per_sample;
-	}
-
-	max_buffer_size=max_buffer_mc_periods;
-
-	format_seconds(buf,(float)max_buffer_mc_periods*period_size/sample_rate);
-	fprintf(stderr,"allocated buffer size: %" PRId64 " mc periods (%s, %" PRId64 " bytes, %.2f MB)\n",
-		max_buffer_size,
-		buf,
-		rb_size,
-		(float)rb_size/1000/1000
-	);
-	buf[0] = '\0';
-
-	//====================================
-	//main ringbuffer osc blobs -> jack output
-	rb = jack_ringbuffer_create (rb_size);
-	//helper ringbuffer: used when remote period size < local period size
-	rb_helper = jack_ringbuffer_create (rb_size);
-
-	if(rb==NULL)
-	{
-		fprintf(stderr,"could not create a ringbuffer with that size.\n");
-		fprintf(stderr,"try --max <smaller size>.\n");
-		exit(1);
-	}
-
-	/* tell the JACK server to call `process()' whenever
-	   there is work to be done.
-	*/
-	//NULL could be config/data struct
-	jack_set_process_callback(client, process, NULL);
-
-	jack_set_xrun_callback(client, xrun, NULL);
-
-	/* tell the JACK server to call `jack_shutdown()' if
-	   it ever shuts down, either entirely, or if it
-	   just decides to stop calling us.
-	*/
-	jack_on_shutdown (client, jack_shutdown, 0);
-
-	// Register each output port
-	int port;
-	for (port=0 ; port<output_port_count ; port ++)
-	{
-		// Create port name
-		char* portName;
-		if (asprintf(&portName, "output_%d", (port+1)) < 0) 
+		if(shutup==0 && quiet==0)
 		{
-			fprintf(stderr,"Could not create portname for port %d", port);
-			exit(1);
+			fprintf(stderr,"\r# %" PRId64 " i: %s%d f: %.1f b: %" PRId64 " s: %.4f i: %.2f r: %" PRId64 
+				" l: %" PRId64 " d: %" PRId64 " o: %" PRId64 " p: %.1f%s",
+				message_number,
+				offset_string,
+				input_port_count,
+				(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count,
+				can_read_count,
+				(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate,
+				time_interval_avg*1000,
+				remote_xrun_counter,
+				local_xrun_counter,
+				multi_channel_drop_counter,
+				buffer_overflow_counter,
+				(float)frames_since_cycle_start_avg/(float)period_size,
+				"\033[0J"
+			);
 		}
 
-		// Register the output port
-		ioPortArray[port] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-		if (ioPortArray[port] == NULL) 
+		if(io_())
 		{
-			fprintf(stderr,"Could not create output port %d\n", (port+1));
-			exit(1);
+
+			lo_message msgio=lo_message_new();
+
+//will nee other format than in32
+
+			lo_message_add_int64(msgio,message_number);
+			lo_message_add_int32(msgio,input_port_count);
+			lo_message_add_int32(msgio,channel_offset);
+
+			lo_message_add_float(msgio,
+				(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count
+			);
+
+			lo_message_add_int64(msgio,can_read_count);
+
+			lo_message_add_float(msgio,
+				(float)can_read_count/(float)port_count/(float)bytes_per_sample/(float)sample_rate
+			);
+
+			lo_message_add_float(msgio,time_interval_avg*1000);
+			lo_message_add_int64(msgio,remote_xrun_counter);
+			lo_message_add_int64(msgio,local_xrun_counter);
+			lo_message_add_int64(msgio,multi_channel_drop_counter);
+			lo_message_add_int64(msgio,buffer_overflow_counter);
+
+			lo_message_add_float(msgio,
+				(float)frames_since_cycle_start_avg/(float)period_size
+			);
+
+			lo_send_message(loio, "/status", msgio);
+			lo_message_free(msgio);
 		}
+
+		fflush(stderr);
+
+		relaxed_display_counter=0;
 	}
+	relaxed_display_counter++;
+}//end print_info
 
-	/* Tell the JACK server that we are ready to roll. Our
-	 * process() callback will start running now. */
-	if (jack_activate (client)) 
-	{
-		fprintf (stderr, "cannot activate client");
-		exit (1);
-	}
-
-	/* Connect the ports. You can't do this before the client is
-	 * activated, because we can't make connections to clients
-	 * that aren't running. Note the confusing (but necessary)
-	 * orientation of the driver backend ports: playback ports are
-	 * "input" to the backend, and capture ports are "output" from
-	 * it.
-	 */
-
-	//prevent to get physical midi ports
-	const char* pat="audio";
-
-	ports = jack_get_ports (client, NULL, pat, JackPortIsPhysical|JackPortIsInput);
-
-	if (ports == NULL) 
-	{
-		fprintf(stderr,"no physical playback ports\n");
-		//exit (1);
-	}
-	
-	if(autoconnect==1)
-	{
-		fprintf (stderr, "\n");
-
-		int j=0;
-		int i;
-		for(i=0;i<output_port_count;i++)
-		{
-			if (ports[i]!=NULL)
-			{
-				if(!jack_connect (client, jack_port_name(ioPortArray[j]), ports[i]))
-				{
-					fprintf (stderr, "autoconnect: %s -> %s\n",
-							jack_port_name(ioPortArray[j]),ports[i]
-					);
-					j++;
-				}
-				else
-				{
-					fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-							jack_port_name(ioPortArray[j]),ports[i]
-					);
-				}
-			}
-
-		}
-		fprintf (stderr, "\n");
-	}
-
-	free (ports);
-
-	fflush(stderr);
-
-	/* install a signal handler to properly quits jack client */
-#ifndef _WIN
-	signal(SIGQUIT, signal_handler);
-	signal(SIGHUP, signal_handler);
-#endif
-	signal(SIGTERM, signal_handler);
-	signal(SIGINT, signal_handler);
-
-	//add osc hooks & start server
-	registerOSCMessagePatterns(listenPort);
-
-	if(use_tcp==1)
-	{
-		///                       .   .   //10 MB max
-		int desired_max_tcp_size=10000000;
-
-		lo_server s = lo_server_thread_get_server(lo_st);
-		int ret_set_size=lo_server_max_msg_size(s, desired_max_tcp_size);
-		printf("set tcp max size return: %d\n",ret_set_size);
-	}
-
-	lo_server_thread_start(lo_st);
-
-	/* keep running until the Ctrl+C */
-	while (1) {
-		//possibly clean shutdown without any glitches
-		if(shutdown_in_progress==1)
-		{
-			signal_handler(42);
-		}
-#ifdef WIN_
-		Sleep(1000);
-#else
-		sleep(1);
-#endif
-	}
-
-	exit (0);
-}
-
+//================================================================
 void registerOSCMessagePatterns(const char *port)
 {
 	/* osc server */
-	//lo_st = lo_server_thread_new(port, error);
-	lo_st = lo_server_thread_new_with_proto(port, lo_proto, error);
+	//lo_st=lo_server_thread_new(port, error);
+	lo_st=lo_server_thread_new_with_proto(port, lo_proto, osc_error_handler);
+
+//AUDIO RELATED=========================================
 
 /*
 	/offer fiiiifh
@@ -965,7 +1008,7 @@ void registerOSCMessagePatterns(const char *port)
 	7) h: send / request counter
 */
 
-	lo_server_thread_add_method(lo_st, "/offer", "fiiiifh", offer_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/offer", "fiiiifh", osc_offer_handler, NULL);
 
 /*
 	experimental
@@ -979,7 +1022,7 @@ void registerOSCMessagePatterns(const char *port)
 	or pause playback for rebuffering depending on the current buffer fill
 */
 
-	lo_server_thread_add_method(lo_st, "/buffer", "ii", buffer_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/buffer", "ii", osc_buffer_handler, NULL);
 
 /*
 	/audio hhtib*
@@ -1016,54 +1059,31 @@ void registerOSCMessagePatterns(const char *port)
 	lo_server_thread_add_method(lo_st, "/audio", "hhtibb", audio_handler, NULL);
 ..
 */
-
 	v=0;
 	for(v=0;v<max_channel_count;v++)
 	{
 		typetag_string[data_offset+v]='b';
-		lo_server_thread_add_method(lo_st, "/audio", typetag_string, audio_handler, NULL);
+		lo_server_thread_add_method(lo_st, "/audio", typetag_string, osc_audio_handler, NULL);
 	}
+
+//GUI I/O, CONTROL RELATED==============================
+
+/*
+	/quit
+	close / release resources and shutdown program
+*/
+	lo_server_thread_add_method(lo_st, "/quit", "", osc_quit_handler, NULL);
+
+
 }//end registerocsmessages
 
-//osc handlers
-void error(int num, const char *msg, const char *path)
-{
-	if(close_on_incomp==1 && shutdown_in_progress==0)
-	{
-		fprintf(stderr,"/!\\ liblo server error %d: %s %s\n", num, path, msg);
-
-		fprintf(stderr,"telling sender to pause.\n");
-
-		//lo_address loa = lo_address_new(sender_host,sender_port);
-		lo_address loa = lo_address_new_with_proto(lo_proto, sender_host,sender_port);
-
-		lo_message msg=lo_message_new();
-		lo_send_message (loa, "/pause", msg);
-		lo_message_free(msg);
-
-		fprintf(stderr,"cleaning up...");
-
-		jack_client_close(client);
-		//lo_server_thread_free(lo_st);
-		jack_ringbuffer_free(rb);
-		jack_ringbuffer_free(rb_helper);
-		fprintf(stderr,"done.\n");
-
-		exit(1);
-	}
-	else if(shutdown_in_progress==0)
-	{
-		fprintf(stderr,"\r/!\\ liblo server error %d: %s %s", num, path, msg);
-		//should be a param
-	}
-}
-
+//================================================================
 // /offer
 //sender offers audio
-int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
+int osc_offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-	if(shutdown_in_progress==1)
+	if(shutdown_in_progress==1 || not_yet_ready==1)
 	{
 		return 0;
 	}
@@ -1082,18 +1102,18 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	lo_message msg=lo_message_new();
 
 	//send back to host that offered audio
-	//lo_address loa = lo_message_get_source(data);
+	//lo_address loa=lo_message_get_source(data);
 
 	lo_address loa;
 
 	if(use_tcp==1)
 	{
-		lo_address loa_ = lo_message_get_source(data);
-		loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+		lo_address loa_=lo_message_get_source(data);
+		loa=lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
 	}
 	else
 	{
-		loa = lo_message_get_source(data);
+		loa=lo_message_get_source(data);
 	}
 
 	//check if compatible with sender
@@ -1114,7 +1134,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		strcpy(sender_port,lo_address_get_port(loa));
 
 		//sending accept will tell the sender to start transmission
-		lo_send_message (loa, "/accept", msg);
+		lo_send_message(loa, "/accept", msg);
 
 		/*
 		fprintf(stderr,"\nreceiving from %s:%s",
@@ -1129,7 +1149,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//sending deny will tell sender to stop/quit
 		lo_message_add_float(msg,format_version);
 		lo_message_add_int32(msg,sample_rate);
-		lo_send_message (loa, "/deny", msg);
+		lo_send_message(loa, "/deny", msg);
 
 		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender:\nformat version: %.2f\nSR: %d\nbytes per sample: %d\ntelling sender to stop.\n",
 			lo_address_get_hostname(loa),lo_address_get_port(loa),offered_format_version,offered_sample_rate,offered_bytes_per_sample
@@ -1152,15 +1172,15 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	fflush(stderr);
 
 	return 0;
-} //end offer_handler
+} //end osc_offer_handler
 
-
+//================================================================
 // /audio
 //handler for audio messages
-int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
+int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-	if(shutdown_in_progress==1)
+	if(shutdown_in_progress==1 || not_yet_ready==1)
 	{
 		return 0;
 	}
@@ -1211,12 +1231,12 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 		if(use_tcp==1)
 		{
-			lo_address loa_ = lo_message_get_source(data);
-			loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+			lo_address loa_=lo_message_get_source(data);
+			loa=lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
 		}
 		else
 		{
-			loa = lo_message_get_source(data);
+			loa=lo_message_get_source(data);
 		}
 
 		strcpy(sender_host,lo_address_get_hostname(loa));
@@ -1242,11 +1262,11 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			if(close_on_incomp==0)
 			{
 				//sending deny will tell sender to stop/quit
-				lo_message msg = lo_message_new();
+				lo_message msg=lo_message_new();
 
 				lo_message_add_float(msg,format_version);
 				lo_message_add_int32(msg,sample_rate);
-				lo_send_message (loa, "/deny", msg);
+				lo_send_message(loa, "/deny", msg);
 				lo_message_free(msg);
 
 				fprintf(stderr,"\ndenying transmission from %s:%s\n(incompatible JACK settings on sender: SR: %d). telling sender to stop.\n",
@@ -1266,12 +1286,12 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 				if(use_tcp==1)
 				{
-					lo_address loa_ = lo_message_get_source(data);
-					loa = lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
+					lo_address loa_=lo_message_get_source(data);
+					loa=lo_address_new_with_proto(lo_proto,lo_address_get_hostname(loa_),remote_tcp_server_port);
 				}
 				else
 				{
-					loa = lo_message_get_source(data);
+					loa=lo_message_get_source(data);
 				}
 
 				fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings on sender: SR: %d.\nshutting down (see option --close)...\n",
@@ -1285,18 +1305,27 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		}
 
 		remote_period_size=lo_blob_datasize((lo_blob)argv[0+data_offset])/bytes_per_sample;
-		fprintf(stderr,"\nsender was (re)started. ");
 
-		if(remote_period_size!=period_size)
+		if(shutup==0 && quiet==0)
 		{
-			fprintf(stderr,"sender period size: %d samples (%.3f x local)\n\n",remote_period_size,(float)remote_period_size/period_size);
-		}
-		else
-		{
-			fprintf(stderr,"equal sender and receiver period size\n\n");
+			fprintf(stderr,"\nsender was (re)started. ");
 		}
 
-		fflush(stderr);
+		io_simple("/sender_restarted");
+
+		if(shutup==0 && quiet==0)
+		{
+			if(remote_period_size!=period_size)
+			{
+				fprintf(stderr,"sender period size: %d samples (%.3f x local)\n\n",remote_period_size,(float)remote_period_size/period_size);
+			}
+			else
+			{
+				fprintf(stderr,"equal sender and receiver period size\n\n");
+			}
+
+			fflush(stderr);
+		}
 
 	}//end if "no-offer init" was needed
 
@@ -1323,7 +1352,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		time_interval_sum=0;
 	}
 
-	if(pre_buffer_counter >= pre_buffer_size && process_enabled == 0)
+	if(pre_buffer_counter>=pre_buffer_size && process_enabled==0)
 	{
 		//if buffer filled, start to output audio in process()
 		process_enabled=1;
@@ -1337,7 +1366,10 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	{
 			buffer_overflow_counter++;
 			/////////////////
-			fprintf(stderr,"\rBUFFER OVERFLOW! this is bad -----%s","\033[0J");
+			if(shutup==0 && quiet==0)
+			{
+				fprintf(stderr,"\rBUFFER OVERFLOW! this is bad -----%s","\033[0J");
+			}
 			return 0;
 	}
 
@@ -1351,7 +1383,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		for(i=0;i < port_count;i++)
 		{
 			//get blob (=one period of one channel)
-			unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+			unsigned char *data=lo_blob_dataptr((lo_blob)argv[i+data_offset]);
 			//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
 
 			//write to ringbuffer
@@ -1369,7 +1401,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		for(i=0;i < port_count;i++)
 		{
 			//get blob (=one period of one channel)
-			unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+			unsigned char *data=lo_blob_dataptr((lo_blob)argv[i+data_offset]);
 			//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
 
 			//write to temporary ringbuffer until there is enough data
@@ -1424,7 +1456,7 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 			for(i=0;i < port_count;i++)
 			{
 				//get blob (=one period of one channel)
-				unsigned char *data = lo_blob_dataptr((lo_blob)argv[i+data_offset]);
+				unsigned char *data=lo_blob_dataptr((lo_blob)argv[i+data_offset]);
 				//fprintf(stderr,"size %d\n",lo_blob_datasize((lo_blob)argv[i+data_offset]));
 
 				//write to ringbuffer
@@ -1440,13 +1472,14 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	}
 
 	return 0;
-}//end audio_handler
+}//end osc_audio_handler
 
+//================================================================
 // /buffer
-int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
+int osc_buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	void *data, void *user_data)
 {
-	if(shutdown_in_progress==1)
+	if(shutdown_in_progress==1 || not_yet_ready==1)
 	{
 		return 0;
 	}
@@ -1467,7 +1500,7 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 	//create new buffer if not equal to current max
 	//the current buffer will be lost
-	if(max_buffer_periods != max_buffer_size)
+	if(max_buffer_periods!=max_buffer_size)
 	{
 		char buf[64];
 		format_seconds(buf,(float)max_buffer_periods*period_size/(float)sample_rate);
@@ -1481,13 +1514,13 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 
 		max_buffer_size=max_buffer_periods;
 
-		rb=jack_ringbuffer_create (rb_size);
+		rb=jack_ringbuffer_create(rb_size);
 		// /buffer is experimental, it can segfault
 	}
 
 	//current size
-	uint64_t can_read_count = jack_ringbuffer_read_space(rb);
-	uint64_t can_read_periods_count = can_read_count/port_count/period_size/bytes_per_sample;
+	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
+	uint64_t can_read_periods_count=can_read_count/port_count/period_size/bytes_per_sample;
 
 	if(pre_buffer_periods>can_read_periods_count)
 	{
@@ -1508,4 +1541,142 @@ int buffer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 	
 	fflush(stderr);
 	return 0;
-}//end buffer_handler
+}//end osc_buffer_handler
+
+//================================================================
+// /quit
+int osc_quit_handler(const char *path, const char *types, lo_arg **argv, int argc,
+	void *data, void *user_data)
+{
+	signal_handler(42);	
+	return 0;
+}
+
+//================================================================
+void osc_error_handler(int num, const char *msg, const char *path)
+{
+	if(close_on_incomp==1 && shutdown_in_progress==0)
+	{
+		fprintf(stderr,"/!\\ liblo server error %d: %s %s\n", num, path, msg);
+
+		fprintf(stderr,"telling sender to pause.\n");
+
+		//lo_address loa=lo_address_new(sender_host,sender_port);
+		lo_address loa=lo_address_new_with_proto(lo_proto, sender_host,sender_port);
+
+		lo_message msg=lo_message_new();
+		lo_send_message(loa, "/pause", msg);
+		lo_message_free(msg);
+
+		io_quit("incompatible_jack_settings");
+
+		fprintf(stderr,"cleaning up...");
+
+		jack_client_close(client);
+		//lo_server_thread_free(lo_st);
+		jack_ringbuffer_free(rb);
+		jack_ringbuffer_free(rb_helper);
+		fprintf(stderr,"done.\n");
+
+		exit(1);
+	}
+	else if(shutdown_in_progress==0)
+	{
+		fprintf(stderr,"\r/!\\ liblo server error %d: %s %s\n", num, path, msg);
+		//should be a param
+	}
+}//end osc_error_handler
+
+//================================================================
+//ctrl+c etc
+static void signal_handler(int sig)
+{
+	shutdown_in_progress=1;
+	process_enabled=0;
+
+	fprintf(stderr,"\nterminate signal %d received.\n",sig);
+
+	if(close_on_incomp==0)
+	{
+		fprintf(stderr,"telling sender to pause.\n");
+
+		//lo_address loa=lo_address_new(sender_host,sender_port);
+		lo_address loa=lo_address_new_with_proto(lo_proto, sender_host,sender_port);
+
+		lo_message msg=lo_message_new();
+		lo_send_message(loa, "/pause", msg);
+		lo_message_free(msg);
+	}
+
+	io_quit("terminated");
+
+	usleep(1000);
+
+	fprintf(stderr,"cleaning up...");
+
+	jack_client_close(client);
+	lo_server_thread_free(lo_st);
+	jack_ringbuffer_free(rb);
+	jack_ringbuffer_free(rb_helper);
+
+	fprintf(stderr,"done.\n");
+
+	exit(0);
+}//end signal_handler
+
+//================================================================
+void io_dump_config()
+{
+	if(io_())
+	{
+		//similar order to startup output
+		//dont send easy to calculate fields (calc in gui)
+
+		lo_message msgio=lo_message_new();
+
+		//basic setup of a->b (localhost:port -> targethost:port)
+		lo_message_add_int32(msgio,atoi(localPort));
+//could info of sender, once receving
+//		lo_message_add_string(msgio,sendToHost);
+//		lo_message_add_int32(msgio,atoi(sendToPort));
+
+		//local jack info
+		lo_message_add_string(msgio,client_name);
+		lo_message_add_string(msgio,server_name);
+
+		lo_message_add_int32(msgio,sample_rate);
+		lo_message_add_int32(msgio,period_size);
+
+		lo_message_add_int32(msgio,output_port_count);
+		lo_message_add_int32(msgio,channel_offset);
+
+		//transmission info
+		//this is not a property of local JACK
+		lo_message_add_int32(msgio,bytes_per_sample);
+
+		//multi-channel period size
+		//lo_message_add_int32(msgio,output_port_count*period_size*bytes_per_sample);
+
+		lo_message_add_int32(msgio,test_mode);
+		lo_message_add_int32(msgio,receive_max);
+
+//multi-channel period size
+//		lo_message_add_float(msgio,output_port_count*period_size*bytes_per_sample);
+		lo_message_add_int32(msgio,zero_on_underflow);
+		lo_message_add_int32(msgio,rebuffer_on_restart);
+		lo_message_add_int32(msgio,rebuffer_on_underflow);
+		lo_message_add_int32(msgio,allow_remote_buffer_control);
+		lo_message_add_int32(msgio,close_on_incomp);
+
+//		fprintf(stderr,"receiving on TCP port: %s\n",localPort);
+//		fprintf(stderr,"receiving on UDP port: %s\n",localPort);
+
+//		lo_message_add_int32(msgio,max_buffer_size);
+//should be global
+//		lo_message_add_int32(msgio,rb_size);
+
+		lo_send_message(loio, "/config_dump", msgio);
+		lo_message_free(msgio);
+	}//end if io_
+}//end io_dump_config
+
