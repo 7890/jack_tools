@@ -92,8 +92,14 @@ void print_common_jack_properties();
 int check_lo_props();
 
 int io_();
-int io_simple(char *path);
-int io_quit(char *token);
+void io_simple(char *path);
+void io_simple_string(char *path, const char *string);
+void io_simple_string_double(char *path, const char *string1, const char *string2);
+void io_simple_int(char *path, int i);
+void io_simple_long(char *path, uint64_t l);
+void io_simple_float(char *path, float);
+
+void io_quit(char *token);
 
 void jack_shutdown_handler (void *arg);
 

@@ -238,7 +238,7 @@ int io_()
 }
 
 //=========================================================
-int io_simple(char *path)
+void io_simple(char *path)
 {
 	if(io_())
 	{
@@ -249,7 +249,69 @@ int io_simple(char *path)
 }
 
 //=========================================================
-int io_quit(char *token)
+void io_simple_string(char *path, const char *string)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_string(msgio, string);
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//=========================================================
+void io_simple_string_double(char *path, const char *string1, const char *string2)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_string(msgio, string1);
+		lo_message_add_string(msgio, string2);
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//=========================================================
+void io_simple_int(char *path, int i)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_int32(msgio, i);
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//=========================================================
+void io_simple_long(char *path, uint64_t l)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_int64(msgio, l);
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+//=========================================================
+void io_simple_float(char *path, float f)
+{
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_float(msgio, f);
+		lo_send_message(loio, path, msgio);
+		lo_message_free(msgio);
+	}
+}
+
+
+//=========================================================
+void io_quit(char *token)
 {
 	if(io_())
 	{
