@@ -289,7 +289,14 @@ int main(int argc, char *argv[])
 	//int lport=lo_server_thread_get_port(lo_st);
 
 	//notify osc gui
-	io_simple("/startup");
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_float(msgio, version);
+		lo_message_add_float(msgio, format_version);
+		lo_send_message(loio, "/startup", msgio);
+		lo_message_free(msgio);
+	}
 
 	if(check_lo_props(0)>0)
 	{
@@ -513,6 +520,8 @@ int main(int argc, char *argv[])
 	}
 	buf[0]='\0';
 
+	io_dump_config();
+
 	//====================================
 	//main ringbuffer osc blobs -> jack output
 	rb=jack_ringbuffer_create(rb_size);
@@ -610,7 +619,7 @@ int main(int argc, char *argv[])
 							jack_port_name(ioPortArray[j]),ports[i]
 						);
 					}
-					io_simple("/autoconnect_xxx");
+					io_simple_string_double("/autoconnect",jack_port_name(ioPortArray[j]),ports[i]);
 					j++;
 				}
 				else
@@ -635,8 +644,6 @@ int main(int argc, char *argv[])
 	free(ports);
 
 	fflush(stderr);
-
-	io_dump_config();
 
 	/* install a signal handler to properly quits jack client */
 #ifndef _WIN
@@ -891,8 +898,14 @@ int process(jack_nframes_t nframes, void *arg)
 
 	if(last_test_cycle==1)
 	{
-		fprintf(stderr,"\ntest finished after %" PRId64 " process cycles\n",process_cycle_counter);
-		fprintf(stderr,"(waiting and buffering cycles not included)\n");
+		if(shutup==0)
+		{
+			fprintf(stderr,"\ntest finished after %" PRId64 " process cycles\n",process_cycle_counter);
+			fprintf(stderr,"(waiting and buffering cycles not included)\n");
+		}
+
+		io_simple_long("/test_finished",process_cycle_counter);
+
 		shutdown_in_progress=1;
 	}
 
@@ -1309,6 +1322,9 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 		if(shutup==0 && quiet==0)
 		{
 			fprintf(stderr,"\nsender was (re)started. ");
+
+			lo_address loa=lo_message_get_source(data);
+			fprintf(stderr,"receiving from %s:%s\n",lo_address_get_hostname(loa),lo_address_get_port(loa));
 		}
 
 		io_simple("/sender_restarted");

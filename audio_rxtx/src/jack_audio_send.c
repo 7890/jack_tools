@@ -230,9 +230,15 @@ int main(int argc, char *argv[])
 	localPort=lo_url_get_port(osc_server_url);
 	//int lport=lo_server_thread_get_port(lo_st);
 
-
 	//notify osc gui
-	io_simple("/startup");
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_float(msgio, version);
+		lo_message_add_float(msgio, format_version);
+		lo_send_message(loio, "/startup", msgio);
+		lo_message_free(msgio);
+	}
 
 	//
 	if(check_lo_props(0)>0)
@@ -318,7 +324,7 @@ int main(int argc, char *argv[])
 
 	if(status & JackNameNotUnique) 
 	{
-		io_simple("/client_name_changed");
+		io_simple_string("/client_name_changed",client_name);
 	}
 
 	read_jack_properties();
@@ -437,6 +443,8 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"\n");
 	}
 
+	io_dump_config();
+
 	//JACK will call process() for every cycle (given by JACK)
 	//NULL could be config/data struct
 	jack_set_process_callback(client, process, NULL);
@@ -518,7 +526,7 @@ int main(int argc, char *argv[])
 							ports[i],jack_port_name(ioPortArray[j])
 						);
 					}
-					io_simple("/autoconnect_xxx");
+					io_simple_string_double("/autoconnect",ports[i],jack_port_name(ioPortArray[j]));
 					j++;
 				}
 				else
@@ -542,8 +550,6 @@ int main(int argc, char *argv[])
 	free(ports);
 
 	fflush(stderr);
-
-	io_dump_config();
 
 	//signal handler callbacks to cleanly shutdown when program is about to exit
 #ifndef _WIN
@@ -767,15 +773,15 @@ int process(jack_nframes_t nframes, void *arg)
 			{
 				//=======
 				lo_message msgio=lo_message_new();
-				lo_message_add_int64(msgio,msg_sequence_number);
-				lo_message_add_int64(msgio,local_xrun_counter);
-				lo_message_add_string(msgio,hms);
-				lo_message_add_int64(msgio,
-				transfer_size*msg_sequence_number);
-				lo_message_add_float(msgio,
-				(float)(transfer_size*msg_sequence_number)/1000/1000);
-				lo_message_add_float(msgio,
-				(float)frames_since_cycle_start_avg/(float)period_size);
+				lo_message_add_int64(msgio,msg_sequence_number);//0
+				lo_message_add_int64(msgio,local_xrun_counter); //1
+				lo_message_add_string(msgio,hms);		//2
+				lo_message_add_int64(msgio,			//3
+					transfer_size*msg_sequence_number);
+				lo_message_add_float(msgio,			//4
+					(float)(transfer_size*msg_sequence_number)/1000/1000);
+				lo_message_add_float(msgio,			//5
+					(float)frames_since_cycle_start_avg/(float)period_size);
 
 				lo_send_message(loio, "/sending", msgio);
 				lo_message_free(msgio);
@@ -797,7 +803,7 @@ int process(jack_nframes_t nframes, void *arg)
 			fprintf(stderr,"(waiting and buffering messages not included)\n");
 		}
 
-		io_simple("/test_finished_xxx");
+		io_simple_long("/test_finished",msg_sequence_number-1);
 
 		shutdown_in_progress=1;
 	}
@@ -891,17 +897,27 @@ int osc_deny_handler(const char *path, const char *types, lo_arg **argv, int arg
 		return 0;
 	}
 
+	float format_version=argv[0]->f;
+	int sample_rate=argv[1]->i;
+
 	if(nopause==0)
 	{
 		process_enabled=0;
 		shutdown_in_progress=1;
 		if(shutup==0)
 		{
-			fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n",argv[0]->f,argv[1]->i);
+			fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n", format_version, sample_rate);
 		}
 	}
 
-	io_simple("/receiver_denied_transmission");
+	if(io_())
+	{
+		lo_message msgio=lo_message_new();
+		lo_message_add_float(msgio, format_version);
+		lo_message_add_int32(msgio, sample_rate);
+		lo_send_message(loio, "/receiver_denied_transmission", msgio);
+		lo_message_free(msgio);
+	}
 
 	fflush(stderr);
 
@@ -1007,8 +1023,8 @@ void io_dump_config()
 		//lo_message_add_int32(msgio,input_port_count*period_size*bytes_per_sample);
 		//message rate
 		//lo_message_add_float(msgio,(float)sample_rate/(float)period_size);
-		lo_message_add_float(msgio,msg_size);
-		lo_message_add_float(msgio,transfer_size);
+		lo_message_add_int32(msgio,msg_size);
+		lo_message_add_int32(msgio,transfer_size);
 		//overhead (0-1 = 0 - 100%)
 		//lo_message_add_float(msgio,(float)input_port_count*period_size*bytes_per_sample/(float)transfer_size);
 
