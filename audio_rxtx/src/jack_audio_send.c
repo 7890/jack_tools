@@ -754,16 +754,28 @@ int process(jack_nframes_t nframes, void *arg)
 			char hms[16];
 			periods_to_HMS(hms,msg_sequence_number);
 
+			char *units="MB";
+			float total_size_transferred_mb=(float)(transfer_size*msg_sequence_number)/1000/1000;
+			float total_size_transferred=total_size_transferred_mb;
+			//if > 10 gig
+			if(total_size_transferred_mb>=10000)
+			{
+				total_size_transferred=total_size_transferred_mb/1000;
+				units="GB";
+			}
+
 			if(shutup==0 && quiet==0)
 			{
 				//print info "in-place" with \r
 				fprintf(stderr,"\r# %" PRId64 
-					" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f MB) p: %.1f%s",
+					" (%s) xruns: %" PRId64 " tx: %" PRId64 " bytes (%.2f %s) p: %.1f%s",
 					msg_sequence_number,
 					hms,
 					local_xrun_counter,
 					transfer_size*msg_sequence_number,/*+140, //140: minimal offer/accept*/
-					(float)(transfer_size*msg_sequence_number)/1000/1000,/*+140)/1000/1000*/
+					/*(float)(transfer_size*msg_sequence_number)/1000/1000,+140)/1000/1000*/
+					total_size_transferred,
+					units,
 					(float)frames_since_cycle_start_avg/(float)period_size,
 					"\033[0J"
 				);
@@ -773,14 +785,13 @@ int process(jack_nframes_t nframes, void *arg)
 			{
 				//=======
 				lo_message msgio=lo_message_new();
-				lo_message_add_int64(msgio,msg_sequence_number);//0
-				lo_message_add_int64(msgio,local_xrun_counter); //1
-				lo_message_add_string(msgio,hms);		//2
-				lo_message_add_int64(msgio,			//3
-					transfer_size*msg_sequence_number);
-				lo_message_add_float(msgio,			//4
-					(float)(transfer_size*msg_sequence_number)/1000/1000);
-				lo_message_add_float(msgio,			//5
+				lo_message_add_int64(msgio, msg_sequence_number);//0
+				lo_message_add_string(msgio, hms);		//1
+				lo_message_add_int64(msgio, local_xrun_counter); //2
+				lo_message_add_int64(msgio, transfer_size*msg_sequence_number); //3
+				lo_message_add_float(msgio, total_size_transferred); //4
+				lo_message_add_string(msgio, units); 		//5
+				lo_message_add_float(msgio,			//6
 					(float)frames_since_cycle_start_avg/(float)period_size);
 
 				lo_send_message(loio, "/sending", msgio);
@@ -1002,38 +1013,38 @@ void io_dump_config()
 		lo_message msgio=lo_message_new();
 
 		//basic setup of a->b (localhost:port -> targethost:port)
-		lo_message_add_int32(msgio,atoi(localPort));
-		lo_message_add_string(msgio,sendToHost);
-		lo_message_add_int32(msgio,atoi(sendToPort));
+		lo_message_add_int32(msgio,atoi(localPort));	//0
+		lo_message_add_string(msgio,sendToHost);	//1
+		lo_message_add_int32(msgio,atoi(sendToPort));	//2
 
 		//local jack info
-		lo_message_add_string(msgio,client_name);
-		lo_message_add_string(msgio,server_name);
+		lo_message_add_string(msgio,client_name);	//3
+		lo_message_add_string(msgio,server_name);	//4
 
-		lo_message_add_int32(msgio,sample_rate);
-		lo_message_add_int32(msgio,period_size);
+		lo_message_add_int32(msgio,sample_rate);	//5
+		lo_message_add_int32(msgio,period_size);	//6
 
-		lo_message_add_int32(msgio,input_port_count);
+		lo_message_add_int32(msgio,input_port_count);	//7
 
 		//transmission info
 		//this is not a property of local JACK
-		lo_message_add_int32(msgio,bytes_per_sample);
-		lo_message_add_int32(msgio,nopause);
+		lo_message_add_int32(msgio,bytes_per_sample);	//8
+		lo_message_add_int32(msgio,nopause);		//9
 		//multi-channel period size
 		//lo_message_add_int32(msgio,input_port_count*period_size*bytes_per_sample);
 		//message rate
 		//lo_message_add_float(msgio,(float)sample_rate/(float)period_size);
-		lo_message_add_int32(msgio,msg_size);
-		lo_message_add_int32(msgio,transfer_size);
+		lo_message_add_int32(msgio,msg_size);		//10
+		lo_message_add_int32(msgio,transfer_size);	//11
 		//overhead (0-1 = 0 - 100%)
 		//lo_message_add_float(msgio,(float)input_port_count*period_size*bytes_per_sample/(float)transfer_size);
 
-		lo_message_add_float(msgio,expected_network_data_rate);
+		lo_message_add_float(msgio,expected_network_data_rate);	//12
 		//lo_message_add_float(msgio,);
 
-		lo_message_add_int32(msgio,test_mode);
-		lo_message_add_int32(msgio,send_max);
-		lo_message_add_int32(msgio,drop_every_nth_message);
+		lo_message_add_int32(msgio,test_mode);			//13
+		lo_message_add_int32(msgio,send_max);			//14
+		lo_message_add_int32(msgio,drop_every_nth_message);	//15
 
 //should be global
 //		lo_message_add_int32(msgio,max_buffer_size);
