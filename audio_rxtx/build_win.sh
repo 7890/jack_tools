@@ -218,6 +218,7 @@ cd ${BUILDD}
 if [ -e jack_tools ]
 then
 	cd jack_tools/audio_rxtx
+	git pull
 else
 	git clone https://github.com/7890/jack_tools.git jack_tools
 	cd jack_tools/audio_rxtx
