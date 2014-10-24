@@ -288,6 +288,7 @@ int main(int argc, char *argv[])
 	if(have_libjack()!=0)
 	{
 		fprintf(stderr,"/!\\ libjack not found (JACK not installed?). this is fatal: jack_audio_send needs JACK to run.\n");
+		io_quit("nolibjack");
 		exit(1);
 	}
 
