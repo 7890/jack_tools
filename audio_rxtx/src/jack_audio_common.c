@@ -12,12 +12,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <jack/jack.h>
+//#include <jack/jack.h>//weak
 #include <lo/lo.h>
 
 #include "jack_audio_common.h"
 
-float version = 0.82f;
+float version = 0.83f;
 float format_version = 1.0f;
 
 lo_server_thread lo_st;
@@ -167,6 +167,7 @@ void print_common_jack_properties()
 	);
 }
 
+//=========================================================
 void print_bytes_per_sample()
 {
 	if(bytes_per_sample==4)
@@ -308,7 +309,6 @@ void io_simple_float(char *path, float f)
 		lo_message_free(msgio);
 	}
 }
-
 
 //=========================================================
 void io_quit(char *token)

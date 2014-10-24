@@ -1,5 +1,7 @@
 CC ?= gcc
-CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm
+CFLAGS ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -lm -ldl
+# -ldl
+
 PREFIX ?= /usr/local
 PREFIX_PACKAGES ?= /usr
 INSTALLDIR ?= $(PREFIX)/bin
@@ -16,8 +18,8 @@ SRC_URL ?= "https://github.com/7890/jack_tools"
 MAINTAINER ?= "Thomas Brand \<tom@trellis.ch\>"
 LICENSE ?= "GPL2"
 VERSION ?= 0
-RELEASE ?= 71
-RELEASE_DATE ?= 140928
+RELEASE ?= 83
+RELEASE_DATE ?= 141024
 #remove for now
 #REQUIRES ?= "liblo7, jackd, libjack0, libc6"
 REQUIRES ?= "libc6"
@@ -65,17 +67,25 @@ compile:
 	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
 	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
 
+#weak libjack
+	#weak libjack allows to determine at runtime if libjack.so.0 /.. is available -> no "hard" linking to libjack
+	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --libs --cflags jack`
+
+#common
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
 
-	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(CFLAGS)
+#send
+	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(BLD)/weak_libjack.o $(CFLAGS)
 
+#receive
+	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(BLD)/weak_libjack.o $(CFLAGS)
+
+#post_send
 	#experimental
 	$(CC) -c -o $(BLD)/audio_post_send.o $(SRC)/audio_post_send.c $(CFLAGS)
-	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(CFLAGS)
-
-	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(CFLAGS)
+	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(BLD)/weak_libjack.o $(CFLAGS)
 
 	@echo ""
 	@echo "done. next (if there were no errors) is: sudo make install"
@@ -197,7 +207,7 @@ deb_dist:
 	@echo "doing lintian check of deb, installation test, creating report..."
 
 	mkdir -p $(DIST)
-	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_$(ARCH).deb  $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb
+	mv $(PROGNAME)_$(VERSION)-$(RELEASE)_$(ARCH).deb $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb
 	$(DIST)/create_report.sh $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb > $(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb.txt 2>&1
 
 	@echo "done."

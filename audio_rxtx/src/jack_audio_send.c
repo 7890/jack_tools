@@ -16,7 +16,7 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
-#include <jack/jack.h>
+//#include <jack/jack.h>//weak
 #include <lo/lo.h>
 #include <sys/time.h>
 #include <getopt.h>
@@ -252,21 +252,14 @@ int main(int argc, char *argv[])
 
 		if(input_port_count>max_channel_count)
 		{
-			fprintf(stderr,"*** limiting capture ports to %d, sry\n",max_channel_count);
+			fprintf(stderr,"/!\\ limiting capture ports to %d, sry\n",max_channel_count);
 
 		}
 		if(test_mode==1)
 		{
-			fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",send_max);
+			fprintf(stderr,"/!\\ limiting number of messages: %" PRId64 "\n",send_max);
 		}
 	}
-
-	//create an array of input ports
-	ioPortArray=(jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
-
-	//create an array of audio sample pointers
-	//each pointer points to the start of an audio buffer, one for each capture channel
-	ioBufferArray=(jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//check for default jack server env var
 	char *evar=getenv("JACK_DEFAULT_SERVER");
@@ -292,8 +285,21 @@ int main(int argc, char *argv[])
 		client_name="send";
 	}
 
+	if(have_libjack()!=0)
+	{
+		fprintf(stderr,"/!\\ libjack not found (JACK not installed?). this is fatal: jack_audio_send needs JACK to run.\n");
+		exit(1);
+	}
+
+	//create an array of input ports
+	ioPortArray=(jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
+
+	//create an array of audio sample pointers
+	//each pointer points to the start of an audio buffer, one for each capture channel
+	ioBufferArray=(jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
+
 	//open a client connection to the JACK server
-	client=jack_client_open(client_name, jack_opts, &status, server_name);
+	client=jack_client_open2(client_name, jack_opts, &status, server_name);
 	if(client==NULL) 
 	{
 		fprintf(stderr, "jack_client_open() failed, status = 0x%2.0x\n", status);
@@ -986,7 +992,7 @@ void osc_error_handler(int num, const char *msg, const char *path)
 }
 
 //================================================================
-static void signal_handler(int sig)
+void signal_handler(int sig)
 {
 	fprintf(stderr, "\nterminate signal %d received. cleaning up...",sig);
 

@@ -16,7 +16,7 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
-#include <jack/jack.h>
+//#include <jack/jack.h>//weak
 #include <jack/ringbuffer.h>
 #include <lo/lo.h>
 #include <sys/time.h>
@@ -315,26 +315,14 @@ int main(int argc, char *argv[])
 
 		if(output_port_count>max_channel_count)
 		{
-			fprintf(stderr,"*** limiting playback ports to %d, sry\n",max_channel_count);
+			fprintf(stderr,"/!\\ limiting playback ports to %d, sry\n",max_channel_count);
 		}
 
 		if(test_mode==1)
 		{
-			fprintf(stderr,"*** limiting number of messages: %" PRId64 "\n",receive_max);
+			fprintf(stderr,"/!\\ limiting number of messages: %" PRId64 "\n",receive_max);
 		}
 	}
-
-	//initialize time
-	gettimeofday(&tv, NULL);
-	tt_prev.sec=tv.tv_sec;
-	tt_prev.frac=tv.tv_usec;
-
-	//create an array of input ports
-	ioPortArray=(jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
-
-	//create an array of audio sample pointers
-	//each pointer points to the start of an audio buffer, one for each capture channel
-	ioBufferArray=(jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//check for default jack server env var
 	char *evar=getenv("JACK_DEFAULT_SERVER");
@@ -361,8 +349,26 @@ int main(int argc, char *argv[])
 		client_name="receive";
 	}
 
+	if(have_libjack()!=0)
+	{
+		fprintf(stderr,"/!\\ libjack not found (JACK not installed?). this is fatal: jack_audio_receive needs JACK to run.\n");
+		exit(1);
+	}
+
+	//initialize time
+	gettimeofday(&tv, NULL);
+	tt_prev.sec=tv.tv_sec;
+	tt_prev.frac=tv.tv_usec;
+
+	//create an array of input ports
+	ioPortArray=(jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
+
+	//create an array of audio sample pointers
+	//each pointer points to the start of an audio buffer, one for each capture channel
+	ioBufferArray=(jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
+
 	//open a client connection to the JACK server
-	client=jack_client_open(client_name, jack_opts, &status, server_name);
+	client=jack_client_open2(client_name, jack_opts, &status, server_name);
 	if(client==NULL) 
 		{
 		fprintf(stderr,"jack_client_open() failed, status = 0x%2.0x\n", status);
