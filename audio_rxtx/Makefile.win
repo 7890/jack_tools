@@ -1,7 +1,7 @@
 CC = i686-w64-mingw32-gcc
 
-#PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
-CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE=1 -D_WIN=1 -lm -w
+PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
+CFLAGS ?= `/usr/bin/pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -D_WIN=1 -DPLATFORM_WINDOWS=1 -lm -w
 
 #http://article.gmane.org/gmane.comp.gnu.mingw.user/27539/
 
@@ -43,17 +43,25 @@ compile:
 #	@echo "now testing for fixmax MAX_UDP_MSG_SIZE ~65k"
 #	$(BLD)/test_lofixmax || [ $$? -eq 0 ]
 
+#weak libjack
+	#weak libjack allows to determine at runtime if libjack.so.0 /.. is available -> no "hard" linking to libjack
+	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --libs --cflags jack`
+
+#common
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
 
-	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(CFLAGS)
-
+#send
 	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(BLD)/weak_libjack.o $(CFLAGS)
 
+#receive
+	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(BLD)/weak_libjack.o $(CFLAGS)
+
+#post_send
 	#experimental
 	$(CC) -c -o $(BLD)/audio_post_send.o $(SRC)/audio_post_send.c $(CFLAGS)
-	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(CFLAGS)
+	$(CC) -o $(BLD)/audio_post_send $(BLD)/jack_audio_common.o $(BLD)/audio_post_send.o $(BLD)/weak_libjack.o $(CFLAGS)
 
 
 #windows #########################################################
