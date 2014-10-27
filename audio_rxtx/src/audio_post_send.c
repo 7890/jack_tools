@@ -18,13 +18,15 @@
 #include <string.h>
 #include <math.h>
 #include <signal.h>
-#include <jack/jack.h>
-#include <jack/ringbuffer.h>
+//#include <jack/jack.h>
+//#include <jack/ringbuffer.h>
+//https://github.com/x42/weakjack#usage
 #include <lo/lo.h>
 #include <sys/time.h>
 #include <getopt.h>
 
 #include "jack_audio_common.h"
+#include "weak_libjack.h"
 
 //tb/130427/131206//131211//131216/131229/150523
 //gcc -o audio_post_send audio_post_send.c `pkg-config --cflags --libs liblo`
