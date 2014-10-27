@@ -69,7 +69,7 @@ compile:
 
 #weak libjack
 	#weak libjack allows to determine at runtime if libjack.so.0 /.. is available -> no "hard" linking to libjack
-	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags jack`
+	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags jack` -DNDEBUG
 
 #common
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
