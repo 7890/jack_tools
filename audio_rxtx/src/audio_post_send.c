@@ -108,8 +108,8 @@ int channel_offset=0; //param
 
 int lo_proto=LO_UDP;
 
-char* remote_tcp_host;  //param
-char* remote_tcp_port;  //param
+char* remote_tcp_host; //param
+char* remote_tcp_port; //param
 
 //TCP
 //2nd osc server
@@ -170,7 +170,6 @@ int audio_handler(const char *path, const char *types, lo_arg **argv, int argc,
 int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		void *data, void *user_data);
 
-
 void print_info()
 {
 	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
@@ -221,6 +220,7 @@ void print_info()
 	relaxed_display_counter++;
 }//end print_info
 
+//this is not a JACK process cylce
 int process()
 {
 	if(shutdown_in_progress==1)
@@ -493,6 +493,13 @@ main (int argc, char *argv[])
 	if(check_lo_props(0)>0)
 	{
 		return 1;
+	}
+
+	if(have_libjack()!=0)
+	{
+		fprintf(stderr,"/!\\ libjack not found (JACK not installed?). this is fatal: audio_post_send needs JACK to run.\n");
+		//io_quit("nolibjack");
+		exit(1);
 	}
 
 	listenPort=argv[optind];
