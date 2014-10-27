@@ -17,7 +17,7 @@
 #include <math.h>
 #include <signal.h>
 //#include <jack/jack.h>//weak
-#include <jack/ringbuffer.h>
+//#include <jack/ringbuffer.h>//weak
 #include <lo/lo.h>
 #include <sys/time.h>
 #include <getopt.h>
