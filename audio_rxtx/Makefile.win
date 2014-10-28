@@ -1,7 +1,7 @@
 CC = i686-w64-mingw32-gcc
 
 PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
-CFLAGS ?= `/usr/bin/pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -D_WIN=1 -DPLATFORM_WINDOWS=1 -lm -w
+CFLAGS ?= `/usr/bin/pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -D_WIN=1 -DPLATFORM_WINDOWS=1 -lm -w
 
 #http://article.gmane.org/gmane.comp.gnu.mingw.user/27539/
 
@@ -45,7 +45,7 @@ compile:
 
 #weak libjack
 	#weak libjack allows to determine at runtime if libjack.so.0 /.. is available -> no "hard" linking to libjack
-	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --libs --cflags jack`
+	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags jack` -DNDEBUG
 
 #common
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
