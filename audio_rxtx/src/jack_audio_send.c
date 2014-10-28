@@ -884,7 +884,7 @@ void registerOSCMessagePatterns(const char *port)
 	lo_st=lo_server_thread_new_with_proto(port, lo_proto, osc_error_handler);
 
 	lo_server_thread_add_method(lo_st, "/accept", "", osc_accept_handler, NULL);
-	lo_server_thread_add_method(lo_st, "/deny", "fi", osc_deny_handler, NULL);
+	lo_server_thread_add_method(lo_st, "/deny", "fii", osc_deny_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/pause", "", osc_pause_handler, NULL);
 	lo_server_thread_add_method(lo_st, "/quit", "", osc_quit_handler, NULL);
 
@@ -917,6 +917,7 @@ int osc_deny_handler(const char *path, const char *types, lo_arg **argv, int arg
 
 	float format_version=argv[0]->f;
 	int sample_rate=argv[1]->i;
+	int bytes_per_sample=argv[2]->i;
 
 	if(nopause==0)
 	{
@@ -924,7 +925,7 @@ int osc_deny_handler(const char *path, const char *types, lo_arg **argv, int arg
 		shutdown_in_progress=1;
 		if(shutup==0)
 		{
-			fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d\nshutting down... (see option --nopause)\n", format_version, sample_rate);
+			fprintf(stderr,"\nreceiver did not accept audio\nincompatible JACK settings or format version on receiver:\nformat version: %.2f\nSR: %d bytes per sample: %d\nshutting down... (see option --nopause)\n", format_version, sample_rate, bytes_per_sample);
 		}
 	}
 
@@ -933,6 +934,7 @@ int osc_deny_handler(const char *path, const char *types, lo_arg **argv, int arg
 		lo_message msgio=lo_message_new();
 		lo_message_add_float(msgio, format_version);
 		lo_message_add_int32(msgio, sample_rate);
+		lo_message_add_int32(msgio, bytes_per_sample);
 		lo_send_message(loio, "/receiver_denied_transmission", msgio);
 		lo_message_free(msgio);
 	}

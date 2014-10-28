@@ -745,6 +745,7 @@ int offer_handler(const char *path, const char *types, lo_arg **argv, int argc,
 		//sending deny will tell sender to stop/quit
 		lo_message_add_float(msg,format_version);
 		lo_message_add_int32(msg,sample_rate);
+		lo_message_add_int32(msg,bytes_per_sample);
 		lo_send_message (loa, "/deny", msg);
 
 		fprintf(stderr,"\ndenying transmission from %s:%s\nincompatible JACK settings or format version on sender:\nformat version: %.2f\nSR: %d\nbytes per sample: %d\ntelling sender to stop.\n",
