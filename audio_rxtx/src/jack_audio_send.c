@@ -300,7 +300,7 @@ int main(int argc, char *argv[])
 	ioBufferArray=(jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
 
 	//open a client connection to the JACK server
-	client=jack_client_open2(client_name, jack_opts, &status, server_name);
+	client=jack_client_open(client_name, jack_opts, &status, server_name);
 	if(client==NULL) 
 	{
 		fprintf(stderr, "jack_client_open() failed, status = 0x%2.0x\n", status);
