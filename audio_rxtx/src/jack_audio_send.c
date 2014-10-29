@@ -546,6 +546,11 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
+			else
+			{
+				//no more capture ports
+				break;
+			}
 		}//end for all input ports
 
 		if(shutup==0)

@@ -639,7 +639,11 @@ int main(int argc, char *argv[])
 					}
 				}
 			}
-
+			else
+			{
+				//no more playback ports
+				break;
+			}
 		}//end for all output ports
 
 		if(shutup==0)
