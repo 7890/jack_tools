@@ -48,7 +48,6 @@ int have_libjack(void);
 #ifdef USE_WEAK_JACK
 
 /* <jack/jack.h> */
-#define jack_client_open                    WJACK_client_openX
 #define jack_client_close                   WJACK_client_close
 #define jack_get_client_name                WJACK_get_client_name
 #define jack_get_sample_rate                WJACK_get_sample_rate
@@ -153,34 +152,18 @@ int have_libjack(void);
 #define jack_client_stop_thread             WJACK_client_stop_thread
 #define jack_client_kill_thread             WJACK_client_kill_thread
 
-/* var-args hack */
-#define jack_client_open1                   WJACK_client_open1
-#define jack_client_open2                   WJACK_client_open2
+#define jack_client_open                    WJACK_client_client_openXXX
 
-#include <jack/types.h> // needed for jack_client_open abstraction
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-jack_client_t * WJACK_client_open1 (
-        const char *client_name,
-        jack_options_t options, jack_status_t *status);
-
-jack_client_t * WJACK_client_open2 (
-        const char *client_name,
-        jack_options_t options, jack_status_t *status, const char *uuid);
-
-#ifdef __cplusplus
-}
-#endif
-
-#else /* directly use JACK API */
-
-/* var-args hack */
-#define jack_client_open1                  jack_client_open
-#define jack_client_open2                  jack_client_open
+/* <jack/metadata.h> */
+#define jack_set_property                   WJACK_set_property
+#define jack_get_property                   WJACK_get_property
+#define jack_free_description               WJACK_free_description
+#define jack_get_properties                 WJACK_get_properties
+#define jack_get_all_properties             WJACK_get_all_properties
+#define jack_remove_property                WJACK_remove_property
+#define jack_remove_properties              WJACK_remove_properties
+#define jack_remove_all_properties          WJACK_remove_all_properties
+#define jack_set_property_change_callback   WJACK_set_property_change_callback
 
 #endif // end USE_WEAK_JACK
 
@@ -190,5 +173,30 @@ jack_client_t * WJACK_client_open2 (
 #include <jack/midiport.h>
 #include <jack/session.h>
 #include <jack/thread.h>
+#include <jack/metadata.h>
+
+#ifdef USE_WEAK_JACK
+
+#undef jack_client_open
+
+/* var-args hack */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+void (* WJACK_get_client_open (void)) (void);
+jack_client_t * WJACK_no_client_open (const char *client_name, jack_options_t options, jack_status_t *status, ...);
+#ifdef __cplusplus
+}
+#endif
+
+#define jack_client_open(...) \
+( \
+	(WJACK_get_client_open() != NULL) \
+	?  ((jack_client_t* (*)(const char *, jack_options_t, jack_status_t *, ...))(WJACK_get_client_open()))(__VA_ARGS__) \
+	: WJACK_no_client_open(__VA_ARGS__) \
+)
+
+#endif // end USE_WEAK_JACK
 
 #endif // _WEAK_JACK_H

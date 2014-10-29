@@ -31,14 +31,14 @@ int have_libjack (void) {
 #include <string.h>
 #include <assert.h>
 
-#ifdef PLATFORM_WINDOWS
+#ifdef _WIN32
 #include <windows.h>
 #else
 #include <dlfcn.h>
 #endif
 
 static void* lib_open(const char* const so) {
-#ifdef PLATFORM_WINDOWS
+#ifdef _WIN32
 	return (void*) LoadLibraryA(so);
 #else
 	return dlopen(so, RTLD_NOW|RTLD_LOCAL);
@@ -46,21 +46,30 @@ static void* lib_open(const char* const so) {
 }
 
 static void* lib_symbol(void* const lib, const char* const sym) {
-#ifdef PLATFORM_WINDOWS
+#ifdef _WIN32
 	return (void*) GetProcAddress((HMODULE)lib, sym);
 #else
 	return dlsym(lib, sym);
 #endif
 }
 
-#ifdef COMPILER_MSVC
+#if _MSC_VER && !__INTEL_COMPILER
 typedef void * pvoid_t;
-#define MAPSYM(SYM, FAIL) _j._ ## SYM = lib_symbol(lib, "jack_" # SYM); \
+#define MAPSYM(SYM, FAIL) _j._ ## SYM = (func_t)lib_symbol(lib, "jack_" # SYM); \
+	if (!_j._ ## SYM) err |= FAIL;
+#elif defined NDEBUG
+typedef void * __attribute__ ((__may_alias__)) pvoid_t;
+#define MAPSYM(SYM, FAIL) *(pvoid_t *)(&_j._ ## SYM) = lib_symbol(lib, "jack_" # SYM); \
 	if (!_j._ ## SYM) err |= FAIL;
 #else
 typedef void * __attribute__ ((__may_alias__)) pvoid_t;
 #define MAPSYM(SYM, FAIL) *(pvoid_t *)(&_j._ ## SYM) = lib_symbol(lib, "jack_" # SYM); \
-	if (!_j._ ## SYM) err |= FAIL;
+	if (!_j._ ## SYM) { \
+		if (FAIL) { \
+			fprintf(stderr, "*** WEAK-JACK: required symbol 'jack_%s' was not found\n", "" # SYM); \
+		} \
+		err |= FAIL; \
+	}
 #endif
 
 typedef void (* func_t) (void);
@@ -100,7 +109,7 @@ static void init_weak_jack(void)
 	if (!lib) {
 		lib = lib_open("/usr/local/lib/libjack.dylib");
 	}
-#elif (defined PLATFORM_WINDOWS)
+#elif (defined _WIN32)
 # ifdef __x86_64__
 	lib = lib_open("libjack64.dll");
 # else
@@ -180,25 +189,19 @@ int have_libjack (void) {
  * (jack ringbuffer may be an exception for some apps)
  */
 
-/* expand ellipsis for jack-session */
-jack_client_t * WJACK_client_open2 (const char *client_name, jack_options_t options, jack_status_t *status, const char *uuid) {
-	if (_j._client_open) {
-		return ((jack_client_t* (*)(const char *, jack_options_t, jack_status_t *, ...))(_j._client_open))(client_name, options, status, uuid);
-	} else {
-		WJACK_WARNING(client_open);
-		if (status) *status = 0;
-		return NULL;
+/* dedicated support for jack_client_open(,..) variable arg function macro */
+func_t WJACK_get_client_open(void) {
+	if (_status == -1) {
+		init_weak_jack();
 	}
+	return _j._client_open;
 }
 
-jack_client_t * WJACK_client_open1 (const char *client_name, jack_options_t options, jack_status_t *status) {
-	if (_j._client_open) {
-		return ((jack_client_t* (*)(const char *, jack_options_t, jack_status_t *, ...))_j._client_open)(client_name, options, status);
-	} else {
-		WJACK_WARNING(client_open);
-		if (status) *status = 0;
-		return NULL;
-	}
+/* callback to set status */
+jack_client_t * WJACK_no_client_open (const char *client_name, jack_options_t options, jack_status_t *status, ...) {
+	WJACK_WARNING(client_open);
+	if (status) { *status = JackFailure; }
+	return NULL;
 }
 
 /*******************************************************************************
