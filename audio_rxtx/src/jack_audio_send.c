@@ -1021,44 +1021,53 @@ void io_dump_config()
 {
 	if(io_())
 	{
-		//similar order to startup output
-		//dont send easy to calculate fields (calc in gui)
-
 		lo_message msgio=lo_message_new();
 
-		//basic setup of a->b (localhost:port -> targethost:port)
+//common properties with jack_audio_send first
 		lo_message_add_int32(msgio,atoi(localPort));	//0
-		lo_message_add_string(msgio,sendToHost);	//1
-		lo_message_add_int32(msgio,atoi(sendToPort));	//2
-
 		//local jack info
-		lo_message_add_string(msgio,client_name);	//3
-		lo_message_add_string(msgio,server_name);	//4
-
-		lo_message_add_int32(msgio,sample_rate);	//5
-		lo_message_add_int32(msgio,period_size);	//6
-
-		lo_message_add_int32(msgio,input_port_count);	//7
-
-		//transmission info
+		lo_message_add_string(msgio,client_name);	//1
+		lo_message_add_string(msgio,server_name);	//2
+		lo_message_add_int32(msgio,sample_rate);	//3
+		lo_message_add_int32(msgio,period_size);	//4
+		lo_message_add_int32(msgio,input_port_count);	//5
 		//this is not a property of local JACK
-		lo_message_add_int32(msgio,bytes_per_sample);	//8
-		lo_message_add_int32(msgio,nopause);		//9
+		lo_message_add_int32(msgio,bytes_per_sample);	//6
+		lo_message_add_int32(msgio,test_mode);		//7
+		lo_message_add_int32(msgio,send_max);		//8
+
+//gap for future common props
+		lo_message_add_int32(msgio,0); //9
+		lo_message_add_int32(msgio,0); //10
+		lo_message_add_int32(msgio,0); //11
+		lo_message_add_int32(msgio,0); //12
+		lo_message_add_int32(msgio,0); //13
+		lo_message_add_int32(msgio,0); //14
+		lo_message_add_int32(msgio,0); //15
+		lo_message_add_int32(msgio,0); //16
+		lo_message_add_int32(msgio,0); //17
+		lo_message_add_int32(msgio,0); //18
+		lo_message_add_int32(msgio,0); //19
+
+//custom properties start here
+		lo_message_add_string(msgio,sendToHost);	//20
+		lo_message_add_int32(msgio,atoi(sendToPort));	//21
+
+		lo_message_add_int32(msgio,nopause);		//22
+
+		lo_message_add_int32(msgio,drop_every_nth_message);	//23
+
 		//multi-channel period size
 		//lo_message_add_int32(msgio,input_port_count*period_size*bytes_per_sample);
 		//message rate
 		//lo_message_add_float(msgio,(float)sample_rate/(float)period_size);
-		lo_message_add_int32(msgio,msg_size);		//10
-		lo_message_add_int32(msgio,transfer_size);	//11
+		lo_message_add_int32(msgio,msg_size);		//24
+		lo_message_add_int32(msgio,transfer_size);	//25
 		//overhead (0-1 = 0 - 100%)
 		//lo_message_add_float(msgio,(float)input_port_count*period_size*bytes_per_sample/(float)transfer_size);
 
-		lo_message_add_float(msgio,expected_network_data_rate);	//12
+		lo_message_add_float(msgio,expected_network_data_rate);	//26
 		//lo_message_add_float(msgio,);
-
-		lo_message_add_int32(msgio,test_mode);			//13
-		lo_message_add_int32(msgio,send_max);			//14
-		lo_message_add_int32(msgio,drop_every_nth_message);	//15
 
 //should be global
 //		lo_message_add_int32(msgio,max_buffer_size);

@@ -974,8 +974,6 @@ void print_info()
 
 			lo_message msgio=lo_message_new();
 
-//will nee other format than in32
-
 			lo_message_add_int64(msgio,message_number);
 			lo_message_add_int32(msgio,input_port_count);
 			lo_message_add_int32(msgio,channel_offset);
@@ -1663,44 +1661,44 @@ void io_dump_config()
 {
 	if(io_())
 	{
-		//similar order to startup output
-		//dont send easy to calculate fields (calc in gui)
-
 		lo_message msgio=lo_message_new();
 
-		//basic setup of a->b (localhost:port -> targethost:port)
-		lo_message_add_int32(msgio,atoi(localPort));
-//could info of sender, once receving
-//		lo_message_add_string(msgio,sendToHost);
-//		lo_message_add_int32(msgio,atoi(sendToPort));
-
+//common properties with jack_audio_send first
+		lo_message_add_int32(msgio,atoi(localPort)); //0
 		//local jack info
-		lo_message_add_string(msgio,client_name);
-		lo_message_add_string(msgio,server_name);
-
-		lo_message_add_int32(msgio,sample_rate);
-		lo_message_add_int32(msgio,period_size);
-
-		lo_message_add_int32(msgio,output_port_count);
-		lo_message_add_int32(msgio,channel_offset);
-
-		//transmission info
+		lo_message_add_string(msgio,client_name); //1
+		lo_message_add_string(msgio,server_name); //2
+		lo_message_add_int32(msgio,sample_rate); //3
+		lo_message_add_int32(msgio,period_size); //4
+		lo_message_add_int32(msgio,output_port_count); //5
 		//this is not a property of local JACK
-		lo_message_add_int32(msgio,bytes_per_sample);
+		lo_message_add_int32(msgio,bytes_per_sample); //6
+		lo_message_add_int32(msgio,test_mode); //7
+		lo_message_add_int32(msgio,receive_max); //8
+
+//gap for future common props
+		lo_message_add_int32(msgio,0); //9
+		lo_message_add_int32(msgio,0); //10
+		lo_message_add_int32(msgio,0); //11
+		lo_message_add_int32(msgio,0); //12
+		lo_message_add_int32(msgio,0); //13
+		lo_message_add_int32(msgio,0); //14
+		lo_message_add_int32(msgio,0); //15
+		lo_message_add_int32(msgio,0); //16
+		lo_message_add_int32(msgio,0); //17
+		lo_message_add_int32(msgio,0); //18
+		lo_message_add_int32(msgio,0); //19
+
+//custom properties start here
+		lo_message_add_int32(msgio,channel_offset); //20
 
 		//multi-channel period size
-		//lo_message_add_int32(msgio,output_port_count*period_size*bytes_per_sample);
-
-		lo_message_add_int32(msgio,test_mode);
-		lo_message_add_int32(msgio,receive_max);
-
-//multi-channel period size
 //		lo_message_add_float(msgio,output_port_count*period_size*bytes_per_sample);
-		lo_message_add_int32(msgio,zero_on_underflow);
-		lo_message_add_int32(msgio,rebuffer_on_restart);
-		lo_message_add_int32(msgio,rebuffer_on_underflow);
-		lo_message_add_int32(msgio,allow_remote_buffer_control);
-		lo_message_add_int32(msgio,close_on_incomp);
+		lo_message_add_int32(msgio,zero_on_underflow); //21
+		lo_message_add_int32(msgio,rebuffer_on_restart); //22
+		lo_message_add_int32(msgio,rebuffer_on_underflow); //23
+		lo_message_add_int32(msgio,allow_remote_buffer_control); //24
+		lo_message_add_int32(msgio,close_on_incomp); //25
 
 //		fprintf(stderr,"receiving on TCP port: %s\n",localPort);
 //		fprintf(stderr,"receiving on UDP port: %s\n",localPort);
@@ -1713,4 +1711,3 @@ void io_dump_config()
 		lo_message_free(msgio);
 	}//end if io_
 }//end io_dump_config
-
