@@ -47,7 +47,7 @@ shapes:
 						#if on, will recalc pulse length on frequency change
 
 frequency / periodicity:
-	/freq/herz f
+	/freq/hertz f
 	/freq/bpm f
 	/freq/samples f
 	/freq/jack_cycles f	#f times size of jack cycle
@@ -57,7 +57,7 @@ frequency / periodicity:
 	/freq/multiply f	#multiply current freq with f
 
 #add or substract f from freq in given units
-	/freq/herz/rel f	
+	/freq/hertz/rel f
 	/freq/bpm/rel f
 	/freq/samples/rel f
 	/freq/jack_cycles/rel f
@@ -135,8 +135,8 @@ void exit(int err);
 
 void setup();
 
-double herz_to_samples(double herz);
-double samples_to_herz(double samples);
+double hertz_to_samples(double hertz);
+double samples_to_hertz(double samples);
 
 double bpm_to_samples(double bpm);
 double samples_to_bpm(double samples);
@@ -148,7 +148,7 @@ double jack_cycles_to_samples(double jack_cycles);
 double samples_to_jack_cycles(double samples);
 
 double wavelength_to_samples(double wavelength);
-double wavelength_to_herz(double wavelength);
+double wavelength_to_hertz(double wavelength);
 double samples_to_wavelength(double samples);
 
 double ms_to_samples(double duration);
@@ -157,8 +157,8 @@ double samples_to_ms(double samples);
 double midi_note_to_samples(int midi_note_number);
 double midi_note_symbol_to_samples(char* midi_note_symbol);
 
-double midi_note_to_herz(int midi_note_number);
-double herz_to_wavelength(double frequency);
+double midi_note_to_hertz(int midi_note_number);
+double hertz_to_wavelength(double frequency);
 
 void set_pulse_length_auto();
 
@@ -255,7 +255,7 @@ struct Duration dur;
 struct Frequency
 {
 	double a4_ref; //[hz]
-	double herz;
+	double hertz;
 	double beats_per_minute;
 	double samples_per_period; //shape period size (!= jack period size)
 	double jack_cycles;
@@ -301,8 +301,8 @@ struct MidiNote midi_notes[128];
 void minimal_test()
 {
 	//test
-	printf("herz (441) to samples %f\n",herz_to_samples(441));
-	printf("samples to herz %f\n",samples_to_herz(herz_to_samples(441)));
+	printf("hertz (441) to samples %f\n",hertz_to_samples(441));
+	printf("samples to hertz %f\n",samples_to_hertz(hertz_to_samples(441)));
 
 	printf("bpm (120) to samples %f\n",bpm_to_samples(120));
 	printf("samples to bpm %f\n",samples_to_bpm(bpm_to_samples(120)));
@@ -340,8 +340,8 @@ void setup()
 
 	create_midi_notes();
 
-	//set_all_freq(herz_to_samples(441.0d));
-	set_all_freq(herz_to_samples(jack.sampling_rate/100));
+	//set_all_freq(hertz_to_samples(441.0d));
+	set_all_freq(hertz_to_samples(jack.sampling_rate/100));
 	//set_all_freq(bpm_to_samples(120.0d));
 	//set_all_freq(44100.0d);
 	//set_all_freq(jack_cycles_to_samples(-2));
@@ -450,14 +450,14 @@ static int process (jack_nframes_t frames, void* arg)
 				float sm=freq.samples_per_period+args[0]->f;
 				set_all_freq(sm);
 			}
-			else if(!strcmp(path,"/freq/herz") && !strcmp(types,"f") && args[0]->f > 0)
+			else if(!strcmp(path,"/freq/hertz") && !strcmp(types,"f") && args[0]->f > 0)
 			{
-				set_all_freq(herz_to_samples(args[0]->f));
+				set_all_freq(hertz_to_samples(args[0]->f));
 			}
-			else if(!strcmp(path,"/freq/herz/rel") && !strcmp(types,"f") && args[0]->f != 0)
+			else if(!strcmp(path,"/freq/hertz/rel") && !strcmp(types,"f") && args[0]->f != 0)
 			{
-				float hz=freq.herz+args[0]->f;
-				set_all_freq(herz_to_samples(hz));
+				float hz=freq.hertz+args[0]->f;
+				set_all_freq(hertz_to_samples(hz));
 			}
 			else if(!strcmp(path,"/freq/bpm") && !strcmp(types,"f") && args[0]->f > 0)
 			{
@@ -843,12 +843,12 @@ int main (int argc, char* argv[])
 
 //==================================================================
 
-double herz_to_samples(double herz)
+double hertz_to_samples(double hertz)
 {
-	return jack.sampling_rate/herz;
+	return jack.sampling_rate/hertz;
 }
 //[mm]
-double herz_to_wavelength(double frequency)
+double hertz_to_wavelength(double frequency)
 {
 	//wavelength = speed of sound / frequency
 	double l=(double)freq.speed_of_sound/frequency;
@@ -858,7 +858,7 @@ double herz_to_wavelength(double frequency)
 //frequency=speed of sound/wavelength
 
 }
-double samples_to_herz(double samples)
+double samples_to_hertz(double samples)
 {
 	return jack.sampling_rate/samples;
 }
@@ -897,9 +897,9 @@ double samples_to_jack_cycles(double samples)
 //[mm]
 double wavelength_to_samples(double wavelength)
 {
-	return herz_to_samples(wavelength_to_herz(wavelength));
+	return hertz_to_samples(wavelength_to_hertz(wavelength));
 }
-double wavelength_to_herz(double wavelength) //[mm]
+double wavelength_to_hertz(double wavelength) //[mm]
 {
 	//frequency = speed of sound / wavelength
 	double f=(double)freq.speed_of_sound / (wavelength / 1000);
@@ -907,7 +907,7 @@ double wavelength_to_herz(double wavelength) //[mm]
 }
 double samples_to_wavelength(double samples)
 {
-	return herz_to_wavelength(samples_to_herz(samples));
+	return hertz_to_wavelength(samples_to_hertz(samples));
 }
 double ms_to_samples(double duration)
 {
@@ -920,7 +920,7 @@ double samples_to_ms(double samples)
 }
 double midi_note_to_samples(int midi_note_number)
 {
-	return herz_to_samples(midi_note_to_herz(midi_note_number));
+	return hertz_to_samples(midi_note_to_hertz(midi_note_number));
 }
 double midi_note_symbol_to_samples(char* midi_note_symbol)
 {
@@ -940,7 +940,7 @@ double midi_note_symbol_to_samples(char* midi_note_symbol)
 
 	return freq.samples_per_period;
 }
-double midi_note_to_herz(int midi_note_number)
+double midi_note_to_hertz(int midi_note_number)
 {
 	//f = 2^((p-69)/12) * 440hz
 	double f=pow(2,(double)(midi_note_number-69)/12) * freq.a4_ref;
@@ -975,7 +975,7 @@ void set_all_duration(double samples)
 void set_all_freq(double samples)
 {
 	freq.samples_per_period=samples;
-	freq.herz=samples_to_herz(samples);
+	freq.hertz=samples_to_hertz(samples);
 	freq.beats_per_minute=samples_to_bpm(samples);
 	freq.jack_cycles=samples_to_jack_cycles(samples);
 	freq.period_duration=samples_to_ms(samples);
@@ -1008,7 +1008,7 @@ void print_all_properties()
 	fprintf(stderr,"jack transport rolling: %d\n",jack.transport_state);
 
 	fprintf(stderr,"samples per shape period: %f\n",freq.samples_per_period);
-	fprintf(stderr,"herz: %f\n",freq.herz);
+	fprintf(stderr,"hertz: %f\n",freq.hertz);
 	fprintf(stderr,"bpm: %f\n",freq.beats_per_minute);
 	fprintf(stderr,"nth cycle: %f\n",freq.jack_cycles);
 	fprintf(stderr,"period duration [ms]: %f\n",freq.period_duration);
@@ -1018,7 +1018,7 @@ void print_all_properties()
 	int midi_index=find_nearest_midi_note(freq.samples_per_period);
 	fprintf(stderr,"best match for MIDI note: %d (%s) (%f hz)\n"
 		,midi_index,midi_notes[midi_index].symbol
-		,samples_to_herz(midi_notes[midi_index].samples));
+		,samples_to_hertz(midi_notes[midi_index].samples));
 
 	fprintf(stderr,"speed of sound [m/s]: %f\n",freq.speed_of_sound);
 	fprintf(stderr,"wavelength [mm]: %f\n",freq.wavelength);
@@ -1068,7 +1068,7 @@ int find_nearest_midi_note(float samples)
 /*
 	fprintf(stderr,"diff smallest %f index %i symbol %s samples %f freq hz %f\n"
 		,diff_smallest,index_smallest,midi_notes[index_smallest].symbol
-		,midi_notes[index_smallest].samples,samples_to_herz(midi_notes[index_smallest].samples));
+		,midi_notes[index_smallest].samples,samples_to_hertz(midi_notes[index_smallest].samples));
 */
 
 	return index_smallest;
@@ -1113,8 +1113,8 @@ void create_midi_notes()
 		midi_notes[i].samples=midi_note_to_samples(i);
 
 /*
-		printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_herz(i),
-			herz_to_wavelength(midi_note_to_herz(i)));
+		printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_hertz(i),
+			hertz_to_wavelength(midi_note_to_hertz(i)));
 */
 
 		//add flat / sharp
@@ -1138,8 +1138,8 @@ void create_midi_notes()
 			midi_notes[i].samples=midi_note_to_samples(i);
 
 /*
-			printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_herz(i),
-				herz_to_wavelength(midi_note_to_herz(i)));
+			printf("%d: %s %f %f\n",i,midi_notes[i].symbol,midi_note_to_hertz(i),
+				hertz_to_wavelength(midi_note_to_hertz(i)));
 */
 		}
 		note_index++;
