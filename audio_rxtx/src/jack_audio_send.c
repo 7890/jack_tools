@@ -720,7 +720,7 @@ int process(jack_nframes_t nframes, void *arg)
 				int w;
 				for(w=0;w<nframes;w++)
 				{
-					o1_16[w]=o1[w]*32760;
+					o1_16[w]=MIN_(MAX_(o1[w],-1.0f),1.0f)*32760;
 				}
 
 				//fill blob from buffer

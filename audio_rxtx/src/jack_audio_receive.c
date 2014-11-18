@@ -806,7 +806,7 @@ int process(jack_nframes_t nframes, void *arg)
 				int x;
 				for(x=0;x<nframes;x++)
 				{
-					o1[x]=(float)o1_16[x]/32760;
+					o1[x]=(float)MIN_(MAX_((float)o1_16[x]/32760,-1.0f),1.0f);
 				}
 
 				free(o1_16);
