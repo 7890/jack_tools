@@ -17,7 +17,7 @@
 
 #include "jack_audio_common.h"
 
-float version = 0.85f;
+float version = 0.86f;
 float format_version = 1.1f;
 
 lo_server_thread lo_st;
@@ -29,9 +29,6 @@ jack_client_t *client;
 
 //Array of pointers to input or output ports
 jack_port_t **ioPortArray;
-
-//Array of pointers to input or output buffers
-jack_default_audio_sample_t **ioBufferArray;
 
 //default values
 //sample_rate must be THE SAME on sender and receiver
