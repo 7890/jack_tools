@@ -295,10 +295,6 @@ int main(int argc, char *argv[])
 	//create an array of input ports
 	ioPortArray=(jack_port_t**) malloc(input_port_count * sizeof(jack_port_t*));
 
-	//create an array of audio sample pointers
-	//each pointer points to the start of an audio buffer, one for each capture channel
-	ioBufferArray=(jack_default_audio_sample_t**) malloc(input_port_count * sizeof(jack_default_audio_sample_t*));
-
 	//open a client connection to the JACK server
 	client=jack_client_open(client_name, jack_opts, &status, server_name);
 	if(client==NULL) 
@@ -701,6 +697,11 @@ int process(jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0; i<input_port_count; i++)
 		{
+			if(shutdown_in_progress==1 || process_enabled!=1)
+			{
+				lo_message_free(msg);
+				return 0;
+			}
 			jack_default_audio_sample_t *o1;
 
 			//get "the" buffer
@@ -1007,11 +1008,21 @@ void signal_handler(int sig)
 	io_quit("terminated");
 
 	shutdown_in_progress=1;
+	process_enabled=0;
+
+	jack_deactivate(client);
+
+	int index=0;
+	while(ioPortArray[index]!=NULL && index<input_port_count)
+	{
+		jack_port_unregister(client,ioPortArray[index]);
+		index++;
+	}
 
 	jack_client_close(client);
-	lo_server_thread_free(lo_st);
+//	lo_server_thread_free(lo_st);
 
-	fprintf(stderr,"done\n");
+	fprintf(stderr," done\n");
 
 	exit(0);
 }

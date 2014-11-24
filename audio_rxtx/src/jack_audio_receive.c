@@ -364,10 +364,6 @@ int main(int argc, char *argv[])
 	//create an array of input ports
 	ioPortArray=(jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
 
-	//create an array of audio sample pointers
-	//each pointer points to the start of an audio buffer, one for each capture channel
-	ioBufferArray=(jack_default_audio_sample_t**) malloc(output_port_count * sizeof(jack_default_audio_sample_t*));
-
 	//open a client connection to the JACK server
 	client=jack_client_open(client_name, jack_opts, &status, server_name);
 	if(client==NULL) 
@@ -731,6 +727,11 @@ int process(jack_nframes_t nframes, void *arg)
 			int i;
 			for(i=0; i < output_port_count; i++)
 			{
+				if(shutdown_in_progress==1 || process_enabled!=1)
+				{
+					return 0;
+				}
+
 				if(zero_on_underflow==1)
 				{
 					jack_default_audio_sample_t *o1;
@@ -783,6 +784,11 @@ int process(jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0; i<port_count; i++)
 		{
+			if(shutdown_in_progress==1 || process_enabled!=1)
+			{
+				return 0;
+			}
+
 			jack_default_audio_sample_t *o1;
 			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
@@ -839,6 +845,11 @@ int process(jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0; i<port_count; i++)
 		{
+			if(shutdown_in_progress==1 || process_enabled!=1)
+			{
+				return 0;
+			}
+
 			jack_default_audio_sample_t *o1;
 			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
@@ -1608,7 +1619,7 @@ void osc_error_handler(int num, const char *msg, const char *path)
 		//lo_server_thread_free(lo_st);
 		jack_ringbuffer_free(rb);
 		jack_ringbuffer_free(rb_helper);
-		fprintf(stderr,"done.\n");
+		fprintf(stderr," done.\n");
 
 		exit(1);
 	}
@@ -1623,10 +1634,12 @@ void osc_error_handler(int num, const char *msg, const char *path)
 //ctrl+c etc
 static void signal_handler(int sig)
 {
+	fprintf(stderr,"\nterminate signal %d received.\n",sig);
+
+	io_quit("terminated");
+
 	shutdown_in_progress=1;
 	process_enabled=0;
-
-	fprintf(stderr,"\nterminate signal %d received.\n",sig);
 
 	if(close_on_incomp==0)
 	{
@@ -1640,18 +1653,23 @@ static void signal_handler(int sig)
 		lo_message_free(msg);
 	}
 
-	io_quit("terminated");
-
-	usleep(1000);
-
 	fprintf(stderr,"cleaning up...");
 
+	jack_deactivate(client);
+
+	int index=0;
+	while(ioPortArray[index]!=NULL && index<input_port_count)
+	{
+		jack_port_unregister(client,ioPortArray[index]);
+		index++;
+	}
+
 	jack_client_close(client);
-	lo_server_thread_free(lo_st);
+//      lo_server_thread_free(lo_st);
 	jack_ringbuffer_free(rb);
 	jack_ringbuffer_free(rb_helper);
 
-	fprintf(stderr,"done.\n");
+	fprintf(stderr," done.\n");
 
 	exit(0);
 }//end signal_handler
