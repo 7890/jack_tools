@@ -1,0 +1,33 @@
+@startuml
+title audio_rxtx Interaction Diagram\nBroadcast Incompatible Receiver
+
+participant proc
+participant sender_broadcast
+participant receiver_incompat
+
+activate proc #FFBBBB
+
+autonumber
+
+proc --> receiver_incompat: configure & start
+receiver_incompat -> receiver_incompat: start listening for audio
+activate receiver_incompat #FFBBBB
+
+proc --> sender_broadcast: configure & start
+activate sender_broadcast #FFBBBB
+sender_broadcast -> sender_broadcast: start sending audio\n(skip /offer)
+activate sender_broadcast #FF0000
+
+loop
+sender_broadcast --> receiver_incompat: /audio
+
+receiver_incompat -> receiver_incompat: check compatibility
+activate receiver_incompat #DarkSalmon
+
+receiver_incompat --> sender_broadcast: /deny
+
+sender_broadcast -> sender_broadcast: ignore deny
+deactivate receiver_incompat
+end
+
+@enduml

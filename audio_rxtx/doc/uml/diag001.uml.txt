@@ -1,0 +1,14 @@
+@startuml
+title audio_rxtx Interaction Diagram\nNo Sender
+
+participant sender
+participant receiver
+activate receiver #FFBBBB
+
+autonumber
+
+loop
+receiver -> receiver: buffer underflow
+end
+
+@enduml

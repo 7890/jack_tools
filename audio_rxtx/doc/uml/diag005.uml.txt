@@ -1,0 +1,34 @@
+@startuml
+title audio_rxtx Interaction Diagram\nSender Shutdown
+
+participant proc
+participant sender
+participant receiver
+
+activate proc #FFBBBB
+activate sender #FFBBBB
+activate receiver #FFBBBB
+
+autonumber
+
+loop Ongoing Transmission
+sender --> receiver: /audio
+activate sender #FF0000
+activate receiver #0000FF
+end
+
+proc --> sender: terminate
+
+sender -> sender: stop sending audio
+deactivate sender
+sender -> sender: shutdown
+deactivate sender
+
+receiver -> receiver: playout until buffer empty
+deactivate receiver
+
+loop
+receiver -> receiver: buffer underflow
+end
+
+@enduml

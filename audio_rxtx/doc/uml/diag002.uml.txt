@@ -1,0 +1,16 @@
+@startuml
+title audio_rxtx Interaction Diagram\nNo Receiver
+
+participant sender
+activate sender #FFBBBB
+
+autonumber
+
+loop
+sender --> receiver: /offer
+note right: (no receiver available)
+end
+
+@enduml
+
+

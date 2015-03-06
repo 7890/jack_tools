@@ -1,0 +1,34 @@
+@startuml
+title audio_rxtx Interaction Diagram\nSender Shutdown On Incompatibility
+
+participant proc
+participant sender
+participant receiver
+
+activate proc #FFBBBB
+
+autonumber
+
+proc --> receiver: configure & start
+receiver -> receiver: start listening for audio
+activate receiver #FFBBBB
+
+proc --> sender: configure & start
+sender -> sender: start offering audio
+activate sender #FFBBBB
+
+sender --> receiver: /offer
+activate sender #DarkSalmon
+
+receiver -> receiver: check compatibilty
+activate receiver #DarkSalmon
+
+receiver --> sender: /deny
+deactivate receiver
+deactivate sender
+
+sender -> sender: stop offering audio
+sender -> sender: shutdown on incompatibility
+deactivate sender
+
+@enduml

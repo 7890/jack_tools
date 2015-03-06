@@ -1,0 +1,41 @@
+@startuml
+title audio_rxtx Interaction Diagram\nReceiver Shutdown
+
+participant proc
+participant sender
+participant receiver
+
+activate proc #FFBBBB
+activate sender #FFBBBB
+activate receiver #FFBBBB
+
+autonumber
+
+loop Ongoing Transmission 
+sender --> receiver: /audio
+activate sender #FF0000
+activate receiver #0000FF
+end
+
+proc --> receiver: terminate
+
+receiver -> receiver: stop playout
+deactivate receiver
+
+receiver --> sender: /pause
+
+receiver -> receiver: shutdown
+deactivate receiver
+
+sender -> sender: stop sending audio
+deactivate sender
+
+sender -> sender: start offering audio
+activate sender #DarkSalmon
+
+loop
+sender --> receiver: /offer
+note right: (no receiver available)
+end
+
+@enduml
