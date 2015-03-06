@@ -12,6 +12,7 @@ SRC = src
 BLD = build
 DOC = doc
 DIST = dist
+ARCHIVE = archive
 
 #.deb package
 SRC_URL ?= "https://github.com/7890/jack_tools"
@@ -105,6 +106,19 @@ manpage:
 	man -l -Tps $(DOC)/jack_audio_send.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_audio_send.pdf
 	man -l -Tps $(DOC)/jack_audio_receive.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_audio_receive.pdf
 
+	@echo ""
+	@echo "done."
+	@echo ""
+
+uml:
+	@echo ""
+	@echo "creating uml sequence diagrams with plantuml (java)"
+	@echo "---------------------------------------------------"
+	@echo ""
+	java -jar $(ARCHIVE)/plantuml/plantuml-8020.jar $(DOC)/uml/
+	@echo ""
+	@echo "creating index.html"
+	$(DOC)/uml/create_gallery.sh $(DOC)/uml > $(DOC)/uml/index.html
 	@echo ""
 	@echo "done."
 	@echo ""
