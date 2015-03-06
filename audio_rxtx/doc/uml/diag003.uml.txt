@@ -23,7 +23,7 @@ activate sender #DarkSalmon
 receiver -> receiver: check compatibilty
 activate receiver #DarkSalmon
 
-receiver --> sender: /accpet
+receiver --> sender: /accept
 deactivate receiver
 deactivate sender
 
