@@ -170,12 +170,16 @@ if test -z "$NOSTACK"; then
 ### https://dl.dropboxusercontent.com/u/28869550/Jack_v1.9.10_32_setup.exe
 ### https://dl.dropboxusercontent.com/u/28869550/Jack_v1.9.10_64_setup.exe
 
-download jack_win3264.tar.xz http://robin.linuxaudio.org/jack_win3264.tar.xz
+#download jack_win3264.tar.xz http://robin.linuxaudio.org/jack_win3264.tar.xz
+download jack_win3264.tar.xz https://raw.githubusercontent.com/7890/jack_tools/master/audio_rxtx/archive/win_build_deps/jack_win3264.tar.xz
+
 cd "$PREFIX"
 tar xf ${SRCDIR}/jack_win3264.tar.xz
 "$PREFIX"/update_pc_prefix.sh ${WARCH}
 
-download pthreads-w32-2-9-1-release.tar.gz ftp://sourceware.org/pub/pthreads-win32/pthreads-w32-2-9-1-release.tar.gz
+#download pthreads-w32-2-9-1-release.tar.gz ftp://sourceware.org/pub/pthreads-win32/pthreads-w32-2-9-1-release.tar.gz
+download pthreads-w32-2-9-1-release.tar.gz https://raw.githubusercontent.com/7890/jack_tools/master/audio_rxtx/archive/win_build_deps/pthreads-w32-2-9-1-release.tar.gz
+
 cd ${BUILDD}
 rm -rf pthreads-w32-2-9-1-release
 tar xzf ${SRCDIR}/pthreads-w32-2-9-1-release.tar.gz
@@ -203,8 +207,15 @@ cp -vf pthread.h sched.h ${PREFIX}/include
 #EOF
 
 cd ${BUILDD}
-git clone -b fixmax https://github.com/7890/liblo.git liblo_28.fixmax
-cd liblo_28.fixmax
+if [ -e liblo_28.fixmax ]
+then
+	cd liblo_28.fixmax
+	git pull
+else
+	git clone -b fixmax https://github.com/7890/liblo.git liblo_28.fixmax
+	cd liblo_28.fixmax
+fi
+
 ./autogen.sh --disable-tests --disable-examples
 autoconfconf --enable-shared --disable-tests --disable-examples
 make $MAKEFLAGS && make install
