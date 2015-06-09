@@ -42,10 +42,10 @@ static float jack_samplerate;
 
 /* Disk thread */
 static pthread_t disk_thread={0};
-static pthread_mutex_t disk_thread_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t  data_ready = PTHREAD_COND_INITIALIZER;
-static int file_nchannels = 0;
-static int disk_thread_finished = 0;
+static pthread_mutex_t disk_thread_lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t data_ready=PTHREAD_COND_INITIALIZER;
+static int file_nchannels=0;
+static int disk_thread_finished=0;
 
 /* Synchronization between process thread and disk thread. */
 static volatile int is_initialized=0; // This $@#$@#$ variable is needed because jack ports must be initialized _after_ (???) the client is activated. (stupid jack)
@@ -58,7 +58,7 @@ static jack_ringbuffer_t *rb=NULL;
 
 /* Jack connecting thread. */
 static pthread_t connect_thread={0} ;
-static pthread_cond_t  connect_ready = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t connect_ready=PTHREAD_COND_INITIALIZER;
 
 static pid_t mainpid;
 
@@ -101,14 +101,14 @@ static void buffers_init(int jackbuffersize)
 	{
 		jack_ringbuffer_free(rb);
 	}
-	  
+
 	rb=jack_ringbuffer_create(sizeof(struct ringbuffer_block)*num_buffers);
 	//printf("ringbuffer_size: %d, num_buffers: %d\n",rb->size/4,num_buffers);
-	  
+
 	/* When JACK is running realtime, jack_activate() will have
-	 * called mlockall() to lock our pages into memory.  But, we
+	 * called mlockall() to lock our pages into memory. But, we
 	 * still need to touch any newly allocated pages before
-	 * process() starts using them.  Otherwise, a page fault could
+	 * process() starts using them. Otherwise, a page fault could
 	 * create a delay that would force JACK to shut us down. (from jackrec, -Kjetil)*/
 	memset(rb->buf,0,rb->size);
 
@@ -117,8 +117,8 @@ static void buffers_init(int jackbuffersize)
 	num_buffers=rb->size/sizeof(struct ringbuffer_block);
 	num_buffers+=3;
 
-	//printf("buffer_size: %d, buffer_size_in_bytes: %d, num_buffers: %d, total: %d, buffer_time: %f\n",
-	//	   buffer_size,buffer_size_in_bytes,num_buffers,num_buffers*buffer_size_in_bytes,buffer_time);
+	printf("buffer_size: %d, buffer_size_in_bytes: %d, num_buffers: %d, total: %d, buffer_time: %f\n",
+		buffer_size,buffer_size_in_bytes,num_buffers,num_buffers*buffer_size_in_bytes,buffer_time);
 
 	das_buffer=calloc(num_buffers,buffer_size_in_bytes);
 	buffers=calloc(sizeof(sample_t*),num_buffers);
@@ -258,12 +258,12 @@ static char **portnames_get_connections(int ch)
 static int disk_read(SNDFILE *soundfile,sample_t *buffer,size_t frames)
 {
 	sf_count_t f;
-	f = sf_readf_float(soundfile,buffer,frames);
-	if (f != 0)
+	f=sf_readf_float(soundfile,buffer,frames);
+	if(f!=0)
 	{
 		// A partial read can occur at the end of the file.	Zero out
 		// any part of the buffer not written by sf_readf_float().
-		if (f != frames)
+		if(f!=frames)
 		{
 			bzero(buffer+f*file_nchannels,(frames-f)*file_nchannels*sizeof(buffer[0]));
 		}
@@ -286,15 +286,15 @@ static void *disk_thread_func (void *arg)
 	SF_INFO sf_info={0};
 
 	soundfile=sf_open(filename,SFM_READ,&sf_info);
-	if (soundfile == NULL)
+	if(soundfile==NULL)
 	{
 		fprintf (stderr, "\ncannot open sndfile \"%s\" for input (%s)\n", filename,sf_strerror(NULL));
 		jack_client_close(client);
 		exit(1);
 	}
-	file_nchannels = sf_info.channels;
+	file_nchannels=sf_info.channels;
 
-	if (sf_info.channels != channels)
+	if(sf_info.channels!=channels)
 	{
 		fprintf(stderr, "Error: file has %d channels while %d ports were configured\n",
 		sf_info.channels, channels);
@@ -302,7 +302,7 @@ static void *disk_thread_func (void *arg)
 		exit(1);
 	}
 
-	if (sf_info.samplerate != jack_get_sample_rate(client))
+	if(sf_info.samplerate!=jack_get_sample_rate(client))
 	{
 		fprintf(stderr, "Warning: file sample rate (%d Hz) different from JACK rate (%d Hz)\n",
 		sf_info.samplerate, jack_get_sample_rate(client));
@@ -311,7 +311,7 @@ static void *disk_thread_func (void *arg)
 	// Main disk loop
 	for(;;)
 	{
-		while( (jack_ringbuffer_write_space (rb) >= sizeof(struct ringbuffer_block)))
+		while( (jack_ringbuffer_write_space (rb)>=sizeof(struct ringbuffer_block)))
 		{
 			struct ringbuffer_block block;
 			sample_t *buffer;
@@ -323,14 +323,17 @@ static void *disk_thread_func (void *arg)
 			buffer=buffer_get(); // This won't fail because the size of the ringbuffer is less than the number of buffers.
 
 			// disk_read() returns 0 on EOF
-			if (!disk_read(soundfile,buffer,jack_buffer_size)) 
+			if(!disk_read(soundfile,buffer,jack_buffer_size)) 
 			{
 				goto done;
 			}
-			block.buffer = buffer;
+			block.buffer=buffer;
+
+			///
+			//fprintf(stderr, "writing to ringbuffer %d\n",sizeof(struct ringbuffer_block));
 			jack_ringbuffer_write(rb,(void*)&block,sizeof(struct ringbuffer_block));
 		}
-	      
+
 		if(jack_buffer_size_is_changed_to>0)
 		{
 			buffers_init(jack_buffer_size_is_changed_to);
@@ -346,7 +349,7 @@ done:
 	pthread_mutex_unlock (&disk_thread_lock);
 	printf ("disk thread finished\n");
 
-	disk_thread_finished = 1;
+	disk_thread_finished=1;
 	return 0;
 }
 
@@ -383,13 +386,13 @@ void put_buffer_into_jack_buffers(sample_t *buffer)
 		out[ch]=jack_port_get_buffer(ports[ch],jack_buffer_size);
 	}
 
-	if (buffer != NULL)
+	if(buffer!=NULL)
 	{
 		for(i=0;i<jack_buffer_size;i++)
 		{
 			for(ch=0;ch<channels;ch++)
 			{
-				out[ch][i] = buffer[pos++];
+				out[ch][i]=buffer[pos++];
 			}
 		}
 	} 
@@ -405,7 +408,7 @@ void put_buffer_into_jack_buffers(sample_t *buffer)
 //=============================================================================
 void req_buffer_from_disk_thread()
 {
-	if (pthread_mutex_trylock (&disk_thread_lock) == 0)
+	if(pthread_mutex_trylock (&disk_thread_lock)==0)
 	{
 		pthread_cond_signal (&data_ready);
 		pthread_mutex_unlock (&disk_thread_lock);
@@ -415,23 +418,35 @@ void req_buffer_from_disk_thread()
 //=============================================================================
 int process (jack_nframes_t nframes, void *arg)
 {
-	static int killed = 0;
+	static int killed=0;
 	if(is_initialized==0)
 	{
 		return 0;
 	}
 
-	if((jack_buffer_size_is_changed_to != 0) // The inserted silence will have the wrong size, but at least the user will get a report that something was not recorded.
-		 || jack_ringbuffer_read_space(rb)<sizeof(struct ringbuffer_block))
+///
+/*
+	fprintf(stderr,"process: rb can read: %d blocksize: %d buffer changed: %d\n"
+		,jack_ringbuffer_read_space(rb)
+		,sizeof(struct ringbuffer_block)
+		,jack_buffer_size_is_changed_to
+	);
+*/
+
+//	if((jack_buffer_size_is_changed_to!=0) // The inserted silence will have the wrong size, but at least the user will get a report that something was not recorded.
+//		 || jack_ringbuffer_read_space(rb)<sizeof(struct ringbuffer_block))
+//	{
+
+	if(jack_ringbuffer_read_space(rb)<sizeof(struct ringbuffer_block))
 	{
-		if (disk_thread_finished)
+		if(disk_thread_finished)
 		{
 			// Isn't there an neater way of shutting things down?	Ensure only
 			// one attempt is made to send the kill signal.
-			if (!killed)
+			if(!killed)
 			{
 				kill(mainpid, SIGINT);
-				killed = 1;
+				killed=1;
 			}
 		}
 		else
@@ -447,7 +462,7 @@ int process (jack_nframes_t nframes, void *arg)
 		jack_ringbuffer_read(rb,(void*)&block,sizeof(struct ringbuffer_block));
 		put_buffer_into_jack_buffers(block.buffer);
 	}
-	if (!disk_thread_finished)
+	if(!disk_thread_finished)
 	{
 		req_buffer_from_disk_thread();
 	}
@@ -460,7 +475,7 @@ int process (jack_nframes_t nframes, void *arg)
 /////////////////////////////////////////////////////////////////////
 
 //=============================================================================
-static pthread_mutex_t connect_thread_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t connect_thread_lock=PTHREAD_MUTEX_INITIALIZER;
 
 //=============================================================================
 static int compaire(const void *a, const void *b)
@@ -474,8 +489,8 @@ static int reconnect_ports_questionmark(void)
 	int ch;
 	for(ch=0;ch<channels;ch++)
 	{
-		char **connections1 = portnames_get_connections(ch);
-		const char **connections2 = jack_port_get_all_connections(client,ports[ch]);
+		char **connections1=portnames_get_connections(ch);
+		const char **connections2=jack_port_get_all_connections(client,ports[ch]);
 		int memb1=findnumports(connections1);
 		int memb2=findnumports((char**)connections2);
 
@@ -489,7 +504,7 @@ static int reconnect_ports_questionmark(void)
 		qsort(connections1,memb1,sizeof(char*),compaire);
 		qsort(connections2,memb1,sizeof(char*),compaire);
 		
-		int lokke = 0;
+		int lokke=0;
 		for(lokke=0;lokke<memb1;lokke++)
 		{
 			if(strcmp(connections1[lokke],connections2[lokke]))
@@ -512,9 +527,9 @@ static void disconnect_ports(void)
 	int ch;
 	for(ch=0;ch<channels;ch++)
 	{
-		int lokke = 0;
-		const char **connections = jack_port_get_all_connections(client,ports[ch]);
-		while(connections && connections[lokke] != NULL)
+		int lokke=0;
+		const char **connections=jack_port_get_all_connections(client,ports[ch]);
+		while(connections && connections[lokke]!=NULL)
 		{
 			jack_disconnect(client,connections[lokke],jack_port_name(ports[ch]));
 			lokke++;
@@ -529,9 +544,9 @@ static void connect_ports(void)
 	int ch;
 	for(ch=0;ch<channels;ch++)
 	{
-		int lokke = 0;
-		char **connections = portnames_get_connections(ch);
-		while(connections && connections[lokke] != NULL)
+		int lokke=0;
+		char **connections=portnames_get_connections(ch);
+		while(connections && connections[lokke]!=NULL)
 		{
 			int err=jack_connect(client,jack_port_name(ports[ch]),connections[lokke]);
 			if(err!=0)
@@ -599,7 +614,7 @@ static int graphordercallback(void *arg)
 //=============================================================================
 static void create_ports(void)
 {
-	ports = (jack_port_t **) calloc (sizeof (jack_port_t *),channels);	
+	ports=(jack_port_t **) calloc (sizeof (jack_port_t *),channels);	
 	{
 		int ch;
 		for(ch=0;ch<channels;ch++)
@@ -659,17 +674,16 @@ static void jack_shutdown(void *arg)
 //=============================================================================
 static jack_client_t *new_jack_client(char *name)
 {
-//	jack_client_t *client=jack_client_new(name);
-
-	jack_options_t jack_opts = JackNoStartServer;
+	jack_options_t jack_opts=JackNoStartServer;
 	jack_status_t status;
+	///
 	const char *server_name="default";
 
 	//open a client connection to the JACK server
 	jack_client_t *client=jack_client_open(name, jack_opts, &status, server_name);
 	if(client==NULL) 
 	{
-		fprintf(stderr, "jack_client_open() failed, status = 0x%2.0x\n", status);
+		fprintf(stderr, "jack_client_open() failed, status=0x%2.0x\n", status);
 		if(status & JackServerFailed) 
 		{
 			fprintf(stderr, "Unable to connect to JACK server\n");
@@ -679,20 +693,6 @@ static jack_client_t *new_jack_client(char *name)
 
 	name=jack_get_client_name(client);
 
-/*
-	if(client==NULL)
-	{
-		for(connect_num=1;connect_num<100;connect_num++)
-		{
-			char temp[500];
-			sprintf(temp,"%s_%d",name,connect_num);
-			client=jack_client_new(temp);
-			if(client!=NULL) return client;
-		}
-		fprintf(stderr, "\njack server not running? (Unable to create jack client \"%s\")\n",name);
-		exit(1);
-	}
-*/
 	return client;
 }
 
@@ -700,6 +700,8 @@ static jack_client_t *new_jack_client(char *name)
 static void start_jack(void)
 {
 	static int I_am_already_called=0;
+
+//can this ever be true???
 	if(I_am_already_called) // start_jack is called more than once if the --port argument has been used.
 	{
 		return;
@@ -721,8 +723,8 @@ int main (int argc, char *argv[])
 {
 	mainpid=getpid();
 	// Arguments
-	OPTARGS_BEGIN("Usage: jack_play  [--bufsize seconds] [--channels n]  [--port port] <filename>\n"
-		  "                  [-B seconds]        [ -c n]         [ -p port]\n"
+	OPTARGS_BEGIN("Usage: jack_play [--bufsize seconds] [--channels n] [--port port] <filename>\n"
+		      "                 [-B seconds]        [ -c n]        [ -p port]\n"
 		  "\n"
 		  "\"Filename\" has no default and must be specified\n"
 		  "\"Bufsize\"  is by default 5 seconds.\n"
@@ -749,10 +751,10 @@ int main (int argc, char *argv[])
 		  "Version 0.2\n"
 		  )
 	{
-		OPTARG("--bufsize","-B") buffer_time = OPTARG_GETFLOAT();
-		OPTARG("--channels","-c") channels = OPTARG_GETINT();
-		OPTARG("--playing-time","-d") play_time = OPTARG_GETFLOAT();
-		OPTARG("--port","-p") start_jack() ; portnames_add(OPTARG_GETSTRING());
+		OPTARG("--bufsize","-B") buffer_time=OPTARG_GETFLOAT();
+		OPTARG("--channels","-c") channels=OPTARG_GETINT();
+		OPTARG("--playing-time","-d") play_time=OPTARG_GETFLOAT();
+		OPTARG("--port","-p") start_jack(); portnames_add(OPTARG_GETSTRING());
 		OPTARG_LAST() filename=OPTARG_GETSTRING();
 	}
 	OPTARGS_END;
@@ -781,24 +783,25 @@ int main (int argc, char *argv[])
 	jack_set_graph_order_callback(client,graphordercallback,NULL);
 	jack_set_buffer_size_callback(client,buffersizecallback,NULL);
 
-	if (jack_activate(client))
+	if(jack_activate(client))
 	{
-	  fprintf (stderr,"\ncannot activate client");
+		fprintf (stderr,"\ncannot activate client");
+		exit(1);
 	}
-   
+
 	create_ports();
 	connect_ports();
 	start_connection_thread();
 
 	// Everything initialized.
-	//   (The threads are waiting for this variable, not the other way around, so now it just needs to be set.)
+	// (The threads are waiting for this variable, not the other way around, so now it just needs to be set.)
 	is_initialized=1;
 
 	signal(SIGINT,finish);
 
 	if(play_time>0.0)
 	{
-		printf("Playing from \"%s\". The playback is going to last %lf seconds. Press <Ctrl-C> to stop before that.\n",filename,play_time);  
+		printf("Playing from \"%s\". The playback is going to last %lf seconds. Press <Ctrl-C> to stop before that.\n",filename,play_time);
 		sleep(play_time);
 		usleep( (play_time-floor(play_time)) * 1000000);
 	}
@@ -810,11 +813,10 @@ int main (int argc, char *argv[])
 		char gakk[64];
 		fgets(gakk,49,stdin);
 
-		if (underruns > 0)
+		if(underruns>0)
 		{
-			fprintf (stderr,
-				"\nWarning: jack_play failed with a total of %llu underruns.\n", underruns);
-			fprintf (stderr, " try a bigger buffer than -B %f\n",buffer_time);
+			fprintf(stderr,"\nWarning: jack_play failed with a total of %llu underruns.\n", underruns);
+			fprintf(stderr, " try a bigger buffer than -B %f\n",buffer_time);
 		}
 		printf("Please wait for cleanup. (shouldn't take long)\n");
 	}
