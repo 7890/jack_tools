@@ -699,19 +699,10 @@ static jack_client_t *new_jack_client(char *name)
 //=============================================================================
 static void start_jack(void)
 {
-	static int I_am_already_called=0;
-
-//can this ever be true???
-	if(I_am_already_called) // start_jack is called more than once if the --port argument has been used.
-	{
-		return;
-	}
-
 	client=new_jack_client("jack_play");
 
 	jack_buffer_size=jack_get_buffer_size(client);
 	jack_samplerate=jack_get_sample_rate(client);
-	I_am_already_called=1;
 }
 
 /////////////////////////////////////////////////////////////////////
