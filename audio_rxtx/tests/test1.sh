@@ -9,7 +9,7 @@ OSC_PORT1=9998
 OSC_PORT2=9999
 OSC_PORT3=10101
 
-CHANNEL_COUNT=80
+CHANNEL_COUNT=20
 OUTPUT_DIR=/tmp/audio_rxtx_test_shots
 
 #AUDIO_RXTX_OPTS="--16"
@@ -62,8 +62,11 @@ echo "starting jack_audio_send ($CHANNEL_COUNT channels)"
 JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_send $AUDIO_RXTX_OPTS --lport $OSC_PORT1 "--in" $CHANNEL_COUNT localhost $OSC_PORT2 &
 JACK_AUDIO_SEND_PID=$!
 
+sleep 1
+
 echo "starting jack_audio_receive ($CHANNEL_COUNT channels)"
 JACK_DEFAULT_SERVER=audio_rxtx xterm -e jack_audio_receive $AUDIO_RXTX_OPTS --out $CHANNEL_COUNT $OSC_PORT2 &
+#echo "JACK_DEFAULT_SERVER=audio_rxtx jack_audio_receive $AUDIO_RXTX_OPTS --out $CHANNEL_COUNT $OSC_PORT2"
 JACK_AUDIO_RECEIVE_PID=$!
 
 sleep 1
@@ -71,7 +74,7 @@ sleep 1
 echo "creating JACK connections"
 JACK_DEFAULT_SERVER=audio_rxtx jack_connect "osc_bridge_in_$OSC_PORT3:out" "gen:in"
 
-sleep 0.5
+sleep 1
 
 echo "setting gen shape sine"
 oscsend localhost $OSC_PORT3 /shape/sine
@@ -80,12 +83,12 @@ JACK_DEFAULT_SERVER=audio_rxtx jack_connect "gen:out" "Simple Scope (Stereo) GTK
 JACK_DEFAULT_SERVER=audio_rxtx jack_connect "gen:out" "send:input_${CHANNEL_COUNT}"
 JACK_DEFAULT_SERVER=audio_rxtx jack_connect "receive:output_${CHANNEL_COUNT}" "Simple Scope (Stereo) GTK:in2"
 
-sleep 2
+sleep 1
 
 echo "creating screenshot"
 scrot --focused '%Y-%m-%d_%H-%M-%S_$wx$h_scrot.png' -e 'mv $f '"$OUTPUT_DIR"
 
-sleep 5
+sleep 2
 
 echo "screenshot in $OUTPUT_DIR:"
 ls -ltr "$OUTPUT_DIR" | tail -1
