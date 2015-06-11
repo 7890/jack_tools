@@ -33,6 +33,8 @@
 #define PRId64 "llu"
 #endif
 
+typedef jack_default_audio_sample_t sample_t;
+
 extern float version;
 extern float format_version;
 
@@ -45,7 +47,7 @@ extern jack_client_t *client;
 
 extern jack_port_t **ioPortArray;
 
-extern jack_default_audio_sample_t **ioBufferArray;
+extern sample_t **ioBufferArray;
 
 extern int sample_rate;
 extern int period_size;

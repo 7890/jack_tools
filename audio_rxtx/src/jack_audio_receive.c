@@ -709,8 +709,8 @@ int process(jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0; i < output_port_count; i++)
 		{
-			jack_default_audio_sample_t *o1;
-			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
+			sample_t *o1;
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 			//memset(o1, 0, bytes_per_sample*nframes);
 			//always 4 bytes, 32 bit float
 			memset(o1, 0, 4*nframes);
@@ -734,8 +734,8 @@ int process(jack_nframes_t nframes, void *arg)
 
 				if(zero_on_underflow==1)
 				{
-					jack_default_audio_sample_t *o1;
-					o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
+					sample_t *o1;
+					o1=(sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 					//memset(o1, 0, bytes_per_sample*nframes);
 					//always 4 bytes, 32 bit float
@@ -789,8 +789,8 @@ int process(jack_nframes_t nframes, void *arg)
 				return 0;
 			}
 
-			jack_default_audio_sample_t *o1;
-			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
+			sample_t *o1;
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 			int16_t *o1_16;
 
@@ -850,8 +850,8 @@ int process(jack_nframes_t nframes, void *arg)
 				return 0;
 			}
 
-			jack_default_audio_sample_t *o1;
-			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
+			sample_t *o1;
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 			//this is per channel, not per cycle. *port_count
 			if(relaxed_display_counter>=update_display_every_nth_cycle*port_count
@@ -911,8 +911,8 @@ int process(jack_nframes_t nframes, void *arg)
 		int i;
 		for(i=0;i < (output_port_count-input_port_count);i++)
 		{
-			//jack_default_audio_sample_t *o1;
-			//o1=(jack_default_audio_sample_t*)
+			//sample_t *o1;
+			//o1=(sample_t*)
 			/////?
 			jack_port_get_buffer(ioPortArray[input_port_count+i], nframes);
 		}

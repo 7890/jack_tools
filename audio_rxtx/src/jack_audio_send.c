@@ -702,10 +702,10 @@ int process(jack_nframes_t nframes, void *arg)
 				lo_message_free(msg);
 				return 0;
 			}
-			jack_default_audio_sample_t *o1;
+			sample_t *o1;
 
 			//get "the" buffer
-			o1=(jack_default_audio_sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
 
 			//32 bit float
 			if(bytes_per_sample==4)

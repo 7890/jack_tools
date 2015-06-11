@@ -148,7 +148,7 @@ void read_jack_properties()
 	//! new: assume JACK is always 32 bit float
 	//bytes_per_sample only refers to data transmission 
 	//param --16 will force to use 2 bytes
-	//bytes_per_sample = sizeof(jack_default_audio_sample_t);
+	//bytes_per_sample = sizeof(sample_t);
 	period_size=jack_get_buffer_size(client);
 }
 
