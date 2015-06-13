@@ -35,10 +35,10 @@ static float version=0.2;
 static const char *filename=NULL;
 
 //start from absolute frame pos (skip n frames from start)
-static long frame_offset=0;
+static uint64_t frame_offset=0;
 
 //number of frames to read & play from offset (0: all)
-static long frame_count=0;
+static uint64_t frame_count=0;
 //======================
 
 //how many ports the jack client will have
@@ -522,7 +522,7 @@ static void *disk_thread_func(void *arg)
 		exit(1);
 	}
 
-	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"d\n"
+	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"\n"
 		,frame_offset
 		/*,sf_info.frames*/
 		,MIN(sf_info.frames,frame_offset+frame_count)
