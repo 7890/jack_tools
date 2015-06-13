@@ -1,5 +1,7 @@
 CC = g++
-CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -w
+CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -w
+
+#http://www.cprogramdevelop.com/4787258/
 
 SRC ?= src
 BUILD ?= build
