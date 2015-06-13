@@ -14,6 +14,10 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
+#ifdef WIN32
+       #define bzero(p, l) memset(p, 0, l)
+#endif
+
 typedef jack_default_audio_sample_t sample_t;
 
 //tb/150612
@@ -418,7 +422,11 @@ const char** jack_get_ports 	( jack_client_t *,
 			shutdown_in_progress_signalled=1;
 			signal_handler(42);
 		}
+#ifdef WIN32
+		Sleep(1000);
+#else
 		usleep(10000);
+#endif
 	}
 	exit(0);
 }//end main
