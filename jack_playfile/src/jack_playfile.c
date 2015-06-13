@@ -90,6 +90,10 @@ static int disk_thread_finished=0;
 //handle to currently playing file
 static SNDFILE *soundfile=NULL;
 
+void print_file_info(SF_INFO sf_info);
+void req_buffer_from_disk_thread();
+void setup_disk_thread();
+
 //================================================================
 void signal_handler(int sig)
 {
@@ -534,8 +538,9 @@ static void *disk_thread_func(void *arg)
 
 	static int total_rb_write_cycles=0;
 
-	void* data;
-	data=malloc(sndfile_request_frames*output_port_count*bytes_per_sample);
+	//void* data;
+	//data=malloc(sndfile_request_frames*output_port_count*bytes_per_sample);
+	sample_t *data=new sample_t [sndfile_request_frames*output_port_count];
 
 	long bytepos_period=0;
 	long iteration_counter=0;
@@ -686,13 +691,14 @@ loop 2    (read size / period size )   8 / 4
 					);
 */
 					//read from disk_read buffer, at bytepos_frame, 1 sample
-					float f1=*( (float*)(data + bytepos_frame) );
+					//float f1=*( (float*)(data + bytepos_frame) );
+					float f1=*( (float*)(data + bytepos_frame/bytes_per_sample) );
 
 					//===
 					//f1*=0.5;
 
 					//put to ringbuffer
-					jack_ringbuffer_write(rb,(float*)&f1,bytes_per_sample);
+					jack_ringbuffer_write(rb,(const char*)&f1,bytes_per_sample);
 
 					iteration_counter++;
 				}//frame

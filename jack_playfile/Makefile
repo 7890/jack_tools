@@ -1,4 +1,4 @@
-CC ?= gcc
+CC = g++
 CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -w
 
 SRC ?= src
