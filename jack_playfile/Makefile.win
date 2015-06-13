@@ -1,0 +1,26 @@
+CC = i686-w64-mingw32-gcc
+PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
+
+CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -w
+
+SRC ?= src
+BUILD ?= build
+
+INSTALLPATH=/usr/local/bin/
+
+#gcc -o register_jack_ports2 register_jack_ports2.c `pkg-config --cflags --libs jack sndfile` -pthread -w
+
+all:	jack_playfile
+
+jack_playfile:	$(SRC)/jack_playfile.c $(SRC)/weak_libjack.c
+	mkdir -p $(BUILD)
+	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
+	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile`
+	$(CC) -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread
+
+install: jack_playfile
+	install -m755 jack_playfile.exe $(INSTALLPATH)
+
+clean:
+	rm jack_playfile.exe
+	rm $(BUILD)/*.o
