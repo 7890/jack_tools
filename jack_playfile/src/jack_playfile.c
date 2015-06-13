@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <inttypes.h>
 
 #include <pthread.h>
 #include <sndfile.h>
@@ -521,7 +522,7 @@ static void *disk_thread_func(void *arg)
 		exit(1);
 	}
 
-	fprintf(stderr,"playing frames from/to/length: %d %d %d\n"
+	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"d\n"
 		,frame_offset
 		/*,sf_info.frames*/
 		,MIN(sf_info.frames,frame_offset+frame_count)
@@ -858,7 +859,7 @@ void print_file_info(SF_INFO sf_info)
 	const char *duration_str;
 	duration_str=generate_duration_str(&sf_info);
 
-	fprintf(stderr,"format:      %s, %s (0x%08X)\nduration:    %s (%d frames)\nsamplerate:  %d\nchannels:    %d\n"
+	fprintf(stderr,"format:      %s, %s (0x%08X)\nduration:    %s (%"PRId64" frames)\nsamplerate:  %d\nchannels:    %d\n"
 		,format_string, sub_format_string, sf_info.format
 		,duration_str
 		,sf_info.frames
