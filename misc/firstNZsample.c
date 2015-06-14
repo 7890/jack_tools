@@ -6,6 +6,11 @@
  * compile with:
  *   gcc -o firstNZsample firstNZsample.c -Wall -lsndfile
  */
+
+//download from http://pastebin.com/qAxWNTTz
+//23:25 <rgareus> http://pastebin.com/qAxWNTTz macht das in C
+//Jun 10 2015
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,8 +44,7 @@ int main (int argc, char **argv) {
 
 	if (!buf) return -1;
 
-
-//last
+//last sample
 //23:30 <rgareus> Zeile  42   for (s = nfo.frames-1; s > 0; --s)
 
 	for (s=0; s < nfo.frames; s++) {
