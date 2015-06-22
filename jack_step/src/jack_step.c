@@ -32,7 +32,8 @@ static jack_options_t jack_opts = JackNoStartServer;
 
 int process_enabled=0;
 
-int output_port_count=2;
+//don't create any ports for now
+int output_port_count=0;
 
 int shutdown_in_progress=0;
 int shutdown_in_progress_signalled=0;
