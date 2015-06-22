@@ -43,7 +43,21 @@ int cycle_count=0;
 //================================================================
 void signal_handler(int sig)
 {
+
 	process_enabled=0;
+
+	//ctrl+c while running: go to freewheeling mode
+	if(sig==SIGINT && !is_freewheeling)
+	{
+		jack_set_freewheel(client,1);
+		return;
+	}
+
+	//else shutdown
+
+	shutdown_in_progress=1;
+
+	jack_set_freewheel(client,0);
 
 	jack_deactivate(client);
 	//fprintf(stderr,"jack client deactivated. ");
@@ -70,6 +84,8 @@ void jack_shutdown_handler (void *arg)
 	exit(1);	
 }
 
+int return_to_normal_operation=0;
+
 //================================================================
 int process(jack_nframes_t nframes, void *arg) 
 {
@@ -79,26 +95,41 @@ int process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+	//fill some samples
+/*
+	for(int i=0; i<output_port_count; i++)
+	{
+		sample_t *o1;
+		//get output buffer from jack for that channel
+		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
+		//set all samples zero
+		//memset(o1, 0, nframes*4);
+		//output something
+		for(int j=0;j<nframes;j++){o1[j]=(j%2)*0.3;}
+	}
+*/
+
 	if(is_freewheeling)
 	{
-		fprintf(stderr,".%d.",cycle_count);
-		for(int i=0; i<output_port_count; i++)
-		{
-			sample_t *o1;
-			//get output buffer from jack for that channel
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
-			//set all samples zero
-			//memset(o1, 0, nframes*4);
-			//output something
-			for(int j=0;j<nframes;j++){o1[j]=(j%2)*0.3;}
-		}
+		fprintf(stderr,".%d ",cycle_count);
 
-		char c[64];
-		fgets(c,49,stdin);
+		char c;
+		while (c=getchar()) 
+		{
+			if(c=='\n') //next cycle
+			{
+				break;
+			}
+			else if(c=='c') //resume
+			{
+				return_to_normal_operation=1;
+				process_enabled=0;
+			}
+		}
 	}
 	else
 	{
-		fprintf(stderr,"=%d=",cycle_count);
+		fprintf(stderr,"=%d ",cycle_count);
 	}
 	cycle_count++;
 
@@ -109,8 +140,15 @@ int process(jack_nframes_t nframes, void *arg)
 void freewheel(int isfw, void *arg)
 {
 	is_freewheeling=isfw;
-	fprintf(stderr,"JACK went to freewheel mode %d\npress enter to step one JACK cycle\npress ctrl+c then enter to quit\n"
+	fprintf(stderr,"JACK went to freewheel mode %d\n"
 		,is_freewheeling);
+
+	if(is_freewheeling)
+	{
+		fprintf(stderr,"press enter to step one JACK cycle\nctrl+c+enter to quit\n'c+enter' to resume\n");
+	}
+
+	process_enabled=1;
 }
 
 //================================================================
@@ -212,19 +250,19 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	jack_set_freewheel(client,1);
+//	jack_set_freewheel(client,1);
 
 	process_enabled=1;
 
 	//run possibly forever until not interrupted by any means
 	while (1) 
 	{
-		//try clean shutdown, mainly to avoid possible audible glitches 
-		if(shutdown_in_progress && !shutdown_in_progress_signalled)
+		if(return_to_normal_operation==1)
 		{
-			shutdown_in_progress_signalled=1;
-			signal_handler(42);
+			jack_set_freewheel(client,0);
+			return_to_normal_operation=0;
 		}
+
 #ifdef WIN32
 		Sleep(1000);
 #else
