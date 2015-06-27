@@ -17,20 +17,22 @@
 
 #ifdef WIN32
 	#define bzero(p, l) memset(p, 0, l)
+	#define atoll(S) atoi64(S)
 #endif
 
 typedef jack_default_audio_sample_t sample_t;
 
 //tb/150619
 
-//attempt to step jack cycles
+//attempt to step JACK cycles
 
-//array of pointers to jack input or output ports
+//array of pointers to JACK input or output ports
 static jack_port_t **ioPortArray;
 static jack_client_t *client;
 static jack_options_t jack_opts = JackNoStartServer;
 
 int process_enabled=0;
+int return_to_normal_operation=0;
 
 //don't create any ports for now
 int output_port_count=0;
@@ -39,12 +41,17 @@ int shutdown_in_progress=0;
 int shutdown_in_progress_signalled=0;
 
 int is_freewheeling=0;
-int cycle_count=0;
+uint64_t cycle_count=0; //incremented at start of cycle
+uint64_t frame_time=0;
+uint64_t run_n_cycles=0;
+
+std::string _continue("c\n");
+std::string _help("h\n");
+std::string _step("\n");
 
 //================================================================
 void signal_handler(int sig)
 {
-
 	process_enabled=0;
 
 	//ctrl+c while running: go to freewheeling mode
@@ -61,7 +68,7 @@ void signal_handler(int sig)
 	jack_set_freewheel(client,0);
 
 	jack_deactivate(client);
-	//fprintf(stderr,"jack client deactivated. ");
+	//fprintf(stderr,"JACK client deactivated. ");
 
 	int index=0;
 	while(ioPortArray[index]!=NULL && index<output_port_count)
@@ -69,10 +76,10 @@ void signal_handler(int sig)
 		jack_port_unregister(client,ioPortArray[index]);
 		index++;
 	}
-	//fprintf(stderr,"jack ports unregistered. ");
+	//fprintf(stderr,"JACK ports unregistered. ");
 
 	jack_client_close(client);
-	fprintf(stderr,"jack client closed. ");
+	fprintf(stderr,"JACK client closed. ");
 
 	fprintf(stderr,"done\n");
 	exit(0);
@@ -81,11 +88,15 @@ void signal_handler(int sig)
 //================================================================
 void jack_shutdown_handler (void *arg)
 {
-	fprintf(stderr, "jack server down!\n");
+	fprintf(stderr, "JACK server down!\n");
 	exit(1);	
 }
 
-int return_to_normal_operation=0;
+//================================================================
+void print_help()
+{
+	fprintf(stderr,"\ncommands:\n'CTRL+c' to enter step mode\nin step mode:\nenter a number to process n cycles\n'ENTER' to step one cycle\n'c+ENTER' to continue (leave step mode)\n'CTRL+c+ENTER' to quit\n'h' to show this help\n\n");
+}
 
 //================================================================
 int process(jack_nframes_t nframes, void *arg) 
@@ -95,6 +106,8 @@ int process(jack_nframes_t nframes, void *arg)
 	{
 		return 0;
 	}
+
+	cycle_count++;
 
 	//fill some samples
 /*
@@ -110,29 +123,69 @@ int process(jack_nframes_t nframes, void *arg)
 	}
 */
 
+	int frame_time_diff=jack_last_frame_time(client)-frame_time;
+	frame_time=jack_last_frame_time(client);
+
 	if(is_freewheeling)
 	{
-		fprintf(stderr,".%d ",cycle_count);
+		fprintf(stderr,"# %" PRId64 ", %" PRId64 " (+%d) "
+			,cycle_count,frame_time,frame_time_diff);
 
-		char c;
-		while (c=getchar()) 
+
+		if(run_n_cycles>1)
 		{
-			if(c=='\n') //next cycle
-			{
-				break;
-			}
-			else if(c=='c') //resume
-			{
-				return_to_normal_operation=1;
-				process_enabled=0;
-			}
+			fprintf(stderr,"\n");
+			run_n_cycles--;
+			return 0;
 		}
-	}
+
+		uint64_t nbytes=256;
+		char *input_line;
+		input_line = (char *) malloc (nbytes + 1);
+
+		int do_step=0;
+
+		while(!do_step)
+		{
+			uint64_t bytes_read = getline (&input_line, &nbytes, stdin);
+
+			//try read number
+			run_n_cycles=atoll(input_line);
+
+			if(run_n_cycles>0)
+			{
+				fprintf(stderr,"running for %" PRId64 " cycles\n",run_n_cycles);
+				do_step=1;
+			}
+			else
+			{
+				std::string in(input_line);
+
+				if(!in.compare(_continue))
+				{
+					return_to_normal_operation=1;
+					process_enabled=0;
+					do_step=1;
+				}
+				else if(!in.compare(_help))
+				{
+					print_help();
+				}
+				else if(!in.compare(_step))
+				{
+					do_step=1;
+				}
+				else
+				{
+					fprintf(stderr,"unknown command, enter 'h' for help.\n");
+				}
+			}
+		}//end while !do_step
+	}//end if is_freewheeling
 	else
 	{
-		fprintf(stderr,"=%d ",cycle_count);
+		fprintf(stderr,"\r# %d \033[0J",cycle_count);
 	}
-	cycle_count++;
 
 	return 0;
 }
@@ -141,13 +194,14 @@ int process(jack_nframes_t nframes, void *arg)
 void freewheel(int isfw, void *arg)
 {
 	is_freewheeling=isfw;
-	fprintf(stderr,"JACK went to freewheel mode %d\n"
-		,is_freewheeling);
 
 	if(is_freewheeling)
 	{
-		fprintf(stderr,"press enter to step one JACK cycle\nctrl+c+enter to quit\n'c+enter' to resume\n");
+		fprintf(stderr,"\n");
 	}
+
+	fprintf(stderr,"JACK went to freewheel mode %d\n"
+		,is_freewheeling);
 
 	process_enabled=1;
 }
@@ -155,6 +209,9 @@ void freewheel(int isfw, void *arg)
 //================================================================
 int main(int argc, char *argv[])
 {
+	fprintf(stderr,"jack_step - step JACK process cycles\n");
+	fprintf(stderr,"(C) 2015 Thomas Brand  <tom@trellis.ch>\n");
+
 	const char **ports;
 	jack_status_t status;
 
@@ -252,6 +309,8 @@ int main(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 
 //	jack_set_freewheel(client,1);
+
+	print_help();
 
 	process_enabled=1;
 
