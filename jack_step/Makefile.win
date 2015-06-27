@@ -1,4 +1,4 @@
-CC = i686-w64-mingw32-gcc
+CC = i686-w64-mingw32-g++
 PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
 
 CFLAGS = -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -w
@@ -16,7 +16,7 @@ jack_step:	$(SRC)/jack_step.c $(SRC)/weak_libjack.c
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` $(IFLAGS) -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_step.o $(SRC)/jack_step.c $(CFLAGS) $(IFLAGS)
-	$(CC) -o jack_step.exe $(BUILD)/jack_step.o $(BUILD)/weak_libjack.o $(CFLAGS) $(IFLAGS) -ldl
+	$(CC) -o jack_step.exe $(BUILD)/jack_step.o $(BUILD)/weak_libjack.o $(CFLAGS) $(IFLAGS)
 
 install: jack_step
 	install -m755 jack_step.exe $(INSTALLPATH)
