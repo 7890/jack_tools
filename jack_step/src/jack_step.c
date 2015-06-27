@@ -1,6 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
 #include <signal.h>
 #include <inttypes.h>
@@ -17,7 +15,6 @@
 
 #ifdef WIN32
 	#define bzero(p, l) memset(p, 0, l)
-	#define atoll(S) atoi64(S)
 #endif
 
 typedef jack_default_audio_sample_t sample_t;
@@ -45,9 +42,9 @@ uint64_t cycle_count=0; //incremented at start of cycle
 uint64_t frame_time=0;
 uint64_t run_n_cycles=0;
 
-std::string _continue("c\n");
-std::string _help("h\n");
-std::string _step("\n");
+std::string _continue("c");
+std::string _help("h");
+std::string _step("");
 
 //================================================================
 void signal_handler(int sig)
@@ -139,18 +136,20 @@ int process(jack_nframes_t nframes, void *arg)
 			return 0;
 		}
 
-		uint64_t nbytes=256;
-		char *input_line;
-		input_line = (char *) malloc (nbytes + 1);
-
 		int do_step=0;
+
+		std::string input_line;
 
 		while(!do_step)
 		{
-			uint64_t bytes_read = getline (&input_line, &nbytes, stdin);
+			std::getline (std::cin,input_line);
+
+			const char *in;
+			in = (char *) malloc (256 + 1);
+			in=input_line.c_str();
 
 			//try read number
-			run_n_cycles=atoll(input_line);
+			run_n_cycles=atoll(in);
 
 			if(run_n_cycles>0)
 			{
@@ -159,19 +158,17 @@ int process(jack_nframes_t nframes, void *arg)
 			}
 			else
 			{
-				std::string in(input_line);
-
-				if(!in.compare(_continue))
+				if(!input_line.compare(_continue))
 				{
 					return_to_normal_operation=1;
 					process_enabled=0;
 					do_step=1;
 				}
-				else if(!in.compare(_help))
+				else if(!input_line.compare(_help))
 				{
 					print_help();
 				}
-				else if(!in.compare(_step))
+				else if(!input_line.compare(_step))
 				{
 					do_step=1;
 				}
