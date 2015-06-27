@@ -8,15 +8,13 @@ BUILD ?= build
 
 INSTALLPATH=/usr/local/bin/
 
-#gcc -o register_jack_ports2 register_jack_ports2.c `pkg-config --cflags --libs jack sndfile` -pthread -w
-
 all:	jack_step
 
-jack_step:	$(SRC)/jack_step.c $(SRC)/weak_libjack.c
+jack_step:	$(SRC)/jack_step.c $(SRC)/weak_libjack.c Makefile
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
-	$(CC) -c -o $(BUILD)/jack_step.o $(SRC)/jack_step.c $(CFLAGS) `pkg-config --cflags --libs sndfile`
-	$(CC) -o jack_step $(BUILD)/jack_step.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread -ldl
+	$(CC) -c -o $(BUILD)/jack_step.o $(SRC)/jack_step.c $(CFLAGS)
+	$(CC) -o jack_step $(BUILD)/jack_step.o $(BUILD)/weak_libjack.o $(CFLAGS) -ldl
 
 install: jack_step
 	install -m755 jack_step $(INSTALLPATH)
