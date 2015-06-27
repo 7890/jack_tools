@@ -1,5 +1,5 @@
 #!/bin/bash
-# this script creates a windows32 version of audio_rxtx
+# this script creates a windows32 version of jack_playfile
 # cross-compiled on GNU/Linux
 #
 # this script is largely inspired by x-mingw.sh for Ardour / R. Gareus
