@@ -552,6 +552,7 @@ int main(int argc, char *argv[])
 	exit(0);
 }//end main
 
+//=============================================================================
 static void handle_key_hits()
 {
 	int rawkey=read_raw_key();
@@ -576,6 +577,11 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"\rquit received\033[0J\n");
 		shutdown_in_progress=1;
+	}
+	//'h' or 'f1': help
+	else if(rawkey==104 || rawkey==-80)
+	{
+		print_keyboard_shortcuts();
 	}
 	//'<' (arrow left): 
 	else if(rawkey==-68)
@@ -612,6 +618,20 @@ static void handle_key_hits()
 		seek_frames_absolute(frame_offset);
 	}
 }//end handle_key_hits()
+
+//=============================================================================
+static void print_keyboard_shortcuts()
+{
+	fprintf(stderr,"\rkeyboard shortcuts:\033[0J\n");
+
+	fprintf(stderr,"  h, f1:   help (this screen)\n");
+	fprintf(stderr,"  space:   toggle play/pause\n");
+	fprintf(stderr,"  left:    seek backward (2%%)\n");
+	fprintf(stderr,"  right:   seek forward (2%%)\n");
+	fprintf(stderr,"  home:    seek to start\n");
+	fprintf(stderr,"  q:       quit\n\n");
+
+}//end print_keyboard_shortcuts()
 
 //=============================================================================
 static int process(jack_nframes_t nframes, void *arg) 

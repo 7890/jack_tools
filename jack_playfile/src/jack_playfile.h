@@ -33,6 +33,7 @@ static const float version=0.5;
 //================================================================
 int main(int argc, char *argv[]);
 static void handle_key_hits();
+static void print_keyboard_shortcuts();
 
 static int process(jack_nframes_t nframes, void *arg);
 
