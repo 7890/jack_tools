@@ -1,70 +1,55 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <inttypes.h>
+#include "jack_playfile.h"
 
-#include <pthread.h>
-#include <sndfile.h>
-
-//#include <jack/jack.h>
-//#include <jack/ringbuffer.h>
-#include "weak_libjack.h"
-
-#define MAX(a,b) (((a)>(b))?(a):(b))
-#define MIN(a,b) (((a)<(b))?(a):(b))
-
-#ifdef WIN32
-       #define bzero(p, l) memset(p, 0, l)
-#endif
-
-typedef jack_default_audio_sample_t sample_t;
-
-//tb/150612
+//tb/150612+
 
 //simple file player for JACK
-//inspired by jack_play, libsndfile
-
-//gcc -o jack_playfile jack_playfile.c`pkg-config --cflags --libs jack sndfile` -pthread
-
-static float version=0.2;
+//inspired by jack_play, libsndfile, zresampler
 
 //command line arguments
 //======================
-static const char *filename=NULL;
+static const char *filename=NULL; //mandatory
 
 //start from absolute frame pos (skip n frames from start)
-static uint64_t frame_offset=0;
+static uint64_t frame_offset=0; //optional
 
-//number of frames to read & play from offset (0: all)
-static uint64_t frame_count=0;
+//number of frames to read & play from offset (if argument not provided or 0: all frames)
+static uint64_t frame_count=0; //optional, only in combination with offset
 //======================
 
-//how many ports the jack client will have
+//if set to 0, will not resample, even if file has different SR from JACK
+static int use_resampling=1;
+
+//if set to 1, connect available file channels to available physical outputs
+static int autoconnect_jack_ports=1;
+
+//if set to 1, will print stats
+static int debug=0;
+
+//if set to 1, will add "sample markers" for visual debugging in sisco
+static int add_markers=0;
+static float marker_first_sample_normal_jack_period=0.2;
+static float marker_last_sample_out_of_resampler=-0.5;
+static float marker_first_sample_last_jack_period=0.9;
+static float marker_pad_samples_last_jack_period=-0.2;
+static float marker_last_sample_last_jack_period=-0.9;
+
+//how many ports the JACK client will have
 //for now: will use the same count as file has channels
 static int output_port_count=0;
 
 //sndfile will read float, 4 bytes per sample
-//good to use with jack buffers 
+//good to use with JACK buffers 
 static int bytes_per_sample=4;//==sizeof(sample_t);
 
-//set after connection to jack succeeded
-static int jack_period_size=0;
+//set after connection to JACK succeeded
+static int jack_sample_rate=0;
+static int jack_period_frames=0;
+static float jack_cycles_per_second=0;
 
-//how many frames to read minimum via sndfile disk_read
-static int sndfile_request_frames_minimum=256;
+//how many bytes one sample (of one channel) is using in the file
+static int bytes_per_sample_native=0;
 
-//can't be smaller than jack_period_size (frames), will be adjusted
-static int sndfile_request_frames=0;
-
-//counter for efectively read frames
-//(may include more than requested frame_count because file is read in chunks)
-static long total_frames_read_from_file=0;
-//how many bytes to pad in last buffer (i.e. file EOF received or specific frame_count)
-static long last_cycle_pad_frames=0;
-
-//Array of pointers to jack input or output ports
+//array of pointers to JACK input or output ports
 static jack_port_t **ioPortArray;
 static jack_client_t *client;
 static jack_options_t jack_opts = JackNoStartServer;
@@ -74,141 +59,140 @@ static int process_enabled=0;
 static int shutdown_in_progress=0;
 static int shutdown_in_progress_signalled=0;
 
-//small buffer between file reader and process()
-static jack_ringbuffer_t *rb=NULL;
-
-//counter for process() cycles where ringbuffer didn't have enough data for one cycle
-//(one full period for every channel)
-static unsigned long long underruns=0;
-
-//Disk thread
+//disk thread
 static pthread_t disk_thread={0};
 static pthread_mutex_t disk_thread_lock=PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t data_ready=PTHREAD_COND_INITIALIZER;
+static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
 static int disk_thread_finished=0;
 
 //handle to currently playing file
 static SNDFILE *soundfile=NULL;
 
-void print_file_info(SF_INFO sf_info);
-void req_buffer_from_disk_thread();
-void setup_disk_thread();
+//holding basic audio file properties
+static SF_INFO sf_info;
+
+//reported by stat()
+static uint64_t file_size_bytes=0;
+
+//derive from sndfile infos or estimate based on filesize & framecount
+float file_data_rate_bytes_per_second=0;
+
+//JACK output bytes per second
+float jack_output_data_rate_bytes_per_second=0;
+
+//JACK output to file input byte ratio
+float out_to_in_byte_ratio=0;
+
+//JACK sr to file sr ratio
+static double out_to_in_sr_ratio=1;
+
+//zita-resampler
+static Resampler R;
+
+//quality (higher means better means more cpu)
+//valid range 16 to 96
+int RESAMPLER_FILTERSIZE=64;
+
+//ringbuffers
+//read from file, write to rb_interleaved (in case of resampling)
+static jack_ringbuffer_t *rb_interleaved=NULL;
+//read from file, write (directly) to rb_resampled_interleaved (in case of no resampling), rb_interleaved unused/skipped
+//read from rb_interleaved, resample and write to rb_resampled_interleaved (in case of resampling)
+static jack_ringbuffer_t *rb_resampled_interleaved=NULL;
+//read from rb_resampled_interleaved, write to rb_deinterleaved
+static jack_ringbuffer_t *rb_deinterleaved=NULL;
+//read from rb_deinterleaved, write to jack output buffers in JACK process()
+
+//how many frames to read per request
+static int sndfile_request_frames=0;
+
+//counters
+
+//JACK process cycles (not counted if process_enabled==0 or shutdown_in_progress==1)
+//first cycle indicated as 1
+static uint64_t process_cycle_count=0;
+
+//disk reads
+//first cycle indicated as 1
+static uint64_t disk_read_cycle_count=0;
+
+//counter for process() cycles where ringbuffer didn't have enough data for one cycle
+//(one full period for every channel)
+static uint64_t process_cycle_underruns=0;
+
+static uint64_t total_bytes_read_from_file=0;
+
+static uint64_t total_frames_read_from_file=0;
+
+static uint64_t total_frames_pushed_to_jack=0;
+
+//in disk thread, detect if 'frame_count' was read from file
+static int all_frames_read=0;
+
+//in resample(), detect when all requested frames were resampled
+static int resampling_finished=0;
+
+//frames put to resampler, without start/end padding
+static uint64_t total_input_frames_resampled=0;
 
 //================================================================
-void signal_handler(int sig)
+//================================================================
+static void release_ringbuffers()
 {
-	fprintf(stderr,"total underruns: %d\n",underruns);
-	if(sig!=42)
-	{
-		fprintf(stderr, "terminate signal %d received. cleaning up... ",sig);
-	}
-	process_enabled=0;
-
-	jack_deactivate(client);
-	//fprintf(stderr,"jack client deactivated. ");
-
-	int index=0;
-	while(ioPortArray[index]!=NULL && index<output_port_count)
-	{
-		jack_port_unregister(client,ioPortArray[index]);
-		index++;
-	}
-	//fprintf(stderr,"jack ports unregistered. ");
-
-	jack_client_close(client);
-	fprintf(stderr,"jack client closed. ");
-
-	if(rb!=NULL)
-	{
-		jack_ringbuffer_free(rb);
-	}
-	//fprintf(stderr,"ringbuffer freed. ");
-
-	if(!disk_thread_finished)
-	{
-		// Close soundfile
-		if(soundfile!=NULL)
-		{
-			sf_close (soundfile);
-			//fprintf(stderr,"soundfile closed. ");
-		}
-
-		pthread_mutex_unlock (&disk_thread_lock);
-		fprintf(stderr,"disk thread finished. ");
-	}
-	fprintf(stderr,"done\n");
-	exit(0);
+//	fprintf(stderr,"releasing ringbuffers\n");
+	jack_ringbuffer_free(rb_interleaved);
+	jack_ringbuffer_free(rb_resampled_interleaved);
+	jack_ringbuffer_free(rb_deinterleaved);
 }
 
 //================================================================
-void jack_shutdown_handler (void *arg)
+//================================================================
+static int get_resampler_pad_size_start()
 {
-	fprintf(stderr, "jack server down!\n");
-	exit(1);	
+	return R.inpsize()-1;
+//	return R.inpsize()/2-1;
 }
 
 //================================================================
-int process(jack_nframes_t nframes, void *arg) 
+//================================================================
+static int get_resampler_pad_size_end()
 {
-	if(!process_enabled
-		|| shutdown_in_progress)
-	{
-		return 0;
-	}
-
-	//fprintf(stderr,".");
-
-	if(jack_ringbuffer_read_space(rb) < output_port_count * sizeof(sample_t)*nframes)
-	{
-		underruns++;
-		fprintf(stderr,"!");
-		int i;
-		for(i=0; i<output_port_count; i++)
-		{
-			if(!process_enabled)
-			{
-				return 0;
-			}
-			sample_t *o1;
-			//get output buffer from jack for that channel
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
-			//set all samples zero
-			memset(o1, 0, bytes_per_sample*nframes);
-			/*int j=0;for(j=0;j<nframes;j++){o1[j]=0.3;}*/
-		}
-
-		if(disk_thread_finished)
-		{
-			shutdown_in_progress=1;
-			return 0;
-		}
-	}
-	else
-	{
-		int i;
-		for(i=0; i<output_port_count; i++)
-		{
-			if(!process_enabled)
-			{
-				return 0;
-			}
-			sample_t *o1;			
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
-			//put samples from ringbuffer to jack output buffer
-			jack_ringbuffer_read(rb, (char*)o1, bytes_per_sample*nframes);
-		}
-	}
-	//===
-	req_buffer_from_disk_thread();
-	return 0;
+//	return R.inpsize()-1;
+	return R.inpsize()/2-1;
 }
 
+//================================================================
+//================================================================
+static void print_stats()
+{
+	if(!debug)
+	{
+		return;
+	}
+
+	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %d resampled %d deinterleaved %d resampling finished %d all frames read %d disk thread finished %d\n"
+		,process_cycle_count
+		,disk_read_cycle_count
+		,process_cycle_underruns
+		,total_bytes_read_from_file
+
+		,total_frames_read_from_file
+		,total_input_frames_resampled
+		,total_frames_pushed_to_jack
+
+		,jack_ringbuffer_read_space(rb_interleaved)          /output_port_count/bytes_per_sample
+		,jack_ringbuffer_read_space(rb_resampled_interleaved)/output_port_count/bytes_per_sample
+		,jack_ringbuffer_read_space(rb_deinterleaved)        /output_port_count/bytes_per_sample
+		,resampling_finished
+		,all_frames_read
+		,disk_thread_finished
+	);
+}
+
+//================================================================
 //================================================================
 int main(int argc, char *argv[])
 {
-	// Make STDOUT unbuffered
-	setbuf(stdout, NULL);
-
 	if( argc < 2	
 		|| (argc >= 2 && 
 			( strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
@@ -216,7 +200,7 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr,"jack_playfile v%1.1f - (c) 2015 Thomas Brand <tom@trellis.ch>\n\n",version);
 		fprintf(stderr,"syntax: jack_playfile <file> [frame offset [frame count]]\n\n");
-		return(0);
+		exit(0);
 	}
 	else if (argc >= 2)
 	{
@@ -233,9 +217,8 @@ int main(int argc, char *argv[])
 		frame_count=atoi(argv[3]);
 	}
 
-	SF_INFO sf_info;
 	memset (&sf_info, 0, sizeof (sf_info)) ;
-/*
+	/*
 	typedef struct
 	{ sf_count_t  frames ; //Used to be called samples.
 	  int         samplerate ;
@@ -244,26 +227,53 @@ int main(int argc, char *argv[])
 	  int         sections ;
 	  int         seekable ;
         } SF_INFO ;
-*/
+	*/
 
-	// Init soundfile
+	//init soundfile
 	soundfile=sf_open(filename,SFM_READ,&sf_info);
 	if(soundfile==NULL)
 	{
-		fprintf (stderr, "cannot open file \"%s\"\n(%s)\n", filename, sf_strerror(NULL));
-		return 1;
+		fprintf (stderr, "/!\\ cannot open file \"%s\"\n(%s)\n", filename, sf_strerror(NULL));
+		exit(1);
 	}
 	sf_close (soundfile);
 
-	//fprintf(stderr,"file:        %s\n",filename);
-	print_file_info(sf_info);
+	struct stat st;
+	stat(filename, &st);
+	file_size_bytes = st.st_size;
 
-	//for now: just create as many jack client output ports as the file has channels
+	fprintf(stderr,"file:        %s\n",filename);
+	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
+
+	//for now: just create as many JACK client output ports as the file has channels
 	output_port_count=sf_info.channels;
+
 	if(output_port_count<=0)
 	{
-		fprintf(stderr,"file has zero channels, nothing to play!\n");
-		return 1;
+		fprintf(stderr,"/!\\ file has zero channels, nothing to play!\n");
+		exit(1);
+	}
+
+	bytes_per_sample_native=file_info(sf_info,1);
+
+	if(bytes_per_sample_native<=0)
+	{
+		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
+		file_data_rate_bytes_per_second=(float)file_size_bytes
+			/get_seconds(&sf_info);
+
+		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
+			,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+	}
+	else
+	{
+		file_data_rate_bytes_per_second=sf_info.samplerate * output_port_count * bytes_per_sample_native;
+		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+	}
+
+	if( (file_data_rate_bytes_per_second/1000000) > 20 )
+	{
+		fprintf(stderr,"/!\\ this is a relatively high data rate\n");
 	}
 
 	//offset can't be negative or greater total frames in file
@@ -296,9 +306,22 @@ int main(int argc, char *argv[])
 		fprintf(stderr,"frame_count set to %d\n",frame_count);
 	}
 
+	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"\n"
+		,frame_offset
+		/*,sf_info.frames*/
+		,MIN(sf_info.frames,frame_offset+frame_count)
+		,frame_count);
+
+	if(have_libjack()!=0)
+	{
+		fprintf(stderr,"/!\\ libjack not found (JACK not installed?).\nthis is fatal: jack_playfile needs JACK to run.\n");
+		fprintf(stderr,"see http://jackaudio.org for more information on the JACK Audio Connection Kit.\n");
+		exit(1);
+	}
 	const char **ports;
 	jack_status_t status;
 
+	//===
 	const char *client_name="jack_playfile";
 
 	//create an array of output ports
@@ -309,18 +332,79 @@ int main(int argc, char *argv[])
 
 	if (client == NULL) 
 	{
-		fprintf (stderr, "jack_client_open() failed, status = 0x%2.0x\n", status);
+		fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", status);
 		exit(1);
 	}
 
-	if(sf_info.samplerate!=jack_get_sample_rate(client))
+	jack_period_frames=jack_get_buffer_size(client);
+	jack_sample_rate=jack_get_sample_rate(client);
+
+	jack_cycles_per_second=(float)jack_sample_rate / jack_period_frames;
+	jack_output_data_rate_bytes_per_second=jack_sample_rate * output_port_count * bytes_per_sample;
+	out_to_in_byte_ratio=jack_output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
+
+	fprintf(stderr,"JACK period size: %d frames\n",jack_period_frames);
+	fprintf(stderr,"JACK cycles per second: %.2f\n",jack_cycles_per_second);
+	fprintf(stderr,"JACK sample rate: %d\n",jack_sample_rate);
+	fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack_output_data_rate_bytes_per_second
+		,(jack_output_data_rate_bytes_per_second/1000000));
+	fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
+
+	/*
+	downsampling (ratio>1)
+	in: 10
+	out: 2
+	out_to_in: 10/2 = 5
+	read 10 samples for 2 output samples
+	read 5 samples for 1 output sample
+
+	upsampling (ratio<1)
+	in: 2
+	out: 10
+	out_to_in: 2/10 = 0.2
+	read two samples for 10 output samples
+	read 0.2 samples for 1 output sample
+
+	file 44100, jack 96000 -> 0.459375
+	for one jack_period_frames, we need at least period_size * out_to_in_sr_ratio frames from input
+	*/
+
+	//sampling rate ratio output (JACK) to input (file)
+	out_to_in_sr_ratio=(double)jack_sample_rate/sf_info.samplerate;
+
+	//ceil: request a bit more than needed to satisfy ratio
+	//will result in inp_count>0 after process ("too much" input for out/in ratio, will always have output)
+
+	if(use_resampling)
 	{
-		fprintf(stderr, "/!\\ file sample rate (%d Hz) different from JACK rate (%d Hz)\n"
-			,sf_info.samplerate
-			,jack_get_sample_rate(client));
+		sndfile_request_frames=ceil(jack_period_frames * (double)1/out_to_in_sr_ratio);
+	}
+	else
+	{
+		sndfile_request_frames=jack_period_frames;
 	}
 
-	jack_period_size=jack_get_buffer_size(client);
+	///
+	int rb_interleaved_size_bytes		=100 * sndfile_request_frames    * output_port_count * bytes_per_sample;
+	int rb_resampled_interleaved_size_bytes	=100 * jack_period_frames        * output_port_count * bytes_per_sample;
+	int rb_deinterleaved_size_bytes		=100 * jack_period_frames        * output_port_count * bytes_per_sample;
+
+	rb_interleaved=jack_ringbuffer_create (rb_interleaved_size_bytes);
+	rb_resampled_interleaved=jack_ringbuffer_create (rb_resampled_interleaved_size_bytes);
+	rb_deinterleaved=jack_ringbuffer_create (rb_deinterleaved_size_bytes);
+
+/*
+	fprintf(stderr,"frames: request %d rb_interleaved %d rb_resampled_interleaved %d rb_deinterleaved %d\n"
+		,sndfile_request_frames
+		,rb_interleaved_size_bytes/output_port_count/bytes_per_sample
+		,rb_resampled_interleaved_size_bytes/output_port_count/bytes_per_sample
+		,rb_deinterleaved_size_bytes/output_port_count/bytes_per_sample
+	);
+*/
+
+	setup_resampler();
+
+	setup_disk_thread();
 
 	jack_set_process_callback (client, process, NULL);
 
@@ -328,41 +412,47 @@ int main(int argc, char *argv[])
 	//was lost (i.e. client zombified)
 	jack_on_shutdown(client, jack_shutdown_handler, 0);
 
-	// Register each output port
-	int port=0;
-	for (port=0 ; port<output_port_count ; port ++)
+	//register each output port
+	for (int port=0 ; port<output_port_count ; port ++)
 	{
-		// Create port name
+		//create port name
 		char* portName;
 		if (asprintf(&portName, "output_%d", (port+1)) < 0) 
 		{
-			fprintf(stderr, "Could not create portname for port %d\n", port);
+			fprintf(stderr, "/!\\ could not create portname for port %d\n", port);
+			release_ringbuffers();
 			exit(1);
 		}
 
-		// Register the output port
+		//register the output port
 		ioPortArray[port] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 		if (ioPortArray[port] == NULL) 
 		{
-			fprintf(stderr, "Could not create output port %d\n", (port+1));
+			fprintf(stderr, "/!\\ could not create output port %d\n", (port+1));
+			release_ringbuffers();
 			exit(1);
 		}
 	}
+
+
+	//request first chunk from file
+	req_buffer_from_disk_thread();
 
 	//now activate client in JACK, starting with process() cycles
 	if (jack_activate (client)) 
 	{
-		fprintf (stderr, "cannot activate client\n\n");
+		fprintf (stderr, "/!\\ cannot activate client\n\n");
+		release_ringbuffers();
 		exit(1);
 	}
 
-/*
-const char** jack_get_ports 	( jack_client_t *,
-		const char *  	port_name_pattern,
-		const char *  	type_name_pattern,
-		unsigned long  	flags 
+	/*
+	const char** jack_get_ports 	( jack_client_t *,
+			const char *  	port_name_pattern,
+			const char *  	type_name_pattern,
+			unsigned long  	flags 
 	) 	
-*/
+	*/
 	//prevent to get physical midi ports
 	const char* pat="audio";
 
@@ -370,12 +460,23 @@ const char** jack_get_ports 	( jack_client_t *,
 				JackPortIsPhysical|JackPortIsTerminal|JackPortIsInput);
 	if (ports == NULL) 
 	{
-		fprintf(stderr, "no physical capture ports found\n");
+		fprintf(stderr, "/!\\ no physical capture ports found\n");
+		release_ringbuffers();
 		exit(1);
 	}
-	
-	int autoconnect=1;
-	if(autoconnect)
+
+	//test (stereo)
+	if(false)
+	{
+		const char *left_out= "Simple Scope (Stereo) GTK:in1";
+		const char *right_out="Simple Scope (Stereo) GTK:in2";
+		jack_connect (client, jack_port_name(ioPortArray[0]) , left_out);
+		jack_connect (client, jack_port_name(ioPortArray[1]) , right_out);
+		//override
+		autoconnect_jack_ports=0;
+	}
+
+	if(autoconnect_jack_ports)
 	{
 		int j=0;
 		int i=0;
@@ -389,15 +490,13 @@ const char** jack_get_ports 	( jack_client_t *,
 				{
 					//used variabled can't be NULL here
 					fprintf (stderr, "autoconnect: %s -> %s\n",
-						jack_port_name(ioPortArray[j]),ports[i]
-					);
+						jack_port_name(ioPortArray[j]),ports[i]);
 					j++;
 				}
 				else
 				{
 					fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-						jack_port_name(ioPortArray[j]),ports[i]
-					);
+						jack_port_name(ioPortArray[j]),ports[i]);
 				}
 			}
 		}
@@ -408,17 +507,10 @@ const char** jack_get_ports 	( jack_client_t *,
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	//take larger value
-	sndfile_request_frames=MAX(sndfile_request_frames_minimum,jack_period_size);
-
-	//===
-	rb=jack_ringbuffer_create (50*sndfile_request_frames*output_port_count*bytes_per_sample);
-
 	process_enabled=1;
+//	fprintf(stderr,"process_enabled\n");
 
-	setup_disk_thread();
-
-	//run possibly forever until not interrupted by any means
+	//run until interrupted
 	while (1) 
 	{
 		//try clean shutdown, mainly to avoid possible audible glitches 
@@ -436,442 +528,696 @@ const char** jack_get_ports 	( jack_client_t *,
 	exit(0);
 }//end main
 
-//=============================================================================
-static int disk_read(SNDFILE *soundfile,sample_t *buffer,size_t frames_requested)
+//================================================================
+//================================================================
+static int process(jack_nframes_t nframes, void *arg) 
 {
-	int file_nchannels=output_port_count;
-
-	if(total_frames_read_from_file>=frame_count)
+	if(shutdown_in_progress || !process_enabled)
 	{
+//		fprintf(stderr,"process(): process not enabled or shutdown in progress\n");
 		return 0;
 	}
 
-	sf_count_t frames_read_from_file;
-
-	//===
-	frames_read_from_file=sf_readf_float(soundfile,buffer,frames_requested);
-
-	//now interleaved data in buffer
-	if(frames_read_from_file!=0)
+	if(nframes!=jack_period_frames)
 	{
-		total_frames_read_from_file+=frames_read_from_file;
-/*
-		fprintf(stderr,"in disk_read: frames read %d total %d\n"
-			,frames_read_from_file,total_frames_read_from_file);
-*/
-		// A partial read can occur at the end of the file.	Zero out
-		// any part of the buffer not written by sf_readf_float().
-		if(frames_read_from_file!=frames_requested)
+		fprintf(stderr,"/!\\ process(): JACK period size has changed during playback.\njack_playfile can't handle that :(\n");
+		shutdown_in_progress=1;
+		return 0;
+	}
+
+	resample();
+	deinterleave();
+
+	if(all_frames_read
+		&& jack_ringbuffer_read_space(rb_interleaved)==0
+		&& jack_ringbuffer_read_space(rb_resampled_interleaved)==0
+		&& jack_ringbuffer_read_space(rb_deinterleaved)==0)
+	{
+//		fprintf(stderr,"process(): diskthread finished and no more data in rb_interleaved, rb_resampled_interleaved, rb_deinterleaved\n");
+//		fprintf(stderr,"process(): shutdown condition 1 met\n");
+
+		//fill buffers with silence (last cycle before shutdown (?))
+		for(int i=0; i<output_port_count; i++)
 		{
-			last_cycle_pad_frames=frames_requested-frames_read_from_file;
-			fprintf(stderr,"partial read at end of file %d %d\n"
-				,frames_read_from_file, last_cycle_pad_frames);
+			sample_t *o1;
+			//get output buffer from JACK for that channel
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+			//set all samples zero
+			memset(o1, 0, jack_period_frames*bytes_per_sample);
+		}
 
-			long read_end_diff=0;
+		shutdown_in_progress=1;
+		return 0;
+	}
 
-			if(total_frames_read_from_file>frame_count)
+	//count at start of enabled cycles (1st cycle = #1)
+	process_cycle_count++;
+
+	//normal operation
+	if(jack_ringbuffer_read_space(rb_deinterleaved) 
+		>= jack_period_frames * output_port_count * bytes_per_sample)
+	{
+//		fprintf(stderr,"process(): normal output to JACK buffers in cycle %" PRId64 "\n",process_cycle_count);
+		for(int i=0; i<output_port_count; i++)
+		{
+			sample_t *o1;			
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+			//put samples from ringbuffer to JACK output buffer
+			jack_ringbuffer_read(rb_deinterleaved
+				,(char*)o1
+				,jack_period_frames * bytes_per_sample);
+
+			if(add_markers)
 			{
-				read_end_diff=(total_frames_read_from_file-frame_count);
+				o1[0]=marker_first_sample_normal_jack_period;
+			}
+		}
+		total_frames_pushed_to_jack+=jack_period_frames;
 
-				///
-				if(last_cycle_pad_frames+read_end_diff < jack_period_size)
+		print_stats();
+	}
+
+	//partial data left
+	else if(all_frames_read && jack_ringbuffer_read_space(rb_deinterleaved)>0)
+	{
+		int remaining_frames=jack_ringbuffer_read_space(rb_deinterleaved)/output_port_count/bytes_per_sample;
+
+//		fprintf(stderr,"process(): partial data, remaining frames in db_deinterleaved:  %d\n", remaining_frames);
+
+		//use what's available
+		for(int i=0; i<output_port_count; i++)
+		{
+			sample_t *o1;			
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+			//put samples from ringbuffer to JACK output buffer
+			jack_ringbuffer_read(rb_deinterleaved
+				,(char*)o1
+				,remaining_frames * bytes_per_sample);
+
+			if(add_markers)
+			{
+				o1[0]=marker_first_sample_last_jack_period;
+			}
+
+			//pad the rest to have a full JACK period
+			for(int i=0;i<jack_period_frames-remaining_frames;i++)
+			{
+				if(add_markers)
 				{
-					last_cycle_pad_frames+=read_end_diff;
+					o1[remaining_frames+i]=marker_pad_samples_last_jack_period;
 				}
 				else
 				{
-					///
-					fprintf(stderr,"bad!!\n");
+					o1[remaining_frames+i]=0;
 				}
 			}
 
-			fprintf(stderr,"final padding %d %d\n",(frames_read_from_file-read_end_diff), last_cycle_pad_frames);
-
-			bzero(buffer+(frames_read_from_file-read_end_diff)*file_nchannels
-				,last_cycle_pad_frames*file_nchannels*sizeof(buffer[0]));
+			if(add_markers)
+			{
+				o1[jack_period_frames-1]=marker_last_sample_last_jack_period;
+			}
 		}
 
-		if(total_frames_read_from_file>frame_count 
-			&& frames_read_from_file==frames_requested)
-		{
-			last_cycle_pad_frames=total_frames_read_from_file-frame_count;
+		//don't count pad frames
+		total_frames_pushed_to_jack+=remaining_frames;
 
-			fprintf(stderr,"last cycle padding read/start/length: %d %d %d\n"
-				,frames_read_from_file,last_cycle_pad_frames
-				,(frames_read_from_file-last_cycle_pad_frames));
+//		fprintf(stderr,"process(): rb_deinterleaved can read after last samples (expected 0) %d\n"
+//			,jack_ringbuffer_read_space(rb_deinterleaved));
 
-			bzero(buffer+(frames_read_from_file-last_cycle_pad_frames)*file_nchannels
-				,last_cycle_pad_frames*file_nchannels*sizeof(buffer[0]));
-		}
-		return 1;
+		//other logic will detect shutdown condition met to clear buffers
+		return 0;
+	}//end partial data
+	else
+	{
+		//this should not happen
+		process_cycle_underruns++;
+
+		fprintf(stderr,"process(): /!\\ ======== underrun\n");
+
+		print_stats();
+//		shutdown_in_progress=1;
+		return 0;
 	}
-	// If no frames were read assume we're at EOF
-	return 0;
-}
 
+	req_buffer_from_disk_thread();
+
+	return 0;
+}//end process()
+
+//================================================================
+//================================================================
+static void setup_resampler()
+{
+	//test if resampling needed
+	if(out_to_in_sr_ratio!=1)//sf_info.samplerate!=jack_sample_rate)
+	{
+//		fprintf(stderr, "file sample rate different from JACK sample rate\n");
+
+		if(use_resampling)
+		{
+			//prepare resampler for playback with given jack samplerate
+			/*
+			//http://kokkinizita.linuxaudio.org/linuxaudio/zita-resampler/resampler.html
+			FILTSIZE: The valid range for hlen is 16 to 96.
+			...it should be clear that 
+			hlen = 32 should provide very high quality for F_min equal to 48 kHz or higher, 
+			while hlen = 48 should be sufficient for an F_min of 44.1 kHz. 
+			*/
+
+			//setup returns zero on success, non-zero otherwise. 
+			if (R.setup (sf_info.samplerate, jack_sample_rate, sf_info.channels, RESAMPLER_FILTERSIZE))
+			{
+				fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
+					,jack_sample_rate,sf_info.samplerate);
+				use_resampling=0;
+			}
+			else
+			{
+				/*
+				The inpsize () member returns the lenght of the FIR filter expressed in input samples. 
+				At least this number of samples is required to produce an output sample.
+
+				inserting inpsize() / 2 - 1 zero-valued samples at the start will align the first input and output samples.
+				inserting k - 1 zero valued samples will ensure that the output includes the full filter response for the first input sample.
+				*/
+				//initialize resampler
+				R.reset();
+
+				R.inp_data=0;
+////////////////////
+				R.inp_count=get_resampler_pad_size_start();
+				//pad with zero
+				R.out_data=0;
+				R.out_count=1;
+				R.process();
+/*
+				fprintf(stderr,"resampler init: inp_count %d out_count %d\n",R.inp_count,R.out_count);
+				fprintf (stderr, "resampler initialized: inpsize() %d inpdist() %.2f sr in %d sr out %d out/in ratio %f\n"
+					,R.inpsize()
+					,R.inpdist()
+					,sf_info.samplerate
+					,jack_sample_rate
+					,out_to_in_sr_ratio);
+*/
+
+			}//end resampler setup
+ 		}//end if use_resampling
+		else
+		{
+			fprintf(stderr,"will play file without resampling.\n");
+		}
+	}//end unequal in/out sr
+}//end setup_resampler()
+
+//================================================================
+//================================================================
+static void resample()
+{
+	if(out_to_in_sr_ratio==1.0 || !use_resampling || resampling_finished)
+	{
+		resampling_finished=1;
+
+		//no need to do anything
+		return;
+	}
+
+//	fprintf(stderr,"resample() called\n");
+
+	//normal operation
+	if(jack_ringbuffer_read_space(rb_interleaved) 
+		>= sndfile_request_frames * output_port_count * bytes_per_sample)
+        {
+
+//		fprintf(stderr,"resample(): normal operation\n");
+
+		float *interleaved_frame_buffer=new float [sndfile_request_frames * output_port_count];
+		float *buffer_resampling_out=new float [jack_period_frames * output_port_count];
+
+		//condition to jump into while loop
+		R.out_count=1;
+
+		int resampler_loop_counter=0;
+		while(R.out_count>0)
+		{
+			//read from rb_interleaved, just peek / don't move read pointer yet
+			jack_ringbuffer_peek(rb_interleaved
+				,(char*)interleaved_frame_buffer
+				,sndfile_request_frames * output_port_count * bytes_per_sample);
+			
+			//configure for next resampler process cycle
+			R.inp_data=interleaved_frame_buffer;
+			R.inp_count=sndfile_request_frames;
+			R.out_data=buffer_resampling_out;
+			R.out_count=jack_period_frames;
+
+//			fprintf(stderr,"--- resample(): before inpcount %d outcount %d\n",R.inp_count,R.out_count);
+			R.process();
+//			fprintf(stderr,"--- resample(): after inpcount %d outcount %d loop %d\n",R.inp_count,R.out_count,resampler_loop_counter);
+
+			if(R.inp_count>0)
+			{
+//				fprintf(stderr,"resample(): /!\\ after process r.inp_count %d\n",R.inp_count);
+				//this probably means that the remaining input sample is not yet processed to out
+				//we'll use it again for the next cycle (feed as the first sample of the next processing block)
+			}
+
+			//advance - remaining inp_count!
+			jack_ringbuffer_read_advance(rb_interleaved
+				,(sndfile_request_frames-R.inp_count) * output_port_count * bytes_per_sample);
+
+			total_input_frames_resampled+=(sndfile_request_frames-R.inp_count);
+
+			resampler_loop_counter++;
+		}//end while(R.out_count>0)
+
+		//finally write resampler output to rb_resampled_interleaved
+		jack_ringbuffer_write(rb_resampled_interleaved
+			,(const char*)buffer_resampling_out
+			,jack_period_frames * output_port_count * bytes_per_sample);
+
+		delete[] interleaved_frame_buffer;
+		delete[] buffer_resampling_out;
+	}
+
+	//finished with partial or no data left, feed zeroes at end
+	else if(all_frames_read && jack_ringbuffer_read_space(rb_interleaved)>=0)
+	{
+		int frames_left=jack_ringbuffer_read_space(rb_interleaved)/output_port_count/bytes_per_sample;
+
+//		fprintf(stderr,"resample(): partial data in rb_interleaved (frames): %d\n",frames_left);
+
+		//adding zero pad to get full output of resampler
+
+////////////////////
+		int final_frames=frames_left + get_resampler_pad_size_end();
+
+		float *interleaved_frame_buffer=new float [ final_frames  * output_port_count];
+		float *buffer_resampling_out=new float [ ( (int)(out_to_in_sr_ratio * final_frames) ) * output_port_count ];
+
+		//read from rb_interleaved
+		jack_ringbuffer_read(rb_interleaved
+			,(char*)interleaved_frame_buffer
+			,frames_left * output_port_count * bytes_per_sample);
+			
+		//configure resampler for next process cycle
+		R.inp_data=interleaved_frame_buffer;
+		R.inp_count=final_frames;
+
+		R.out_data=buffer_resampling_out;
+		R.out_count=(int) (out_to_in_sr_ratio * final_frames);
+
+//		fprintf(stderr,"LAST before inpcount %d outcount %d\n",R.inp_count,R.out_count);
+		R.process();
+//		fprintf(stderr,"LAST after inpcount %d outcount %d\n",R.inp_count,R.out_count);
+
+		//don't count zero padding frames
+		total_input_frames_resampled+=frames_left;
+
+		if(add_markers)
+		{
+			//index of last sample of first channel
+			int last_sample_index=( (int)(out_to_in_sr_ratio * final_frames) ) * output_port_count - output_port_count;
+
+			//mark last samples of all channels
+			for(int i=0;i<output_port_count;i++)
+			{
+				buffer_resampling_out[last_sample_index+i]  =marker_last_sample_out_of_resampler;
+			}
+		}
+
+		//finally write resampler output to rb_resampled_interleaved
+		jack_ringbuffer_write(rb_resampled_interleaved
+			,(const char*)buffer_resampling_out
+			,(int)(out_to_in_sr_ratio * final_frames) * output_port_count * bytes_per_sample);
+
+////////////////////
+//		delete[] interleaved_frame_buffer;
+//		delete[] buffer_resampling_out;
+
+		resampling_finished=1;
+	}
+	else
+	{
+////////////////////
+		fprintf(stderr,"/!\\ this should not happen\n");
+	}
+
+	print_stats();
+
+}//end resample()
+
+//================================================================
+//================================================================
+static void deinterleave()
+{
+//	fprintf(stderr,"deinterleave called\n");
+
+	if(all_frames_read && jack_ringbuffer_read_space(rb_resampled_interleaved)==0)
+	{
+		//nothing to do
+//		fprintf(stderr,"deinterleave(): disk thread finished and no more data in rb_resampled_interleaved\n");
+		return;
+	}
+
+	int resampled_frames_avail=jack_ringbuffer_read_space(rb_resampled_interleaved)/output_port_count/bytes_per_sample;
+
+	//if not limited, deinterleaved block align borked
+	int resampled_frames_use=MIN(resampled_frames_avail,jack_period_frames);
+//	fprintf(stderr,"deinterleave(): resampled frames avail: %d use: %d\n",resampled_frames_avail,resampled_frames_use);
+
+	//deinterleave from resampled
+	if(
+		(resampled_frames_use >= 1)
+			&&
+		(jack_ringbuffer_write_space(rb_deinterleaved) 
+			>= jack_period_frames * output_port_count * bytes_per_sample)
+	)
+	{
+//		fprintf(stderr,"deinterleave(): deinterleaving\n");
+
+		void *data_resampled_interleaved;
+		data_resampled_interleaved=malloc(resampled_frames_use * output_port_count * bytes_per_sample);
+
+		jack_ringbuffer_read(rb_resampled_interleaved
+			,(char*)data_resampled_interleaved
+			,resampled_frames_use * output_port_count * bytes_per_sample);
+
+		int bytepos_channel=0;
+
+		for(int channel_loop=0; channel_loop < output_port_count; channel_loop++)
+		{
+			bytepos_channel=channel_loop * bytes_per_sample;
+			int bytepos_frame=0;
+
+			for(int frame_loop=0; frame_loop < resampled_frames_use; frame_loop++)
+
+			{
+				bytepos_frame=bytepos_channel + frame_loop * output_port_count * bytes_per_sample;
+				//read 1 sample
+
+				float f1=*( (float*)(data_resampled_interleaved + bytepos_frame) );
+
+				//===
+				//f1*=0.5;
+
+				//put to ringbuffer
+				jack_ringbuffer_write(rb_deinterleaved
+					,(char*)&f1
+					,bytes_per_sample);
+
+			}//frame
+		}//channel
+
+		free(data_resampled_interleaved);
+//		fprintf(stderr,"deinterleave(): done\n");
+	}//end if enough data to deinterleave
+/*
+	else
+	{
+		fprintf(stderr,"deinterleave(): no deinterleave action in cycle # %"PRId64". frames resampled read space %d deinterleaved write space %d\n"
+			,process_cycle_count
+			,jack_ringbuffer_read_space(rb_resampled_interleaved) / output_port_count / bytes_per_sample
+			,jack_ringbuffer_write_space(rb_deinterleaved) / output_port_count / bytes_per_sample );
+
+	}
+*/
+}//end deinterleave()
+
+//=============================================================================
+//static int disk_read_frames(SNDFILE *soundfile, sample_t *sf_float_buffer, size_t frames_requested)
+//static int disk_read_frames(SNDFILE *soundfile, size_t frames_requested)
+static int disk_read_frames(SNDFILE *soundfile)
+{
+//	fprintf(stderr,"disk_read_frames() called\n");
+
+	if(total_frames_read_from_file>=frame_count)
+	{
+		all_frames_read=1;
+		return 0;
+	}
+
+	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
+//	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
+
+	sf_count_t frames_read_from_file=0;
+	int buf_avail=0;
+	jack_ringbuffer_data_t write_vec[2];
+
+	if(out_to_in_sr_ratio==1.0 || !use_resampling)
+	{
+		//directly write to rb_resampled_interleaved (skipping rb_interleaved)
+		jack_ringbuffer_get_write_vector (rb_resampled_interleaved, write_vec) ;
+	}
+	else 
+	{
+		//write to rb_interleaved
+		jack_ringbuffer_get_write_vector (rb_interleaved, write_vec) ;
+	}
+
+	//common
+	//only read/write as many frames as requested (frame_count)
+	//respecting available split buffer lengths and given read chunk size (sndfile_request_frames)
+	int frames_read_=0;
+	int frames_read =0;
+
+	if (write_vec [0].len)
+	{
+		buf_avail = write_vec [0].len / output_port_count / bytes_per_sample ;
+
+		frames_read_=MIN(frames_to_go,sndfile_request_frames);
+		frames_read=MIN(frames_read_,buf_avail);
+
+		//fill the first part of the ringbuffer
+		frames_read_from_file = sf_readf_float (soundfile, (float *) write_vec [0].buf, frames_read) ;
+
+		frames_to_go-=frames_read_from_file;
+
+		if (write_vec [1].len && frames_to_go>0)
+		{
+			buf_avail = write_vec [1].len / output_port_count / bytes_per_sample ;
+
+			frames_read_=MIN(frames_to_go,sndfile_request_frames-frames_read_from_file);
+			frames_read=MIN(frames_read_,buf_avail);
+
+			//fill the second part of the ringbuffer
+			frames_read_from_file += sf_readf_float (soundfile, (float *) write_vec [1].buf, frames_read);
+		}
+	}
+	else
+	{
+		fprintf(stderr,"disk_read_frames(): /!\\ can not write to ringbuffer\n");
+	}
+
+	if (frames_read_from_file > 0)
+	{
+		disk_read_cycle_count++;
+
+		total_bytes_read_from_file+=frames_read_from_file * output_port_count * bytes_per_sample_native;
+
+		total_frames_read_from_file+=frames_read_from_file;
+
+//		fprintf(stderr,"disk_read_frames(): frames: read %d total %d\n",frames_read_from_file,total_frames_read_from_file);
+
+		//advance write pointers
+		if(out_to_in_sr_ratio==1.0 || !use_resampling)
+		{
+			jack_ringbuffer_write_advance (rb_resampled_interleaved
+				,frames_read_from_file * output_port_count * bytes_per_sample) ;
+		}
+		else 
+		{
+			jack_ringbuffer_write_advance (rb_interleaved
+				,frames_read_from_file * output_port_count * bytes_per_sample) ;
+		}
+
+		if(total_frames_read_from_file>=frame_count)
+		{
+			fprintf(stderr,"disk_read_frame(): all frames read from file\n");
+			//disk_thread_finished=1;
+			all_frames_read=1;
+		}
+
+		return frames_read_from_file;
+	}
+	//if no frames were read assume we're at EOF
+
+	all_frames_read=1;
+	return 0;
+}//end disk_read_frames()
+
+//this method is called from disk_thread (pthread_t)
+//it will be called only once and then loop/wait until a condition to finish is met
 //=============================================================================
 static void *disk_thread_func(void *arg)
 {
 	SNDFILE *soundfile;
 
-	// Init soundfile
-	SF_INFO sf_info;
-	memset (&sf_info, 0, sizeof (sf_info));
+	//init soundfile
+	SF_INFO _sf_info;
+	memset (&_sf_info, 0, sizeof (_sf_info));
 
-	soundfile=sf_open(filename,SFM_READ,&sf_info);
+	soundfile=sf_open(filename,SFM_READ,&_sf_info);
 	if(soundfile==NULL)
 	{
-		fprintf (stderr, "\ncannot open sndfile \"%s\" for input (%s)\n", filename,sf_strerror(NULL));
+		fprintf (stderr, "\n/!\\ cannot open sndfile \"%s\" for input (%s)\n", filename,sf_strerror(NULL));
 		jack_client_close(client);
 		exit(1);
 	}
 
-	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"\n"
-		,frame_offset
-		/*,sf_info.frames*/
-		,MIN(sf_info.frames,frame_offset+frame_count)
-		,frame_count
-	);
-
-	//sf_count_t  sf_seek  (SNDFILE *sndfile, sf_count_t frames, int whence) ;
+	//seek to given offset position
 	sf_count_t count=sf_seek(soundfile,frame_offset,SEEK_SET);
 
-	static int total_rb_write_cycles=0;
-
-	//void* data;
-	//data=malloc(sndfile_request_frames*output_port_count*bytes_per_sample);
-	sample_t *data=new sample_t [sndfile_request_frames*output_port_count];
-
-	long bytepos_period=0;
-	long iteration_counter=0;
-
-	// Main disk loop
+	//===main disk loop
 	for(;;)
 	{
-		//fprintf(stderr,"can write: %d\n",jack_ringbuffer_write_space(rb));
-		if(jack_ringbuffer_write_space(rb) < sndfile_request_frames * output_port_count*bytes_per_sample )
-		{
-			//wait for buffer to be read out in process() to have write space again
+//		fprintf(stderr,"disk_thread_func() loop\n");
 
-			//===
-			pthread_cond_wait (&data_ready, &disk_thread_lock);
-			continue;
-		}
-		
-		//===
-		if(!disk_read(soundfile,data,sndfile_request_frames))
+		//no resampling needed
+		if(out_to_in_sr_ratio==1.0 || !use_resampling)
 		{
-			// disk_read() returns 0 on EOF
+			if(jack_ringbuffer_write_space(rb_resampled_interleaved)
+				< sndfile_request_frames * output_port_count * bytes_per_sample )
+			{
+
+				//===wait here until process() requests to continue
+				pthread_cond_wait (&ok_to_read, &disk_thread_lock);
+				//once waked up, restart loop
+				continue;
+			}
+
+		}
+		else //if out_to_in_sr_ratio!=1.0
+		{
+			if(jack_ringbuffer_write_space(rb_interleaved)
+				< sndfile_request_frames * output_port_count * bytes_per_sample )
+			{
+
+				//===wait here until process() requests to continue
+				pthread_cond_wait (&ok_to_read, &disk_thread_lock);
+				//once waked up, restart loop
+				continue;
+			}
+		}
+
+		//for both resampling, non-resampling
+		if(!disk_read_frames(soundfile))
+		{
+			//disk_read() returns 0 on EOF
 			goto done;
 		}
 
-		//deinterleave
-/*
--in this example: all sizes in frames (not bytes)
--frame and channel counting starts at 1
--positions start at 0
-
-
-i.e. 3 channels
-read size: 8 (multichannel) frames
-
-jack period size: 4 (multichannel) frames
-
-8--------------------------------- read size
-  ch3 f8  24       . ch3 f8  24
-  ch2 f8  23       . ch3 f7  21
-  ch1 f8  22       . ch3 f6  18
-- ch3 f7  21       . ch3 f5  15
-  ch2 f7  20       . ch2 f8  23
-  ch1 f8  19       . ch2 f7  20
-- ch3 f6  18       . ch2 f6  17
-  ch2 f6  17       . ch2 f5  14
-  ch1 f6  16       . ch1 f8  22
-- ch3 f5  15       . ch1 f7  19
-  ch2 f5  14       . ch1 f6  16
-  ch1 f5  13       . ch1 f5  13
-4 ---------------------------------- jack period size
-  ch3 f4  12       . ch3 f4  12
-  ch2 f4  11       . ch3 f3   9
-  ch1 f4  10       . ch3 f2   6
-- ch3 f3   9       . ch3 f1   3
-  ch2 f3   8       . ch2 f4  11
-  ch1 f3   7       . ch2 f3   8
-2-ch3 f2   6       . ch2 f2   5  -- one channel period buffer
-  ch2 f2   5       . ch2 f1   2
-  ch1 f2   4       . ch1 f4  10
-- ch3 f1   3       . ch1 f3   7
-  ch2 f1   2       . ch1 f2   4
-  ch1 f1   1       . ch1 f1   1 
-0 --------------------------------- 
-
-pseudo de-interleave code:
-
-if enough write space in ringbuffer for read_size: (else continue)
-
-read from file (8 multichannel frames)
-
-loop 2    (read size / period size )   8 / 4
-	period 1:
-		loop 3   (channels)
-			channel 1:
-				loop 4   (period size)
-					f1:	read  1, put to output pos  1, skip other channels
-					f2:	read  4, put to output pos  2, skip other channels
-					f3:	read  7, put to output pos  3, skip other channels
-					f4:	read 10, put to output pos  4, skip other channels
-			channel 2:
-				loop 4   (period size)
-					f1:	read  2, put to output pos  5, skip other channels
-					f2:	read  5, put to output pos  6, skip other channels
-					f3:	read  8, put to output pos  7, skip other channels
-					f4:	read 11, put to output pos  8, skip other channels
-			channel 3:
-				loop 4   (period size)
-					f1:	read  3, put to output pos  9, skip other channels
-					f2:	read  6, put to output pos 10, skip other channels
-					f3:	read  9, put to output pos 11, skip other channels
-					f4:	read 12, put to output pos 12, skip other channels
-
----enough data for one ful multichannel jack period
-
-	period 2:
-		loop 3   (channels)
-			channel 1:
-				loop 4   (period size)
-					f5:	read 13, put to output pos 13, skip other channels
-					f6:	read 16, put to output pos 14, skip other channels
-					f7:	read 19, put to output pos 15, skip other channels
-					f8:	read 22, put to output pos 16, skip other channels
-			channel 2:
-				loop 4   (period size)
-					f5:	read 14, put to output pos 17, skip other channels
-					f6:	read 17, put to output pos 18, skip other channels
-					f7:	read 20, put to output pos 19, skip other channels
-					f8:	read 23, put to output pos 20, skip other channels
-			channel 3:
-				loop 4   (period size)
-					f5:	read 15, put to output pos 21, skip other channels
-					f6:	read 18, put to output pos 22, skip other channels
-					f7:	read 21, put to output pos 23, skip other channels
-					f8:	read 24, put to output pos 24, skip other channels
-
-*/
-
-		int period_loop=0;
-		for(period_loop=0; period_loop < (sndfile_request_frames / jack_period_size ); period_loop++)
-		{
-			bytepos_period=period_loop * jack_period_size * output_port_count * bytes_per_sample;
-			int bytepos_channel=0;
-
-			int channel_loop=0;
-			for(channel_loop=0; channel_loop < output_port_count; channel_loop++)
-			{
-				bytepos_channel=bytepos_period + channel_loop * bytes_per_sample;
-				int bytepos_frame=0;
-
-				int frame_loop=0;
-				for(frame_loop=0; frame_loop < jack_period_size; frame_loop++)
-				{
-					bytepos_frame=bytepos_channel + frame_loop * output_port_count * bytes_per_sample;
-
-/*
-					fprintf(stderr,"iteration: %d loop #: period / channel / frame %d %d %d"
-						,iteration_counter
-						,period_loop
-						,channel_loop
-						,frame_loop
-					);
-
-					fprintf(stderr,"    bytepos: period / channel / frame / orig frame pos: %d %d %d %d\n"
-						,bytepos_period
-						,bytepos_channel
-						,bytepos_frame
-						,(bytepos_frame/bytes_per_sample)
-					);
-*/
-					//read from disk_read buffer, at bytepos_frame, 1 sample
-					//float f1=*( (float*)(data + bytepos_frame) );
-					float f1=*( (float*)(data + bytepos_frame/bytes_per_sample) );
-
-					//===
-					//f1*=0.5;
-
-					//put to ringbuffer
-					jack_ringbuffer_write(rb,(const char*)&f1,bytes_per_sample);
-
-					iteration_counter++;
-				}//frame
-			}//channel
-
-			total_rb_write_cycles+=1;
-			//fprintf(stderr,"in disk_thread: rb write cycles: %d\n",total_rb_write_cycles);
-
-		}//period
-
-		//===
-		pthread_cond_wait (&data_ready, &disk_thread_lock);
-	}
+		//===wait here until process() requests to continue
+		pthread_cond_wait (&ok_to_read, &disk_thread_lock);
+	}//end main loop
 done:
-
-	// Close soundfile
-	sf_close (soundfile);
+	sf_close(soundfile);
 
 	pthread_mutex_unlock (&disk_thread_lock);
-	fprintf(stderr,"disk thread finished\n");
+	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
 
 	disk_thread_finished=1;
 	return 0;
-}
+}//end disk_thread_func()
 
 //=============================================================================
-void setup_disk_thread()
+static void setup_disk_thread()
 {
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+	//initially lock
 	pthread_mutex_lock(&disk_thread_lock);
+	//create the disk_thread (pthread_t) with start routine disk_thread_func
+	//disk_thread_func will be called after thread creation
+	//(not attributes, no args)
 	pthread_create(&disk_thread, NULL, disk_thread_func, NULL);
+//	fprintf(stderr,"disk thread started\n");
 }
 
 //=============================================================================
-void req_buffer_from_disk_thread()
+static void req_buffer_from_disk_thread()
 {
+	if(all_frames_read)//disk_thread_finished)
+	{
+		return;
+	}
+
+//	fprintf(stderr,"req_buffer_from_disk_thread()\n");
+
+	if(jack_ringbuffer_write_space(rb_interleaved) 
+		< sndfile_request_frames * output_port_count * bytes_per_sample)
+	{
+//		fprintf(stderr,"req_buffer_from_disk_thread(): /!\\ not enough write space in rb_interleaved\n");
+
+		return;
+	}
+
+	/*
+	The pthread_mutex_trylock() function shall be equivalent to pthread_mutex_lock(), 
+	except that if the mutex object referenced by mutex is currently locked (by any 
+	thread, including the current thread), the call shall return immediately.
+
+	The pthread_mutex_trylock() function shall return zero if a lock on the mutex 
+	object referenced by mutex is acquired. Otherwise, an error number is returned 
+	to indicate the error. 
+	*/
+	//if possible to lock the disk_thread_lock mutex
 	if(pthread_mutex_trylock (&disk_thread_lock)==0)
 	{
-		pthread_cond_signal (&data_ready);
+//		fprintf(stderr,"new data from disk thread requested\n");
+		//signal to disk_thread it can start or continue to read
+		pthread_cond_signal (&ok_to_read);
+		//unlock again
 		pthread_mutex_unlock (&disk_thread_lock);
 	}
-}
+}//end req_buffer_from_disk_thread()
 
-/*
-//=============================================================================
-static void stop_disk_thread(void)
+//================================================================
+static void signal_handler(int sig)
 {
- //Wake up disk thread. (no trylock) (isrunning==0)
-	pthread_cond_signal(&data_ready);
-	pthread_join(disk_thread, NULL);
-}
-*/
+//	fprintf(stderr,"signal_handler() called\n");
 
-//=============================================================================
-//https://github.com/erikd/libsndfile/blob/master/programs/sndfile-info.c
-static const char * format_duration_str(double seconds)
-{
-	static char str [128] ;
-	int hrs, min ;
-	double sec ;
-	memset (str, 0, sizeof (str)) ;
-	hrs = (int) (seconds / 3600.0) ;
-	min = (int) ((seconds - (hrs * 3600.0)) / 60.0) ;
-	sec = seconds - (hrs * 3600.0) - (min * 60.0) ;
-	snprintf (str, sizeof (str) - 1, "%02d:%02d:%06.3f", hrs, min, sec) ;
-	return str ;
-}
+	print_stats();
 
-//=============================================================================
-//https://github.com/erikd/libsndfile/blob/master/programs/sndfile-info.c
-static const char * generate_duration_str(SF_INFO *sf_info)
-{
-	double seconds ;
-	if (sf_info->samplerate < 1)
-	return NULL ;
-	if (sf_info->frames / sf_info->samplerate > 0x7FFFFFFF)
-	return "unknown" ;
-	seconds = (1.0 * sf_info->frames) / sf_info->samplerate ;
-	/* Accumulate the total of all known file durations */
-	//total_seconds += seconds ;
-	return format_duration_str (seconds) ;
-}
+//	fprintf(stderr,"expected frames pushed to JACK (excl. resampler padding): %f\n",(double)(frame_count * out_to_in_sr_ratio) );
 
-//=============================================================================
-void print_file_info(SF_INFO sf_info)
-{
-	char* format_string;
-
-	switch (sf_info.format & SF_FORMAT_TYPEMASK)
+	if(sig!=42)
 	{
-	//http://www.mega-nerd.com/libsndfile/api.html
-	/* Major formats. */
-	case SF_FORMAT_WAV 	:format_string="Microsoft WAV format (little endian)"; break;
-	case SF_FORMAT_AIFF 	:format_string="Apple/SGI AIFF format (big endian)"; break;
-	case SF_FORMAT_AU 	:format_string="Sun/NeXT AU format (big endian)"; break;
-	case SF_FORMAT_RAW 	:format_string="RAW PCM data"; break;
-	case SF_FORMAT_PAF 	:format_string="Ensoniq PARIS file format"; break;
-	case SF_FORMAT_SVX 	:format_string="Amiga IFF / SVX8 / SV16 format"; break;
-	case SF_FORMAT_NIST 	:format_string="Sphere NIST format"; break;
-	case SF_FORMAT_VOC 	:format_string="VOC files"; break;
-	case SF_FORMAT_IRCAM 	:format_string="Berkeley/IRCAM/CARL"; break;
-	case SF_FORMAT_W64 	:format_string="Sonic Foundry's 64 bit RIFF/WAV"; break;
-	case SF_FORMAT_MAT4 	:format_string="Matlab (tm) V4.2 / GNU Octave 2.0"; break;
-	case SF_FORMAT_MAT5  	:format_string="Matlab (tm) V5.0 / GNU Octave 2.1"; break;
-	case SF_FORMAT_PVF 	:format_string="Portable Voice Format"; break;
-	case SF_FORMAT_XI 	:format_string="Fasttracker 2 Extended Instrument"; break;
-	case SF_FORMAT_HTK 	:format_string="HMM Tool Kit format"; break;
-	case SF_FORMAT_SDS 	:format_string="Midi Sample Dump Standard"; break;
-	case SF_FORMAT_AVR 	:format_string="Audio Visual Research"; break;
-	case SF_FORMAT_WAVEX 	:format_string="MS WAVE with WAVEFORMATEX"; break;
-	case SF_FORMAT_SD2 	:format_string="Sound Designer 2"; break;
-	case SF_FORMAT_FLAC 	:format_string="FLAC lossless file format"; break;
-	case SF_FORMAT_CAF 	:format_string="Core Audio File format"; break;
-	case SF_FORMAT_WVE 	:format_string="Psion WVE format"; break;
-	case SF_FORMAT_OGG 	:format_string="Xiph OGG container"; break;
-	case SF_FORMAT_MPC2K 	:format_string="Akai MPC 2000 sampler"; break;
-	case SF_FORMAT_RF64 	:format_string="RF64 WAV file"; break;
-	default :
-		format_string="unknown format!";
-		break ;
-	};
+		fprintf(stderr, "terminate signal %d received. cleaning up...\n",sig);
+	}
 
-	char* sub_format_string;
+	jack_deactivate(client);
+//	fprintf(stderr,"JACK client deactivated. ");
 
-	switch (sf_info.format & SF_FORMAT_SUBMASK)
+	int index=0;
+	while(ioPortArray[index]!=NULL && index<output_port_count)
 	{
-	/* Subtypes from here on. */
-	case SF_FORMAT_PCM_S8       : sub_format_string="Signed 8 bit data"; break;
-	case SF_FORMAT_PCM_16       : sub_format_string="Signed 16 bit data"; break;
-	case SF_FORMAT_PCM_24       : sub_format_string="Signed 24 bit data"; break;
-	case SF_FORMAT_PCM_32       : sub_format_string="Signed 32 bit data"; break;
+		jack_port_unregister(client,ioPortArray[index]);
+		index++;
+	}
 
-	case SF_FORMAT_PCM_U8       : sub_format_string="Unsigned 8 bit data (WAV and RAW only)"; break;
+//	fprintf(stderr,"JACK ports unregistered\n");
 
-	case SF_FORMAT_FLOAT        : sub_format_string="32 bit float data"; break;
-	case SF_FORMAT_DOUBLE       : sub_format_string="64 bit float data"; break;
+	jack_client_close(client);
+//	fprintf(stderr,"JACK client closed\n");
 
-	case SF_FORMAT_ULAW         : sub_format_string="U-Law encoded"; break;
-	case SF_FORMAT_ALAW         : sub_format_string="A-Law encoded"; break;
-	case SF_FORMAT_IMA_ADPCM    : sub_format_string="IMA ADPCM"; break;
-	case SF_FORMAT_MS_ADPCM     : sub_format_string="Microsoft ADPCM"; break;
+	//close soundfile
+	if(soundfile!=NULL)
+	{
+		sf_close (soundfile);
+//		fprintf(stderr,"soundfile closed\n");
+	}
 
-	case SF_FORMAT_GSM610       : sub_format_string="GSM 6.10 encoding"; break;
-	case SF_FORMAT_VOX_ADPCM    : sub_format_string="Oki Dialogic ADPCM encoding"; break;
+	release_ringbuffers();
 
-	case SF_FORMAT_G721_32      : sub_format_string="32kbs G721 ADPCM encoding"; break;
-	case SF_FORMAT_G723_24      : sub_format_string="24kbs G723 ADPCM encoding"; break;
-	case SF_FORMAT_G723_40      : sub_format_string="40kbs G723 ADPCM encoding"; break;
+	fprintf(stderr,"jack_playfile done.\n");
+	exit(0);
+}//end signal_handler()
 
-	case SF_FORMAT_DWVW_12      : sub_format_string="12 bit Delta Width Variable Word encoding"; break;
-	case SF_FORMAT_DWVW_16      : sub_format_string="16 bit Delta Width Variable Word encoding"; break;
-	case SF_FORMAT_DWVW_24      : sub_format_string="24 bit Delta Width Variable Word encoding"; break;
-	case SF_FORMAT_DWVW_N       : sub_format_string="N bit Delta Width Variable Word encoding"; break;
-
-	case SF_FORMAT_DPCM_8       : sub_format_string="8 bit differential PCM (XI only)"; break;
-	case SF_FORMAT_DPCM_16      : sub_format_string="16 bit differential PCM (XI only)"; break;
-
-	case SF_FORMAT_VORBIS       : sub_format_string="Xiph Vorbis encoding"; break;
-	default :
-		sub_format_string="unknown subformat!";
-		break ;
-	};
-
-	const char *duration_str;
-	duration_str=generate_duration_str(&sf_info);
-
-	fprintf(stderr,"format:      %s, %s (0x%08X)\nduration:    %s (%"PRId64" frames)\nsamplerate:  %d\nchannels:    %d\n"
-		,format_string, sub_format_string, sf_info.format
-		,duration_str
-		,sf_info.frames
-		,sf_info.samplerate
-		,sf_info.channels
-	);
-}//end print_file_info
+//================================================================
+static void jack_shutdown_handler (void *arg)
+{
+	fprintf(stderr, "/!\\ JACK server down!\n");
+	release_ringbuffers();
+	exit(1);	
+}
 
 //EOF

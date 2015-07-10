@@ -1,5 +1,6 @@
 CC = g++
 CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -w
+#CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -w
 
 #http://www.cprogramdevelop.com/4787258/
 
@@ -16,11 +17,14 @@ jack_playfile:	$(SRC)/jack_playfile.c $(SRC)/weak_libjack.c
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile`
-	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread -ldl
+	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread -ldl -lzita-resampler
+
+#	$(CC) -o jack_playfile $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile jack` -lpthread -lzita-resampler
+
 
 install: jack_playfile
 	install -m755 jack_playfile $(INSTALLPATH)
 
 clean:
-	rm jack_playfile
-	rm $(BUILD)/*.o
+	-rm jack_playfile
+	-rm $(BUILD)/*.o
