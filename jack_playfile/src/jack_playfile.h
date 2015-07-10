@@ -28,12 +28,22 @@ typedef jack_default_audio_sample_t sample_t;
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
 
-static const float version=0.4;
+static const float version=0.5;
 
 //================================================================
 int main(int argc, char *argv[]);
+static void handle_key_hits();
+
 static int process(jack_nframes_t nframes, void *arg);
+
+static void seek_frames_absolute(int64_t frames_abs);
+static void seek_frames(int64_t frames_rel);
+
+static int get_resampler_pad_size_start();
+static int get_resampler_pad_size_end();
+
 static void setup_resampler();
+
 static void resample();
 static void deinterleave();
 
@@ -43,6 +53,9 @@ static void *disk_thread_func(void *arg);
 static void setup_disk_thread();
 static void req_buffer_from_disk_thread();
 
+static void free_ringbuffers();
+static void reset_ringbuffers();
+
 static void signal_handler(int sig);
 static void jack_shutdown_handler (void *arg);
 
@@ -51,12 +64,47 @@ static const char * format_duration_str(double seconds);
 static const char * generate_duration_str(SF_INFO *sf_info);
 static int file_info(SF_INFO sf_info, int print);
 
-static int get_resampler_pad_size_start();
-static int get_resampler_pad_size_end();
 static void print_stats();
 
 static void set_terminal_raw();
 static int read_raw_key();
+
+static void print_next_wheel_state(int direction);
+
+//for displaying 'wheel' as progress indicator
+static int wheel_state=0;
+//=============================================================================
+//-1: counter clockwise 1: clockwise
+static void print_next_wheel_state(int direction)
+{
+	wheel_state+=direction;
+
+	if(wheel_state>3)
+	{
+		wheel_state=0;
+	}
+	else if(wheel_state<0)
+	{
+		wheel_state=3;
+	}
+
+	if(wheel_state==0)
+	{
+		fprintf(stderr,"|");
+	}
+	if(wheel_state==1)
+	{
+		fprintf(stderr,"/");
+	}
+	if(wheel_state==2)
+	{
+		fprintf(stderr,"—");
+	}
+	if(wheel_state==3)
+	{
+		fprintf(stderr,"\\");
+	}
+}
 
 //=============================================================================
 static double get_seconds(SF_INFO *sf_info)

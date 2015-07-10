@@ -138,19 +138,18 @@ static uint64_t total_input_frames_resampled=0;
 //toggle play/pause with 'space'
 static int is_playing=1;
 
-#define MAGIC_MAX_CHARS 18
+//arrows left and right, home
+static int seek_frames_in_progress=0;
+
+//relative seek, how many (native) frames
+uint64_t seek_frames_per_hit=0;
+
 static struct termios initial_settings; //cooked
 struct termios settings; //raw
-static unsigned char keycodes[ MAGIC_MAX_CHARS ];
 
-//=============================================================================
-static void release_ringbuffers()
-{
-//	fprintf(stderr,"releasing ringbuffers\n");
-	jack_ringbuffer_free(rb_interleaved);
-	jack_ringbuffer_free(rb_resampled_interleaved);
-	jack_ringbuffer_free(rb_deinterleaved);
-}
+//lower values mean faster repetition of events from held key (~ ?)
+#define MAGIC_MAX_CHARS 5//18
+static unsigned char keycodes[ MAGIC_MAX_CHARS ];
 
 //=============================================================================
 static int get_resampler_pad_size_start()
@@ -196,6 +195,7 @@ static void print_stats()
 //=============================================================================
 int main(int argc, char *argv[])
 {
+	fprintf(stderr,"*** jack_playfile ALPHA - protect your ears! ***\n");
 	if( argc < 2	
 		|| (argc >= 2 && 
 			( strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 		fprintf (stderr, "/!\\ cannot open file \"%s\"\n(%s)\n", filename, sf_strerror(NULL));
 		exit(1);
 	}
-	sf_close (soundfile);
+	//sf_close (soundfile);
 
 	struct stat st;
 	stat(filename, &st);
@@ -297,7 +297,6 @@ int main(int argc, char *argv[])
 			fprintf(stderr," (all available frames)");
 		}
 		fprintf(stderr,"\n");
-
 	}
 
 	//offset + count can't be greater than frames in file
@@ -315,12 +314,17 @@ int main(int argc, char *argv[])
 		,MIN(sf_info.frames,frame_offset+frame_count)
 		,frame_count);
 
+	//~2%
+	seek_frames_per_hit=ceil(frame_count / 50);
+//	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
+
 	if(have_libjack()!=0)
 	{
 		fprintf(stderr,"/!\\ libjack not found (JACK not installed?).\nthis is fatal: jack_playfile needs JACK to run.\n");
 		fprintf(stderr,"see http://jackaudio.org for more information on the JACK Audio Connection Kit.\n");
 		exit(1);
 	}
+
 	const char **ports;
 	jack_status_t status;
 
@@ -346,9 +350,9 @@ int main(int argc, char *argv[])
 	jack_output_data_rate_bytes_per_second=jack_sample_rate * output_port_count * bytes_per_sample;
 	out_to_in_byte_ratio=jack_output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
 
+	fprintf(stderr,"JACK sample rate: %d\n",jack_sample_rate);
 	fprintf(stderr,"JACK period size: %d frames\n",jack_period_frames);
 	fprintf(stderr,"JACK cycles per second: %.2f\n",jack_cycles_per_second);
-	fprintf(stderr,"JACK sample rate: %d\n",jack_sample_rate);
 	fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack_output_data_rate_bytes_per_second
 		,(jack_output_data_rate_bytes_per_second/1000000));
 	fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
@@ -423,7 +427,7 @@ int main(int argc, char *argv[])
 		if (asprintf(&portName, "output_%d", (port+1)) < 0) 
 		{
 			fprintf(stderr, "/!\\ could not create portname for port %d\n", port);
-			release_ringbuffers();
+			free_ringbuffers();
 			exit(1);
 		}
 
@@ -432,7 +436,7 @@ int main(int argc, char *argv[])
 		if (ioPortArray[port] == NULL) 
 		{
 			fprintf(stderr, "/!\\ could not create output port %d\n", (port+1));
-			release_ringbuffers();
+			free_ringbuffers();
 			exit(1);
 		}
 	}
@@ -445,7 +449,7 @@ int main(int argc, char *argv[])
 	if (jack_activate (client)) 
 	{
 		fprintf (stderr, "/!\\ cannot activate client\n\n");
-		release_ringbuffers();
+		free_ringbuffers();
 		exit(1);
 	}
 
@@ -464,7 +468,7 @@ int main(int argc, char *argv[])
 	if (ports == NULL) 
 	{
 		fprintf(stderr, "/!\\ no physical capture ports found\n");
-		release_ringbuffers();
+		free_ringbuffers();
 		exit(1);
 	}
 
@@ -518,33 +522,20 @@ int main(int argc, char *argv[])
 	process_enabled=1;
 //	fprintf(stderr,"process_enabled\n");
 
-	fprintf(stderr,"\rplaying\033[0J");
-
 	//run until interrupted
 	while (1) 
 	{
-		int rawkey=read_raw_key();
-//		fprintf(stderr,"rawkey: %d\n",rawkey);
-
-		//'space': toggle play/pause
-		if(rawkey==32)
+		//this isn't optimal
+		if(is_playing)
 		{
-			is_playing=!is_playing;
-
-			if(is_playing)
-			{
-				fprintf(stderr,"\rplaying\033[0J");
-			}
-			else
-			{
-				fprintf(stderr,"\rpaused\033[0J");
-			}
+			fprintf(stderr,"\rplaying   ");//\033[0J");
 		}
-		//'q': quit
-		else if(rawkey==113)
+		else
 		{
-			shutdown_in_progress=1;
+			fprintf(stderr,"\rpaused    ");//\033[0J");
 		}
+
+		handle_key_hits();
 
 		//try clean shutdown, mainly to avoid possible audible glitches 
 		if(shutdown_in_progress && !shutdown_in_progress_signalled)
@@ -560,6 +551,67 @@ int main(int argc, char *argv[])
 	}
 	exit(0);
 }//end main
+
+static void handle_key_hits()
+{
+	int rawkey=read_raw_key();
+//	fprintf(stderr,"rawkey: %d\n",rawkey);
+
+	//'space': toggle play/pause
+	if(rawkey==32)
+	{
+		is_playing=!is_playing;
+
+		if(is_playing)
+		{
+			fprintf(stderr,"\033[0J");
+		}
+		else
+		{
+			fprintf(stderr,"\033[0J");
+		}
+	}
+	//'q': quit
+	else if(rawkey==113)
+	{
+		fprintf(stderr,"\rquit received\033[0J\n");
+		shutdown_in_progress=1;
+	}
+	//'<' (arrow left): 
+	else if(rawkey==-68)
+	{
+		fprintf(stderr," <<  ");
+		print_next_wheel_state(-1);
+		fprintf(stderr,"\033[0J");
+		seek_frames(-seek_frames_per_hit);
+	}
+	//'>' (arrow right): 
+	else if(rawkey==-67)
+	{
+		fprintf(stderr," >>  ");
+		print_next_wheel_state(+1);
+		fprintf(stderr,"\033[0J");
+		seek_frames( seek_frames_per_hit);
+	}
+	//'^' (arrow up): 
+	else if(rawkey==-65)
+	{
+		fprintf(stderr," up\033[0J");
+	}
+	//'v' (arrow down): 
+	else if(rawkey==-66)
+	{
+		fprintf(stderr," down\033[0J");
+	}
+	//'|<' (home): 
+	else if(rawkey==-72)
+	{
+		fprintf(stderr," |<  ");
+		print_next_wheel_state(-1);
+		fprintf(stderr,"\033[0J");
+		seek_frames_absolute(frame_offset);
+	}
+}//end handle_key_hits()
 
 //=============================================================================
 static int process(jack_nframes_t nframes, void *arg) 
@@ -577,11 +629,26 @@ static int process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+
+	if(seek_frames_in_progress)
+	{
+		//test if already enough data available to play
+		if(jack_ringbuffer_read_space(rb_deinterleaved) 
+			>= jack_period_frames * output_port_count * bytes_per_sample)
+		{
+			seek_frames_in_progress=0;
+		}
+		else
+		{
+			//read more data
+			req_buffer_from_disk_thread();
+		}
+	}
+
 	resample();
 	deinterleave();
 
-///////////////
-	if(!is_playing)
+	if(!is_playing || seek_frames_in_progress)
 	{
 		for(int i=0; i<output_port_count; i++)
 		{
@@ -698,10 +765,9 @@ static int process(jack_nframes_t nframes, void *arg)
 		//this should not happen
 		process_cycle_underruns++;
 
-		fprintf(stderr,"process(): /!\\ ======== underrun\n");
+//		fprintf(stderr,"process(): /!\\ ======== underrun\n");
 
 		print_stats();
-//		shutdown_in_progress=1;
 		return 0;
 	}
 
@@ -709,6 +775,99 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	return 0;
 }//end process()
+
+//=============================================================================
+//>=0
+static void seek_frames_absolute(int64_t frames_abs)
+{
+	seek_frames_in_progress=1;
+
+	reset_ringbuffers();
+
+/////////////need to reset several vars here
+/////////////////
+
+
+	//limit absolute seek to given boundaries (frame_offset, frame_count)
+	uint64_t seek_=MAX(frame_offset,frames_abs);
+	uint64_t seek =MIN((frame_offset+frame_count),seek_);
+
+	sf_count_t count=sf_seek(soundfile,seek,SEEK_SET);
+
+//	fprintf(stderr,"\nseek %"PRId64" new pos %"PRId64"\n",seek,count);
+
+	req_buffer_from_disk_thread();
+
+	//in process()
+	//seek_frames_in_progress=0;
+}
+
+//=============================================================================
+//+ / -
+static void seek_frames(int64_t frames_rel)
+{
+	if(frames_rel==0)
+	{
+		//nothing to do
+		return;
+	}
+
+	seek_frames_in_progress=1;
+
+	reset_ringbuffers();
+
+/////////////need to reset several vars here
+/////////////////
+
+
+
+/*
+                            current abs pos    
+         abs start          v                                   abs end
+         |------------------------------------------------------|
+                     |--------------------------|
+                     frame_offset               offset + frame_count
+
+
+                     |-----|--------------------|
+
+                     max <   max >
+
+              .======x======.=============.=====x=======.
+                     |      seek steps          |
+                     limit                      limit
+*/
+
+
+	sf_count_t current_read_pos=sf_seek(soundfile,0,SEEK_CUR);
+
+	int64_t seek=0;
+
+	//limit relative seek to given boundaries (frame_offset, frame_count)
+	if(frames_rel>0)
+	{
+		seek=MIN(
+			(frame_offset + frame_count - current_read_pos)
+			,frames_rel
+		);
+	}
+	else //frames_rel<0
+	{
+		seek=MAX(
+			(frame_offset - current_read_pos)
+			,frames_rel
+		);
+	}
+
+	sf_count_t count=sf_seek(soundfile,seek,SEEK_CUR);
+
+//	fprintf(stderr,"cur pos %"PRId64" seek %"PRId64" new pos %"PRId64"\n",current_read_pos,seek,count);
+
+	req_buffer_from_disk_thread();
+	
+	//in process()
+	//seek_frames_in_progress=0;
+}
 
 //=============================================================================
 static void setup_resampler()
@@ -765,6 +924,8 @@ static void setup_resampler()
 					,out_to_in_sr_ratio);
 */
 
+				fprintf(stderr,"resampler out_to_in ratio: %f\n",out_to_in_sr_ratio);
+
 			}//end resampler setup
  		}//end if use_resampling
 		else
@@ -790,7 +951,7 @@ static void resample()
 	//normal operation
 	if(jack_ringbuffer_read_space(rb_interleaved) 
 		>= sndfile_request_frames * output_port_count * bytes_per_sample)
-        {
+	{
 
 //		fprintf(stderr,"resample(): normal operation\n");
 
@@ -987,7 +1148,7 @@ static void deinterleave()
 }//end deinterleave()
 
 //=============================================================================
-static int disk_read_frames(SNDFILE *soundfile)
+static int disk_read_frames(SNDFILE *soundfile_)
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
 
@@ -1029,7 +1190,7 @@ static int disk_read_frames(SNDFILE *soundfile)
 		frames_read=MIN(frames_read_,buf_avail);
 
 		//fill the first part of the ringbuffer
-		frames_read_from_file = sf_readf_float (soundfile, (float *) write_vec [0].buf, frames_read) ;
+		frames_read_from_file = sf_readf_float (soundfile_, (float *) write_vec [0].buf, frames_read) ;
 
 		frames_to_go-=frames_read_from_file;
 
@@ -1041,7 +1202,7 @@ static int disk_read_frames(SNDFILE *soundfile)
 			frames_read=MIN(frames_read_,buf_avail);
 
 			//fill the second part of the ringbuffer
-			frames_read_from_file += sf_readf_float (soundfile, (float *) write_vec [1].buf, frames_read);
+			frames_read_from_file += sf_readf_float (soundfile_, (float *) write_vec [1].buf, frames_read);
 		}
 	}
 	else
@@ -1091,13 +1252,6 @@ static int disk_read_frames(SNDFILE *soundfile)
 //=============================================================================
 static void *disk_thread_func(void *arg)
 {
-	SNDFILE *soundfile;
-
-	//init soundfile
-	SF_INFO _sf_info;
-	memset (&_sf_info, 0, sizeof (_sf_info));
-
-	soundfile=sf_open(filename,SFM_READ,&_sf_info);
 	if(soundfile==NULL)
 	{
 		fprintf (stderr, "\n/!\\ cannot open sndfile \"%s\" for input (%s)\n", filename,sf_strerror(NULL));
@@ -1154,7 +1308,7 @@ done:
 	sf_close(soundfile);
 
 	pthread_mutex_unlock (&disk_thread_lock);
-	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
+//	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
 
 	disk_thread_finished=1;
 	return 0;
@@ -1212,18 +1366,41 @@ static void req_buffer_from_disk_thread()
 }//end req_buffer_from_disk_thread()
 
 //=============================================================================
+static void free_ringbuffers()
+{
+//	fprintf(stderr,"releasing ringbuffers\n");
+	jack_ringbuffer_free(rb_interleaved);
+	jack_ringbuffer_free(rb_resampled_interleaved);
+	jack_ringbuffer_free(rb_deinterleaved);
+}
+
+//=============================================================================
+static void reset_ringbuffers()
+{
+//	fprintf(stderr,"releasing ringbuffers\n");
+	jack_ringbuffer_reset(rb_deinterleaved);
+	jack_ringbuffer_reset(rb_resampled_interleaved);
+	jack_ringbuffer_reset(rb_interleaved);
+}
+
+//=============================================================================
 static void signal_handler(int sig)
 {
-	fprintf(stderr,"\r");
+	fprintf(stderr,"\r\033[0J");
 //	fprintf(stderr,"signal_handler() called\n");
 
 	print_stats();
+
+	if(process_cycle_underruns>0)
+	{
+		fprintf(stderr,"/!\\ underruns: %"PRId64"\n",process_cycle_underruns);
+	}
 
 //	fprintf(stderr,"expected frames pushed to JACK (excl. resampler padding): %f\n",(double)(frame_count * out_to_in_sr_ratio) );
 
 	if(sig!=42)
 	{
-		fprintf(stderr, "terminate signal %d received. cleaning up...\n",sig);
+		fprintf(stderr, "terminate signal %d received\n",sig);
 	}
 
 	jack_deactivate(client);
@@ -1248,10 +1425,13 @@ static void signal_handler(int sig)
 //		fprintf(stderr,"soundfile closed\n");
 	}
 
-	release_ringbuffers();
+	free_ringbuffers();
 
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+
+	//turn on cursor
+	fprintf(stderr,"\033[?25h");
 
 	fprintf(stderr,"jack_playfile done.\n");
 	exit(0);
@@ -1262,10 +1442,20 @@ static void jack_shutdown_handler (void *arg)
 {
 	fprintf(stderr, "/!\\ JACK server down!\n");
 
-	release_ringbuffers();
+	//close soundfile
+	if(soundfile!=NULL)
+	{
+		sf_close (soundfile);
+//		fprintf(stderr,"soundfile closed\n");
+	}
+
+	free_ringbuffers();
 
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+
+	//turn on cursor
+	fprintf(stderr,"\033[?25h");
 
 	exit(1);	
 }
@@ -1283,6 +1473,9 @@ static void set_terminal_raw()
 	settings.c_lflag &= ~(ECHO | ICANON);
 	tcsetattr( STDIN_FILENO, TCSANOW, &settings );
 
+	//turn off cursor
+	fprintf(stderr,"\033[?25l");
+
 	//in shutdown signal handler
 	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
 }
@@ -1296,5 +1489,4 @@ static int read_raw_key()
 		? keycodes[ 0 ]
 		: -(int)(keycodes[ count -1 ]);
 }
-
 //EOF
