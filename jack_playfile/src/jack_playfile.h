@@ -6,12 +6,12 @@
 #include <math.h>
 #include <inttypes.h>
 #include <sys/stat.h>
-
 #include <pthread.h>
-#include <sndfile.h>
+#include <termios.h>
 
 #include "weak_libjack.h"
 
+#include <sndfile.h>
 #include <zita-resampler/resampler.h>
 
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -54,6 +54,9 @@ static int file_info(SF_INFO sf_info, int print);
 static int get_resampler_pad_size_start();
 static int get_resampler_pad_size_end();
 static void print_stats();
+
+static void set_terminal_raw();
+static int read_raw_key();
 
 //=============================================================================
 static double get_seconds(SF_INFO *sf_info)

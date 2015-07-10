@@ -135,8 +135,15 @@ static int resampling_finished=0;
 //frames put to resampler, without start/end padding
 static uint64_t total_input_frames_resampled=0;
 
-//================================================================
-//================================================================
+//toggle play/pause with 'space'
+static int is_playing=1;
+
+#define MAGIC_MAX_CHARS 18
+static struct termios initial_settings; //cooked
+struct termios settings; //raw
+static unsigned char keycodes[ MAGIC_MAX_CHARS ];
+
+//=============================================================================
 static void release_ringbuffers()
 {
 //	fprintf(stderr,"releasing ringbuffers\n");
@@ -145,24 +152,21 @@ static void release_ringbuffers()
 	jack_ringbuffer_free(rb_deinterleaved);
 }
 
-//================================================================
-//================================================================
+//=============================================================================
 static int get_resampler_pad_size_start()
 {
 	return R.inpsize()-1;
 //	return R.inpsize()/2-1;
 }
 
-//================================================================
-//================================================================
+//=============================================================================
 static int get_resampler_pad_size_end()
 {
 //	return R.inpsize()-1;
 	return R.inpsize()/2-1;
 }
 
-//================================================================
-//================================================================
+//=============================================================================
 static void print_stats()
 {
 	if(!debug)
@@ -189,8 +193,7 @@ static void print_stats()
 	);
 }
 
-//================================================================
-//================================================================
+//=============================================================================
 int main(int argc, char *argv[])
 {
 	if( argc < 2	
@@ -507,12 +510,37 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
+	//save original tty settings ("cooked")
+	tcgetattr( STDIN_FILENO, &initial_settings );
+	//now set raw to read key hits
+	set_terminal_raw();
+
 	process_enabled=1;
 //	fprintf(stderr,"process_enabled\n");
+
+	fprintf(stderr,"\rplaying\033[0J");
 
 	//run until interrupted
 	while (1) 
 	{
+		int rawkey=read_raw_key();
+//		fprintf(stderr,"rawkey: %d\n",rawkey);
+
+		//space: toggle play/pause
+		if(rawkey==32)
+		{
+			is_playing=!is_playing;
+
+			if(is_playing)
+			{
+				fprintf(stderr,"\rplaying\033[0J");
+			}
+			else
+			{
+				fprintf(stderr,"\rpaused\033[0J");
+			}
+		}
+
 		//try clean shutdown, mainly to avoid possible audible glitches 
 		if(shutdown_in_progress && !shutdown_in_progress_signalled)
 		{
@@ -528,8 +556,7 @@ int main(int argc, char *argv[])
 	exit(0);
 }//end main
 
-//================================================================
-//================================================================
+//=============================================================================
 static int process(jack_nframes_t nframes, void *arg) 
 {
 	if(shutdown_in_progress || !process_enabled)
@@ -547,6 +574,20 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	resample();
 	deinterleave();
+
+///////////////
+	if(!is_playing)
+	{
+		for(int i=0; i<output_port_count; i++)
+		{
+			sample_t *o1;
+			//get output buffer from JACK for that channel
+			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+			//set all samples zero
+			memset(o1, 0, jack_period_frames*bytes_per_sample);
+		}
+		return 0;
+	}
 
 	if(all_frames_read
 		&& jack_ringbuffer_read_space(rb_interleaved)==0
@@ -664,8 +705,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	return 0;
 }//end process()
 
-//================================================================
-//================================================================
+//=============================================================================
 static void setup_resampler()
 {
 	//test if resampling needed
@@ -729,8 +769,7 @@ static void setup_resampler()
 	}//end unequal in/out sr
 }//end setup_resampler()
 
-//================================================================
-//================================================================
+//=============================================================================
 static void resample()
 {
 	if(out_to_in_sr_ratio==1.0 || !use_resampling || resampling_finished)
@@ -859,15 +898,14 @@ static void resample()
 	else
 	{
 ////////////////////
-		fprintf(stderr,"/!\\ this should not happen\n");
+//		fprintf(stderr,"/!\\ this should not happen\n");
 	}
 
 	print_stats();
 
 }//end resample()
 
-//================================================================
-//================================================================
+//=============================================================================
 static void deinterleave()
 {
 //	fprintf(stderr,"deinterleave called\n");
@@ -944,8 +982,6 @@ static void deinterleave()
 }//end deinterleave()
 
 //=============================================================================
-//static int disk_read_frames(SNDFILE *soundfile, sample_t *sf_float_buffer, size_t frames_requested)
-//static int disk_read_frames(SNDFILE *soundfile, size_t frames_requested)
 static int disk_read_frames(SNDFILE *soundfile)
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
@@ -1170,9 +1206,10 @@ static void req_buffer_from_disk_thread()
 	}
 }//end req_buffer_from_disk_thread()
 
-//================================================================
+//=============================================================================
 static void signal_handler(int sig)
 {
+	fprintf(stderr,"\r");
 //	fprintf(stderr,"signal_handler() called\n");
 
 	print_stats();
@@ -1208,16 +1245,51 @@ static void signal_handler(int sig)
 
 	release_ringbuffers();
 
+	//reset terminal to original settings
+	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+
 	fprintf(stderr,"jack_playfile done.\n");
 	exit(0);
 }//end signal_handler()
 
-//================================================================
+//=============================================================================
 static void jack_shutdown_handler (void *arg)
 {
 	fprintf(stderr, "/!\\ JACK server down!\n");
+
 	release_ringbuffers();
+
+	//reset terminal to original settings
+	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+
 	exit(1);	
+}
+
+//=============================================================================
+//http://www.cplusplus.com/forum/articles/7312/#msg33734
+static void set_terminal_raw()
+{
+	tcgetattr( STDIN_FILENO, &settings );
+
+	//set the console mode to no-echo, raw input
+	settings.c_cc[ VTIME ] = 1;
+	settings.c_cc[ VMIN  ] = MAGIC_MAX_CHARS;
+	settings.c_iflag &= ~(IXOFF);
+	settings.c_lflag &= ~(ECHO | ICANON);
+	tcsetattr( STDIN_FILENO, TCSANOW, &settings );
+
+	//in shutdown signal handler
+	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+}
+
+//=============================================================================
+static int read_raw_key()
+{
+	int count = read( STDIN_FILENO, (void*)keycodes, MAGIC_MAX_CHARS );
+
+	return (count == 1)
+		? keycodes[ 0 ]
+		: -(int)(keycodes[ count -1 ]);
 }
 
 //EOF
