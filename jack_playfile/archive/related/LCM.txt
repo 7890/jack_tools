@@ -1,0 +1,10 @@
+$ javac LCM.java && java LCM 32000 44100
+Least Common Multiple (LCM) 32000, 44100 is 14112000
+
+See https://en.wikipedia.org/wiki/Least_common_multiple
+
+
+$ java LCM 3 5
+Least Common Multiple (LCM) 3, 5 is 15
+
+---
