@@ -526,7 +526,7 @@ int main(int argc, char *argv[])
 		int rawkey=read_raw_key();
 //		fprintf(stderr,"rawkey: %d\n",rawkey);
 
-		//space: toggle play/pause
+		//'space': toggle play/pause
 		if(rawkey==32)
 		{
 			is_playing=!is_playing;
@@ -539,6 +539,11 @@ int main(int argc, char *argv[])
 			{
 				fprintf(stderr,"\rpaused\033[0J");
 			}
+		}
+		//'q': quit
+		else if(rawkey==113)
+		{
+			shutdown_in_progress=1;
 		}
 
 		//try clean shutdown, mainly to avoid possible audible glitches 
