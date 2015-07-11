@@ -1,5 +1,6 @@
 CC = g++
 CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -w
+#-DNO_JACK_METADATA
 #CFLAGS ?= -std=gnu99 -w -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -w
 
 #http://www.cprogramdevelop.com/4787258/
@@ -13,7 +14,7 @@ INSTALLPATH=/usr/local/bin/
 
 all:	jack_playfile
 
-jack_playfile:	$(SRC)/jack_playfile.c $(SRC)/weak_libjack.c
+jack_playfile: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile`

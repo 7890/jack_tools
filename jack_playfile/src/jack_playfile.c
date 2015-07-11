@@ -107,7 +107,6 @@ static jack_ringbuffer_t *rb_deinterleaved=NULL;
 static int sndfile_request_frames=0;
 
 //counters
-
 //JACK process cycles (not counted if process_enabled==0 or shutdown_in_progress==1)
 //first cycle indicated as 1
 static uint64_t process_cycle_count=0;
@@ -150,6 +149,9 @@ struct termios settings; //raw
 //lower values mean faster repetition of events from held key (~ ?)
 #define MAGIC_MAX_CHARS 5//18
 static unsigned char keycodes[ MAGIC_MAX_CHARS ];
+
+//prepare everything for playing but wait for user to toggle to play
+static int start_paused=0;
 
 //=============================================================================
 static int get_resampler_pad_size_start()
@@ -314,8 +316,8 @@ int main(int argc, char *argv[])
 		,MIN(sf_info.frames,frame_offset+frame_count)
 		,frame_count);
 
-	//~2%
-	seek_frames_per_hit=ceil(frame_count / 50);
+	//~1%
+	seek_frames_per_hit=ceil(frame_count / 100);
 //	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
 
 	if(have_libjack()!=0)
@@ -519,29 +521,37 @@ int main(int argc, char *argv[])
 	//now set raw to read key hits
 	set_terminal_raw();
 
+	if(start_paused)
+	{
+		is_playing=0;
+	}
+
 	process_enabled=1;
 //	fprintf(stderr,"process_enabled\n");
 
 	//run until interrupted
 	while (1) 
 	{
-		//this isn't optimal
-		if(is_playing)
-		{
-			fprintf(stderr,"\rplaying   ");//\033[0J");
-		}
-		else
-		{
-			fprintf(stderr,"\rpaused    ");//\033[0J");
-		}
-
-		handle_key_hits();
 
 		//try clean shutdown, mainly to avoid possible audible glitches 
 		if(shutdown_in_progress && !shutdown_in_progress_signalled)
 		{
 			shutdown_in_progress_signalled=1;
 			signal_handler(42);
+		}
+		else
+		{
+			//this isn't optimal
+			if(is_playing)
+			{
+				fprintf(stderr,"\r>  playing   ");//\033[0J");
+			}
+			else
+			{
+				fprintf(stderr,"\r|| paused    ");//\033[0J");
+			}
+
+			handle_key_hits();
 		}
 #ifdef WIN32
 		Sleep(1000);
@@ -558,11 +568,10 @@ static void handle_key_hits()
 	int rawkey=read_raw_key();
 //	fprintf(stderr,"rawkey: %d\n",rawkey);
 
-	//'space': toggle play/pause
-	if(rawkey==32)
+	//no key while timeout not reached
+	if(rawkey==0)
 	{
-		is_playing=!is_playing;
-
+		//clear
 		if(is_playing)
 		{
 			fprintf(stderr,"\033[0J");
@@ -571,6 +580,12 @@ static void handle_key_hits()
 		{
 			fprintf(stderr,"\033[0J");
 		}
+	}
+
+	//'space': toggle play/pause
+	else if(rawkey==32)
+	{
+		is_playing=!is_playing;
 	}
 	//'q': quit
 	else if(rawkey==113)
@@ -610,7 +625,7 @@ static void handle_key_hits()
 		fprintf(stderr," down\033[0J");
 	}
 	//'|<' (home): 
-	else if(rawkey==-72)
+	else if(rawkey==-72 || rawkey==127)
 	{
 		fprintf(stderr," |<  ");
 		print_next_wheel_state(-1);
@@ -624,12 +639,12 @@ static void print_keyboard_shortcuts()
 {
 	fprintf(stderr,"\rkeyboard shortcuts:\033[0J\n");
 
-	fprintf(stderr,"  h, f1:   help (this screen)\n");
-	fprintf(stderr,"  space:   toggle play/pause\n");
-	fprintf(stderr,"  left:    seek backward (2%%)\n");
-	fprintf(stderr,"  right:   seek forward (2%%)\n");
-	fprintf(stderr,"  home:    seek to start\n");
-	fprintf(stderr,"  q:       quit\n\n");
+	fprintf(stderr,"  h, f1:             help (this screen)\n");
+	fprintf(stderr,"  space:             toggle play/pause\n");
+	fprintf(stderr,"  left:              seek backward (1%%)\n");
+	fprintf(stderr,"  right:             seek forward (1%%)\n");
+	fprintf(stderr,"  home, backspace:   seek to start\n");
+	fprintf(stderr,"  q:                 quit\n\n");
 
 }//end print_keyboard_shortcuts()
 
@@ -648,7 +663,6 @@ static int process(jack_nframes_t nframes, void *arg)
 		shutdown_in_progress=1;
 		return 0;
 	}
-
 
 	if(seek_frames_in_progress)
 	{
@@ -804,15 +818,15 @@ static void seek_frames_absolute(int64_t frames_abs)
 
 	reset_ringbuffers();
 
-/////////////need to reset several vars here
-/////////////////
-
-
 	//limit absolute seek to given boundaries (frame_offset, frame_count)
 	uint64_t seek_=MAX(frame_offset,frames_abs);
 	uint64_t seek =MIN((frame_offset+frame_count),seek_);
 
-	sf_count_t count=sf_seek(soundfile,seek,SEEK_SET);
+	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_SET);
+
+////////////////
+//need to reset more
+total_frames_read_from_file=new_pos-frame_offset;
 
 //	fprintf(stderr,"\nseek %"PRId64" new pos %"PRId64"\n",seek,count);
 
@@ -836,11 +850,6 @@ static void seek_frames(int64_t frames_rel)
 
 	reset_ringbuffers();
 
-/////////////need to reset several vars here
-/////////////////
-
-
-
 /*
                             current abs pos    
          abs start          v                                   abs end
@@ -859,6 +868,7 @@ static void seek_frames(int64_t frames_rel)
 */
 
 
+	//0-seek
 	sf_count_t current_read_pos=sf_seek(soundfile,0,SEEK_CUR);
 
 	int64_t seek=0;
@@ -879,9 +889,13 @@ static void seek_frames(int64_t frames_rel)
 		);
 	}
 
-	sf_count_t count=sf_seek(soundfile,seek,SEEK_CUR);
+	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_CUR);
 
-//	fprintf(stderr,"cur pos %"PRId64" seek %"PRId64" new pos %"PRId64"\n",current_read_pos,seek,count);
+////////////////
+//need to reset more
+	total_frames_read_from_file=new_pos-frame_offset;
+
+//	fprintf(stderr,"cur pos %"PRId64" seek %"PRId64" new pos %"PRId64"\n",current_read_pos,seek,new_pos);
 
 	req_buffer_from_disk_thread();
 	
@@ -1254,8 +1268,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 
 		if(total_frames_read_from_file>=frame_count)
 		{
-			fprintf(stderr,"disk_read_frame(): all frames read from file\n");
-			//disk_thread_finished=1;
+			fprintf(stderr,"!!!!!!!! disk_read_frame(): all frames read from file\n");
 			all_frames_read=1;
 		}
 
@@ -1350,7 +1363,7 @@ static void setup_disk_thread()
 //=============================================================================
 static void req_buffer_from_disk_thread()
 {
-	if(all_frames_read)//disk_thread_finished)
+	if(all_frames_read)
 	{
 		return;
 	}
@@ -1503,6 +1516,29 @@ static void set_terminal_raw()
 //=============================================================================
 static int read_raw_key()
 {
+	//non-blocking poll / read key
+	//http://stackoverflow.com/questions/3711830/set-a-timeout-for-reading-stdin
+	fd_set selectset;
+	struct timeval timeout = {0,700000}; //timeout seconds, microseconds
+	int ret;
+	FD_ZERO(&selectset);
+	FD_SET(0,&selectset);
+	ret =  select(1,&selectset,NULL,NULL,&timeout);
+	if(ret == 0)
+	{
+		//timeout
+		return 0;
+	}
+	else if(ret == -1)
+	{
+		//error
+		return 0;
+	}
+//else
+	// stdin has data, read it
+	// (we know stdin is readable, since we only asked for read events
+	//and stdin is the only fd in our select set.
+
 	int count = read( STDIN_FILENO, (void*)keycodes, MAGIC_MAX_CHARS );
 
 	return (count == 1)

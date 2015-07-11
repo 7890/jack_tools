@@ -91,19 +91,19 @@ static void print_next_wheel_state(int direction)
 
 	if(wheel_state==0)
 	{
-		fprintf(stderr,"|");
+		fprintf(stderr,"(|`▔^▔▔—)");
 	}
 	if(wheel_state==1)
 	{
-		fprintf(stderr,"/");
+		fprintf(stderr,"(/▔`^▔▔\\)");
 	}
 	if(wheel_state==2)
 	{
-		fprintf(stderr,"—");
+		fprintf(stderr,"(—▔▔^`▔|)");
 	}
 	if(wheel_state==3)
 	{
-		fprintf(stderr,"\\");
+		fprintf(stderr,"(\\▔▔^▔`/)");
 	}
 }
 
