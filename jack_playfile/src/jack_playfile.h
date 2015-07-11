@@ -80,30 +80,38 @@ static void print_next_wheel_state(int direction)
 {
 	wheel_state+=direction;
 
-	if(wheel_state>3)
+	if(wheel_state>5)
 	{
 		wheel_state=0;
 	}
 	else if(wheel_state<0)
 	{
-		wheel_state=3;
+		wheel_state=5;
 	}
 
 	if(wheel_state==0)
 	{
-		fprintf(stderr,"(|`▔^▔▔—)");
+		fprintf(stderr,"(.  ");
 	}
 	if(wheel_state==1)
 	{
-		fprintf(stderr,"(/▔`^▔▔\\)");
+		fprintf(stderr,"(▔  ");
 	}
 	if(wheel_state==2)
 	{
-		fprintf(stderr,"(—▔▔^`▔|)");
+		fprintf(stderr," ▔▔ ");
 	}
 	if(wheel_state==3)
 	{
-		fprintf(stderr,"(\\▔▔^▔`/)");
+		fprintf(stderr,"  ▔)");
+	}
+	if(wheel_state==4)
+	{
+		fprintf(stderr,"  .)");
+	}
+	if(wheel_state==5)
+	{
+		fprintf(stderr," .. ");
 	}
 }
 
