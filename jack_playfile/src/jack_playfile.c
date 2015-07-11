@@ -143,12 +143,14 @@ static int seek_frames_in_progress=0;
 //relative seek, how many (native) frames
 uint64_t seek_frames_per_hit=0;
 
-static struct termios initial_settings; //cooked
-struct termios settings; //raw
+#ifndef WIN32
+	static struct termios initial_settings; //cooked
+	struct termios settings; //raw
 
-//lower values mean faster repetition of events from held key (~ ?)
-#define MAGIC_MAX_CHARS 5//18
-static unsigned char keycodes[ MAGIC_MAX_CHARS ];
+	//lower values mean faster repetition of events from held key (~ ?)
+	#define MAGIC_MAX_CHARS 5//18
+	static unsigned char keycodes[ MAGIC_MAX_CHARS ];
+#endif
 
 //prepare everything for playing but wait for user to toggle to play
 static int start_paused=0;
@@ -515,10 +517,12 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
+#ifndef WIN32
 	//save original tty settings ("cooked")
 	tcgetattr( STDIN_FILENO, &initial_settings );
 	//now set raw to read key hits
 	set_terminal_raw();
+#endif
 
 	if(start_paused)
 	{
@@ -1459,8 +1463,10 @@ static void signal_handler(int sig)
 
 	free_ringbuffers();
 
+#ifndef WIN32
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+#endif
 
 	//turn on cursor
 	fprintf(stderr,"\033[?25h");
@@ -1483,8 +1489,10 @@ static void jack_shutdown_handler (void *arg)
 
 	free_ringbuffers();
 
+#ifndef WIN32
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+#endif
 
 	//turn on cursor
 	fprintf(stderr,"\033[?25h");
@@ -1496,6 +1504,7 @@ static void jack_shutdown_handler (void *arg)
 //http://www.cplusplus.com/forum/articles/7312/#msg33734
 static void set_terminal_raw()
 {
+#ifndef WIN32
 	tcgetattr( STDIN_FILENO, &settings );
 
 	//set the console mode to no-echo, raw input
@@ -1510,11 +1519,13 @@ static void set_terminal_raw()
 
 	//in shutdown signal handler
 	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+#endif
 }
 
 //=============================================================================
 static int read_raw_key()
 {
+#ifndef WIN32
 	//non-blocking poll / read key
 	//http://stackoverflow.com/questions/3711830/set-a-timeout-for-reading-stdin
 	fd_set selectset;
@@ -1543,5 +1554,8 @@ static int read_raw_key()
 	return (count == 1)
 		? keycodes[ 0 ]
 		: -(int)(keycodes[ count -1 ]);
+#else
+	return 0;
+#endif
 }
 //EOF

@@ -7,7 +7,10 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <termios.h>
+
+#ifndef WIN32
+	#include <termios.h>
+#endif
 
 #include "weak_libjack.h"
 
