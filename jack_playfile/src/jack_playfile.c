@@ -1268,7 +1268,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 
 		if(total_frames_read_from_file>=frame_count)
 		{
-			fprintf(stderr,"!!!!!!!! disk_read_frame(): all frames read from file\n");
+//			fprintf(stderr,"disk_read_frame(): all frames read from file\n");
 			all_frames_read=1;
 		}
 
