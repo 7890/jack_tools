@@ -175,7 +175,7 @@ static void print_stats()
 		return;
 	}
 
-	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %d resampled %d deinterleaved %d resampling finished %d all frames read %d disk thread finished %d\n"
+	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %"PRId64" resampled %"PRId64" deinterleaved %"PRId64" resampling finished %d all frames read %d disk thread finished %d\n"
 		,process_cycle_count
 		,disk_read_cycle_count
 		,process_cycle_underruns
@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 	if(frame_offset<0 || frame_offset>sf_info.frames)
 	{
 		frame_offset=0;
-		fprintf(stderr,"frame_offset set to %d\n",frame_offset);
+		fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
 	}
 
 	//if requested count negative, zero or greater total frames in file
@@ -293,7 +293,7 @@ int main(int argc, char *argv[])
 	{
 		//set possible max respecting frame_offset
 		frame_count=sf_info.frames-frame_offset;
-		fprintf(stderr,"frame_count set to %d",frame_count);
+		fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
 		if(frame_count==sf_info.frames)
 		{
 			fprintf(stderr," (all available frames)");
@@ -307,12 +307,11 @@ int main(int argc, char *argv[])
 		//set possible max respecting frame_offset
 		frame_count=MIN((sf_info.frames-frame_offset),frame_count);
 
-		fprintf(stderr,"frame_count set to %d\n",frame_count);
+		fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
 	}
 
-	fprintf(stderr,"playing frames from/to/length: %d %d %"PRId64"\n"
+	fprintf(stderr,"playing frames from/to/length: %"PRId64" %"PRId64" %"PRId64"\n"
 		,frame_offset
-		/*,sf_info.frames*/
 		,MIN(sf_info.frames,frame_offset+frame_count)
 		,frame_count);
 

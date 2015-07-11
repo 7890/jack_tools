@@ -120,9 +120,13 @@ static double get_seconds(SF_INFO *sf_info)
 {
 	double seconds;
 	if (sf_info->samplerate < 1)
-	return NULL ;
+	{
+		return 0;
+	}
 	if (sf_info->frames / sf_info->samplerate > 0x7FFFFFFF)
-	return -1;
+	{
+		return -1;
+	}
 	seconds = (1.0 * sf_info->frames) / sf_info->samplerate;
 	return seconds;
 }
