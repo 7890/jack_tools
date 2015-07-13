@@ -45,9 +45,14 @@
 # the standard variables are normally safe to use
 # to skip the build stack this script can be started (from inside cow):
 # NOSTACK=1 /var/tmp/build_win.sh
-# this will update and build the audio_rxtx sources
+# this will update and build the jack_playfile
 
 : ${NOSTACK=}   # set to skip building the build-stack
+
+: ${COPY_HOME=} # to copy all in $ROOT from a previously saved location
+                # i.e. NOSTACK=1 COPY_HOME=1 /var/tmp/build_win.sh
+
+: ${COPY_HOME_LOCATION="/var/tmp/winbuild_from_cow"} 
 
 # windows 32 bit binaries will/should work also on 64 bit 
 : ${XARCH=i686} # or x86_64
@@ -163,6 +168,11 @@ make $MAKEFLAGS && make install
 }
 
 #function wafbuild was here
+
+if [ x"$COPY_HOME" = "x1" ]
+then
+	cp -ar "$COPY_HOME_LOCATION"/* ${ROOT}
+fi
 
 ################################################################################
 if test -z "$NOSTACK"; then
