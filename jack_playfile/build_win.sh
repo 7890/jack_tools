@@ -99,6 +99,9 @@ apt-get -y install build-essential \
 	curl unzip ed yasm cmake ca-certificates \
 	ne dos2unix locate zip
 
+cat /root/.bashrc | sed "s/alias l='ls -CF'/alias l='ls -ltr'/g" > /tmp/bashrc
+cp /tmp/bashrc /root/.bashrc
+
 #fixup mingw64 ccache for now
 if test -d /usr/lib/ccache -a -f /usr/bin/ccache; then
 	export PATH="/usr/lib/ccache:${PATH}"
@@ -207,7 +210,7 @@ ed Makefile.in << EOF
 %s/examples / /
 wq
 EOF
-autoconfbuild
+autoconfbuild --enable-static
 
 src libsndfile-1.0.25 tar.gz http://www.mega-nerd.com/libsndfile/files/libsndfile-1.0.25.tar.gz
 ed Makefile.in << EOF
@@ -221,9 +224,25 @@ ed $PREFIX/lib/pkgconfig/sndfile.pc << EOF
 wq
 EOF
 
-echo ""
-echo "================HERE=================="
-echo ""
+
+src zita-resampler-1.3.0 tar.bz2 http://kokkinizita.linuxaudio.org/linuxaudio/downloads/zita-resampler-1.3.0.tar.bz2
+cd libs
+
+echo "building zita-resampler..."
+
+i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler.o resampler.cc
+i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o vresampler.o vresampler.cc
+i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler-table.o resampler-table.cc
+i686-w64-mingw32-g++ -shared -o libzita-resampler.dll resampler.o vresampler.o resampler-table.o  -Wl,-static,--out-implib,libzita-resampler.a
+cp libzita-resampler.dll ${PREFIX}/bin
+cp libzita-resampler.a ${PREFIX}/lib
+cp -r zita-resampler ${PREFIX}/include
+
+echo "done."
+
+#echo ""
+#echo "================HERE=================="
+#echo ""
 
 
 ################################################################################
@@ -278,11 +297,12 @@ APPSTRING=jack_playfile_$EXT
 DESTDIR=/tmp/$APPSTRING/
 
 mkdir -p $DESTDIR/bin
-#cp -r build/audio_rxtx/* $DESTDIR
+
 cp jack_playfile.exe $DESTDIR/bin
 
 cp /usr/i686-w64-mingw32/lib/libwinpthread-1.dll $DESTDIR/bin
 cp /usr/lib/gcc/i686-w64-mingw32/4.8/libgcc_s_sjlj-1.dll $DESTDIR/bin
+cp /usr/lib/gcc/i686-w64-mingw32/4.8/libstdc++-6.dll $DESTDIR/bin
 #cp ${PREFIX}/bin/liblo-7.dll $DESTDIR/bin
 #cp ${PREFIX}/bin/pthreadGC2.dll $DESTDIR/bin
 #cp ${PREFIX}/bin/oscdump.exe $DESTDIR/bin
@@ -299,8 +319,14 @@ cp ${PREFIX}/bin/* $DESTDIR/bin
 #libvorbis-0.dll
 #libvorbisenc-2.dll
 #libvorbisfile-3.dll
+#libzita-resampler.dll
 #metaflac.exe
 #pthreadGC2.dll
+
+rm -f $DESTDIR/bin/flac.exe
+rm -f $DESTDIR/bin/metaflac.exe
+rm -f $DESTDIR/bin/libFLAC++-6.dll
+rm -f $DESTDIR/bin/libvorbisfile-3.dll
 
 chmod 700 $DESTDIR/bin/*
 
