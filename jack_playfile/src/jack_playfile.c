@@ -5,6 +5,7 @@
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
 
+
 //command line arguments
 //======================
 static const char *filename=NULL; //mandatory
@@ -21,6 +22,9 @@ static int use_resampling=1;
 
 //if set to 1, connect available file channels to available physical outputs
 static int autoconnect_jack_ports=1;
+
+//prepare everything for playing but wait for user to toggle to play
+static int start_paused=0;
 
 //if set to 1, will print stats
 static int debug=0;
@@ -150,10 +154,23 @@ uint64_t seek_frames_per_hit=0;
 	//lower values mean faster repetition of events from held key (~ ?)
 	#define MAGIC_MAX_CHARS 5//18
 	static unsigned char keycodes[ MAGIC_MAX_CHARS ];
+#else
+	DWORD        w_term_mode;
+	HANDLE       w_term_hstdin;
+	INPUT_RECORD w_term_inrec;
+	DWORD        w_term_count;
 #endif
 
-//prepare everything for playing but wait for user to toggle to play
-static int start_paused=0;
+static int KEY_SPACE=0;
+static int KEY_Q=0;
+static int KEY_H=0;
+static int KEY_F1=0;
+static int KEY_ARROW_LEFT=0;
+static int KEY_ARROW_RIGHT=0;
+static int KEY_ARROW_UP=0;
+static int KEY_ARROW_DOWN=0;
+static int KEY_HOME=0;
+static int KEY_BACKSPACE=0;
 
 //=============================================================================
 static int get_resampler_pad_size_start()
@@ -520,9 +537,10 @@ int main(int argc, char *argv[])
 #ifndef WIN32
 	//save original tty settings ("cooked")
 	tcgetattr( STDIN_FILENO, &initial_settings );
+#endif
+
 	//now set raw to read key hits
 	set_terminal_raw();
-#endif
 
 	if(start_paused)
 	{
@@ -531,6 +549,8 @@ int main(int argc, char *argv[])
 
 	process_enabled=1;
 //	fprintf(stderr,"process_enabled\n");
+
+	init_key_codes();
 
 	//run until interrupted
 	while (1) 
@@ -557,7 +577,7 @@ int main(int argc, char *argv[])
 			handle_key_hits();
 		}
 #ifdef WIN32
-		Sleep(1000);
+		Sleep(100);
 #else
 		usleep(10000);
 #endif
@@ -586,23 +606,23 @@ static void handle_key_hits()
 	}
 
 	//'space': toggle play/pause
-	else if(rawkey==32)
+	else if(rawkey==KEY_SPACE)
 	{
 		is_playing=!is_playing;
 	}
 	//'q': quit
-	else if(rawkey==113)
+	else if(rawkey==KEY_Q)
 	{
 		fprintf(stderr,"\rquit received\033[0J\n");
 		shutdown_in_progress=1;
 	}
 	//'h' or 'f1': help
-	else if(rawkey==104 || rawkey==-80)
+	else if(rawkey==KEY_H || rawkey==KEY_F1)
 	{
 		print_keyboard_shortcuts();
 	}
 	//'<' (arrow left): 
-	else if(rawkey==-68)
+	else if(rawkey==KEY_ARROW_LEFT)
 	{
 		fprintf(stderr," <<  ");
 		print_next_wheel_state(-1);
@@ -610,25 +630,25 @@ static void handle_key_hits()
 		seek_frames(-seek_frames_per_hit);
 	}
 	//'>' (arrow right): 
-	else if(rawkey==-67)
+	else if(rawkey==KEY_ARROW_RIGHT)
 	{
 		fprintf(stderr," >>  ");
 		print_next_wheel_state(+1);
 		fprintf(stderr,"\033[0J");
 		seek_frames( seek_frames_per_hit);
 	}
-	//'^' (arrow up): 
-	else if(rawkey==-65)
+	//'^' (arrow up):
+	else if(rawkey==KEY_ARROW_UP)
 	{
 		fprintf(stderr," up\033[0J");
 	}
-	//'v' (arrow down): 
-	else if(rawkey==-66)
+	//'v' (arrow down):
+	else if(rawkey==KEY_ARROW_DOWN)
 	{
 		fprintf(stderr," down\033[0J");
 	}
-	//'|<' (home): 
-	else if(rawkey==-72 || rawkey==127)
+	//'|<' (home, backspace):
+	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
 	{
 		fprintf(stderr," |<  ");
 		print_next_wheel_state(-1);
@@ -1519,6 +1539,20 @@ static void set_terminal_raw()
 
 	//in shutdown signal handler
 	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+#else
+	//set the console mode to no-echo, raw input, and no window or mouse events
+	w_term_hstdin = GetStdHandle( STD_INPUT_HANDLE );
+	if (w_term_hstdin == INVALID_HANDLE_VALUE
+		|| !GetConsoleMode( w_term_hstdin, &w_term_mode )
+		|| !SetConsoleMode( w_term_hstdin, 0 ))
+	{
+		fprintf(stderr,"/!\\ could not initialize terminal\n");
+		return;
+	}
+	FlushConsoleInputBuffer( w_term_hstdin );
+
+	//turn off cursor
+	//...
 #endif
 }
 
@@ -1555,7 +1589,44 @@ static int read_raw_key()
 		? keycodes[ 0 ]
 		: -(int)(keycodes[ count -1 ]);
 #else
-	return 0;
+	//https://msdn.microsoft.com/en-us/library/windows/desktop/ms687032%28v=vs.85%29.aspx
+	//get a single key PRESS
+	do ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
+	while ((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown);
+
+	//restore the console to its previous state
+	SetConsoleMode( w_term_hstdin, w_term_mode );
+
+	fprintf(stderr,",");
+	return w_term_inrec.Event.KeyEvent.wVirtualKeyCode;
+#endif
+}//end read_raw_key()
+
+//=============================================================================
+static void init_key_codes()
+{
+#ifndef WIN32
+	KEY_SPACE=32;
+	KEY_Q=113;
+	KEY_H=104;
+	KEY_F1=-80;
+	KEY_ARROW_LEFT=-68;
+	KEY_ARROW_RIGHT=-67;
+	KEY_ARROW_UP=-65;
+	KEY_ARROW_DOWN=-66;
+	KEY_HOME=-72;
+	KEY_BACKSPACE=127;
+#else
+	KEY_SPACE=32;
+	KEY_Q=81;
+	KEY_H=72;
+	KEY_F1=112;
+	KEY_ARROW_LEFT=37;
+	KEY_ARROW_RIGHT=39;
+	KEY_ARROW_UP=38;
+	KEY_ARROW_DOWN=40;
+	KEY_HOME=36;
+	KEY_BACKSPACE=8;
 #endif
 }
 //EOF

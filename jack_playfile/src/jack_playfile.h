@@ -20,9 +20,11 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-//#ifdef WIN32
-//       #define bzero(p, l) memset(p, 0, l)
-//#endif
+#ifdef WIN32
+	#include <windows.h>
+	#define PRId64 "llu"
+	#define bzero(p, l) memset(p, 0, l)
+#endif
 
 typedef jack_default_audio_sample_t sample_t;
 
@@ -72,6 +74,7 @@ static void print_stats();
 
 static void set_terminal_raw();
 static int read_raw_key();
+static void init_key_codes();
 
 static void print_next_wheel_state(int direction);
 
