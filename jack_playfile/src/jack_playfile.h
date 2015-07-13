@@ -65,6 +65,7 @@ static void reset_ringbuffers();
 static void signal_handler(int sig);
 static void jack_shutdown_handler (void *arg);
 
+static double frames_to_seconds(sf_count_t frames, int samplerate);
 static double get_seconds(SF_INFO *sf_info);
 static const char * format_duration_str(double seconds);
 static const char * generate_duration_str(SF_INFO *sf_info);
@@ -77,6 +78,7 @@ static int read_raw_key();
 static void init_key_codes();
 
 static void print_next_wheel_state(int direction);
+static void print_clock();
 
 //for displaying 'wheel' as progress indicator
 static int wheel_state=0;
@@ -95,30 +97,44 @@ static void print_next_wheel_state(int direction)
 		wheel_state=5;
 	}
 
+//▔
+
 	if(wheel_state==0)
 	{
-		fprintf(stderr,"(.  ");
+		fprintf(stderr,"(.    ");
 	}
 	if(wheel_state==1)
 	{
-		fprintf(stderr,"(▔  ");
+		fprintf(stderr,"(`    ");
 	}
 	if(wheel_state==2)
 	{
-		fprintf(stderr," ▔▔ ");
+		fprintf(stderr," ``   ");
 	}
 	if(wheel_state==3)
 	{
-		fprintf(stderr,"  ▔)");
+		fprintf(stderr,"  `)  ");
 	}
 	if(wheel_state==4)
 	{
-		fprintf(stderr,"  .)");
+		fprintf(stderr,"  .)  ");
 	}
 	if(wheel_state==5)
 	{
-		fprintf(stderr," .. ");
+		fprintf(stderr," ..   ");
 	}
+}
+
+//=============================================================================
+static double frames_to_seconds(sf_count_t frames, int samplerate)
+{
+	double seconds;
+	if (frames==0)
+	{
+		return 0;
+	}
+	seconds = (1.0 * frames) / samplerate;
+	return seconds;
 }
 
 //=============================================================================

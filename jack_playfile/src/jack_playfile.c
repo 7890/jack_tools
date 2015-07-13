@@ -26,6 +26,10 @@ static int autoconnect_jack_ports=1;
 //prepare everything for playing but wait for user to toggle to play
 static int start_paused=0;
 
+//don't quit program when everything has played out
+////////********
+static int pause_when_finished=0;
+
 //if set to 1, will print stats
 static int debug=0;
 
@@ -141,7 +145,13 @@ static uint64_t total_input_frames_resampled=0;
 //toggle play/pause with 'space'
 static int is_playing=1;
 
-//arrows left and right, home
+//toggle mute with 'm'
+static int is_muted=0;
+
+//toggle loop with 'l'
+static int loop_enabled=0; //unused
+
+//arrows left and right, home, end
 static int seek_frames_in_progress=0;
 
 //relative seek, how many (native) frames
@@ -170,7 +180,10 @@ static int KEY_ARROW_RIGHT=0;
 static int KEY_ARROW_UP=0;
 static int KEY_ARROW_DOWN=0;
 static int KEY_HOME=0;
+static int KEY_END=0;
 static int KEY_BACKSPACE=0;
+static int KEY_M=0;
+static int KEY_L=0;
 
 //=============================================================================
 static int get_resampler_pad_size_start()
@@ -461,7 +474,6 @@ int main(int argc, char *argv[])
 		}
 	}
 
-
 	//request first chunk from file
 	req_buffer_from_disk_thread();
 
@@ -567,12 +579,30 @@ int main(int argc, char *argv[])
 			//this isn't optimal
 			if(is_playing)
 			{
-				fprintf(stderr,"\r>  playing   ");//\033[0J");
+				fprintf(stderr,"\r>  playing  ");//\033[0J");
 			}
 			else
 			{
-				fprintf(stderr,"\r|| paused    ");//\033[0J");
+				fprintf(stderr,"\r|| paused   ");//\033[0J");
 			}
+			if(is_muted)
+			{
+				fprintf(stderr,"M");
+			}
+			else
+			{
+				fprintf(stderr," ");
+			}
+			if(loop_enabled)
+			{
+				fprintf(stderr,"L  ");
+			}
+			else
+			{
+				fprintf(stderr,"   ");
+			}
+
+			print_clock();
 
 			handle_key_hits();
 		}
@@ -585,9 +615,24 @@ int main(int argc, char *argv[])
 	exit(0);
 }//end main
 
+
+//=============================================================================
+static void print_clock()
+{
+	sf_count_t pos=sf_seek(soundfile,0,SEEK_CUR);
+	double seconds=frames_to_seconds(pos,sf_info.samplerate);
+	
+	fprintf(stderr,"%4.1f (%s) "
+		,frames_to_seconds(pos,sf_info.samplerate)
+		,format_duration_str(seconds));
+}
 //=============================================================================
 static void handle_key_hits()
 {
+/*
+>  playing   ML  1234.5 (0:12:34.1)  << (``)  
+^            ^^  ^       ^           ^  ^
+*/
 	int rawkey=read_raw_key();
 //	fprintf(stderr,"rawkey: %d\n",rawkey);
 
@@ -624,7 +669,7 @@ static void handle_key_hits()
 	//'<' (arrow left): 
 	else if(rawkey==KEY_ARROW_LEFT)
 	{
-		fprintf(stderr," <<  ");
+		fprintf(stderr,"<< ");
 		print_next_wheel_state(-1);
 		fprintf(stderr,"\033[0J");
 		seek_frames(-seek_frames_per_hit);
@@ -632,7 +677,7 @@ static void handle_key_hits()
 	//'>' (arrow right): 
 	else if(rawkey==KEY_ARROW_RIGHT)
 	{
-		fprintf(stderr," >>  ");
+		fprintf(stderr,">> ");
 		print_next_wheel_state(+1);
 		fprintf(stderr,"\033[0J");
 		seek_frames( seek_frames_per_hit);
@@ -640,20 +685,46 @@ static void handle_key_hits()
 	//'^' (arrow up):
 	else if(rawkey==KEY_ARROW_UP)
 	{
-		fprintf(stderr," up\033[0J");
+		fprintf(stderr,"^^ \033[0J");
+		print_next_wheel_state(1);
+		fprintf(stderr,"\033[0J");
+//unused
 	}
 	//'v' (arrow down):
 	else if(rawkey==KEY_ARROW_DOWN)
 	{
-		fprintf(stderr," down\033[0J");
+		fprintf(stderr,"vv \033[0J");
+		print_next_wheel_state(-1);
+		fprintf(stderr,"\033[0J");
+//unused
 	}
 	//'|<' (home, backspace):
 	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
 	{
-		fprintf(stderr," |<  ");
+		fprintf(stderr,"|< ");
 		print_next_wheel_state(-1);
 		fprintf(stderr,"\033[0J");
 		seek_frames_absolute(frame_offset);
+	}
+	//'>|' (end):
+	else if(rawkey==KEY_END)
+	{
+		fprintf(stderr,">| ");
+		print_next_wheel_state(1);
+		fprintf(stderr,"\033[0J");
+		seek_frames_absolute(frame_offset+frame_count);
+	}
+	//'m': toggle mute
+	else if(rawkey==KEY_M)
+	{
+		is_muted=!is_muted;
+		fprintf(stderr,"mute %s\033[0J",is_muted ? "on" : "off" );
+	}
+	//'l': loop
+	else if(rawkey==KEY_L)
+	{
+		loop_enabled=!loop_enabled;
+		fprintf(stderr,"loop %s\033[0J",loop_enabled ? "on" : "off" );
 	}
 }//end handle_key_hits()
 
@@ -667,6 +738,9 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  left:              seek backward (1%%)\n");
 	fprintf(stderr,"  right:             seek forward (1%%)\n");
 	fprintf(stderr,"  home, backspace:   seek to start\n");
+	fprintf(stderr,"  end:               seek to end\n");
+	fprintf(stderr,"  m:                 mute\n");
+	fprintf(stderr,"  l:                 loop\n");
 	fprintf(stderr,"  q:                 quit\n\n");
 
 }//end print_keyboard_shortcuts()
@@ -697,8 +771,11 @@ static int process(jack_nframes_t nframes, void *arg)
 		}
 		else
 		{
-			//read more data
-			req_buffer_from_disk_thread();
+			if(is_playing)
+			{
+				//read more data
+				req_buffer_from_disk_thread();
+			}
 		}
 	}
 
@@ -853,7 +930,7 @@ total_frames_read_from_file=new_pos-frame_offset;
 
 //	fprintf(stderr,"\nseek %"PRId64" new pos %"PRId64"\n",seek,count);
 
-	req_buffer_from_disk_thread();
+//	req_buffer_from_disk_thread();
 
 	//in process()
 	//seek_frames_in_progress=0;
@@ -900,14 +977,15 @@ static void seek_frames(int64_t frames_rel)
 	if(frames_rel>0)
 	{
 		seek=MIN(
-			(frame_offset + frame_count - current_read_pos)
+			(int64_t)(frame_offset + frame_count - current_read_pos)
 			,frames_rel
 		);
 	}
 	else //frames_rel<0
 	{
 		seek=MAX(
-			(frame_offset - current_read_pos)
+
+			(int64_t)(frame_offset - current_read_pos)
 			,frames_rel
 		);
 	}
@@ -920,7 +998,7 @@ static void seek_frames(int64_t frames_rel)
 
 //	fprintf(stderr,"cur pos %"PRId64" seek %"PRId64" new pos %"PRId64"\n",current_read_pos,seek,new_pos);
 
-	req_buffer_from_disk_thread();
+//	req_buffer_from_disk_thread();
 	
 	//in process()
 	//seek_frames_in_progress=0;
@@ -1181,6 +1259,11 @@ static void deinterleave()
 				//===
 				//f1*=0.5;
 
+				if(is_muted)
+				{
+					f1=0;
+				}
+
 				//put to ringbuffer
 				jack_ringbuffer_write(rb_deinterleaved
 					,(char*)&f1
@@ -1244,7 +1327,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 		buf_avail = write_vec [0].len / output_port_count / bytes_per_sample ;
 
 		frames_read_=MIN(frames_to_go,sndfile_request_frames);
-		frames_read=MIN(frames_read_,buf_avail);
+		frames_read =MIN(frames_read_,buf_avail);
 
 		//fill the first part of the ringbuffer
 		frames_read_from_file = sf_readf_float (soundfile_, (float *) write_vec [0].buf, frames_read) ;
@@ -1275,7 +1358,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 
 		total_frames_read_from_file+=frames_read_from_file;
 
-//		fprintf(stderr,"disk_read_frames(): frames: read %d total %d\n",frames_read_from_file,total_frames_read_from_file);
+//		fprintf(stderr,"disk_read_frames(): frames: read %"PRId64" total %"PRId64"\n",frames_read_from_file,total_frames_read_from_file);
 
 		//advance write pointers
 		if(out_to_in_sr_ratio==1.0 || !use_resampling)
@@ -1563,7 +1646,7 @@ static int read_raw_key()
 	//non-blocking poll / read key
 	//http://stackoverflow.com/questions/3711830/set-a-timeout-for-reading-stdin
 	fd_set selectset;
-	struct timeval timeout = {0,700000}; //timeout seconds, microseconds
+	struct timeval timeout = {0,100000}; //timeout seconds, microseconds
 	int ret;
 	FD_ZERO(&selectset);
 	FD_SET(0,&selectset);
@@ -1615,7 +1698,10 @@ static void init_key_codes()
 	KEY_ARROW_UP=-65;
 	KEY_ARROW_DOWN=-66;
 	KEY_HOME=-72;
+	KEY_END=-70;
 	KEY_BACKSPACE=127;
+	KEY_M=109;
+	KEY_L=108;
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -1626,7 +1712,10 @@ static void init_key_codes()
 	KEY_ARROW_UP=38;
 	KEY_ARROW_DOWN=40;
 	KEY_HOME=36;
+	KEY_END=35;
 	KEY_BACKSPACE=8;
+	KEY_M=77;
+	KEY_L=76;
 #endif
 }
 //EOF
