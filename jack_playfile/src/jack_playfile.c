@@ -599,12 +599,11 @@ int main(int argc, char *argv[])
 		}
 		else if(keyboard_control_enabled)
 		{
-#ifndef WIN32
 			fprintf(stderr,"\r");
-#else
+
+			//flicker
 			//go to start of line, add spaces ~"clear", go to start of line
-			fprintf(stderr,"\r%s\r",clear_to_eol_seq);
-#endif
+			//fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 
 			if(is_playing)
 			{
@@ -766,48 +765,50 @@ static void handle_key_hits()
 	//'|<' (home, backspace):
 	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
 	{
-		fprintf(stderr,"|< home");
+		fprintf(stderr,"|< home ");
 		seek_frames_absolute(frame_offset);
 	}
 	//'>|' (end):
 	else if(rawkey==KEY_END)
 	{
-		fprintf(stderr,">| end");
+		fprintf(stderr,">| end ");
 		seek_frames_absolute(frame_offset+frame_count);
 	}
 	//'m': toggle mute
 	else if(rawkey==KEY_M)
 	{
 		is_muted=!is_muted;
-		fprintf(stderr,"mute %s",is_muted ? "on" : "off");
+		fprintf(stderr,"mute %s",is_muted ? "on " : "off ");
 	}
 	//'l': loop
 	else if(rawkey==KEY_L)
 	{
 		loop_enabled=!loop_enabled;
-		fprintf(stderr,"loop %s",loop_enabled ? "on" : "off");
+		fprintf(stderr,"loop %s",loop_enabled ? "on " : "off ");
 	}
 	//',': 
 	else if(rawkey==KEY_COMMA)
 	{
 		is_time_seconds=!is_time_seconds;
-		fprintf(stderr,"time %s",is_time_seconds ? "seconds" : "frames");
+		fprintf(stderr,"time %s",is_time_seconds ? "seconds " : "frames ");
 	}
 	//'.': 
 	else if(rawkey==KEY_PERIOD)
 	{
 		is_time_absolute=!is_time_absolute;
-		fprintf(stderr,"time %s",is_time_absolute ? "absolute" : "relative");
+		fprintf(stderr,"time %s",is_time_absolute ? "absolute " : "relative ");
 	}
 	//'-': 
 	else if(rawkey==KEY_DASH)
 	{
 		is_time_elapsed=!is_time_elapsed;
-		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed" : "remaining");
+		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed " : "remaining ");
 	}
 
 #ifndef WIN32
 		fprintf(stderr,"%s",clear_to_eol_seq);
+#else
+		fprintf(stderr,"                 ");
 #endif
 
 }//end handle_key_hits()
@@ -1382,7 +1383,6 @@ static int disk_read_frames(SNDFILE *soundfile_)
 	{
 		if(loop_enabled)
 		{
-			fprintf(stderr,"loop");
 			total_frames_read_from_file=0;//frame_offset;
 
 			sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
@@ -1474,7 +1474,9 @@ static int disk_read_frames(SNDFILE *soundfile_)
 
 			if(loop_enabled)
 			{
+#ifndef WIN32
 				fprintf(stderr,"loop");
+#endif
 				total_frames_read_from_file=0;//frame_offset;
 
 				sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
