@@ -599,15 +599,22 @@ int main(int argc, char *argv[])
 		}
 		else if(keyboard_control_enabled)
 		{
-			//this isn't optimal
+#ifndef WIN32
+			fprintf(stderr,"\r");
+#else
+			//go to start of line, add spaces ~"clear", go to start of line
+			fprintf(stderr,"\r%s\r",clear_to_eol_seq);
+#endif
+
 			if(is_playing)
 			{
-				fprintf(stderr,"\r>  playing  ");
+				fprintf(stderr,">  playing  ");
 			}
 			else
 			{
-				fprintf(stderr,"\r|| paused   ");
+				fprintf(stderr,"|| paused   ");
 			}
+
 			if(is_muted)
 			{
 				fprintf(stderr,"M");
@@ -616,6 +623,7 @@ int main(int argc, char *argv[])
 			{
 				fprintf(stderr," ");
 			}
+
 			if(loop_enabled)
 			{
 				fprintf(stderr,"L  ");
@@ -708,14 +716,7 @@ static void handle_key_hits()
 	if(rawkey==0)
 	{
 		//clear
-		if(is_playing)
-		{
-			fprintf(stderr,"%s",clear_to_eol_seq);
-		}
-		else
-		{
-			fprintf(stderr,"%s",clear_to_eol_seq);
-		}
+//		fprintf(stderr,"%s",clear_to_eol_seq);
 	}
 
 	//'space': toggle play/pause
@@ -726,7 +727,7 @@ static void handle_key_hits()
 	//'q': quit
 	else if(rawkey==KEY_Q)
 	{
-		fprintf(stderr,"\rquit received%s\n",clear_to_eol_seq);
+		fprintf(stderr,"\r%s\rquit received\n",clear_to_eol_seq);
 		shutdown_in_progress=1;
 	}
 	//'h' or 'f1': help
@@ -739,7 +740,6 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"<< ");
 		print_next_wheel_state(-1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames(-seek_frames_per_hit);
 	}
 	//'>' (arrow right): 
@@ -747,7 +747,6 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,">> ");
 		print_next_wheel_state(+1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames( seek_frames_per_hit);
 	}
 	//'^' (arrow up):
@@ -755,7 +754,6 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"^^ ");
 		print_next_wheel_state(1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
 //unused
 	}
 	//'v' (arrow down):
@@ -763,66 +761,61 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"vv ");
 		print_next_wheel_state(-1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
 //unused
 	}
 	//'|<' (home, backspace):
 	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
 	{
-		fprintf(stderr,"|< ");
-		print_next_wheel_state(-1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
+		fprintf(stderr,"|< home");
 		seek_frames_absolute(frame_offset);
 	}
 	//'>|' (end):
 	else if(rawkey==KEY_END)
 	{
-		fprintf(stderr,">| ");
-		print_next_wheel_state(1);
-		fprintf(stderr,"%s",clear_to_eol_seq);
+		fprintf(stderr,">| end");
 		seek_frames_absolute(frame_offset+frame_count);
 	}
 	//'m': toggle mute
 	else if(rawkey==KEY_M)
 	{
 		is_muted=!is_muted;
-		fprintf(stderr,"mute %s%s",is_muted ? "on" : "off"
-			,clear_to_eol_seq);
+		fprintf(stderr,"mute %s",is_muted ? "on" : "off");
 	}
 	//'l': loop
 	else if(rawkey==KEY_L)
 	{
 		loop_enabled=!loop_enabled;
-		fprintf(stderr,"loop %s%s",loop_enabled ? "on" : "off"
-			,clear_to_eol_seq);
+		fprintf(stderr,"loop %s",loop_enabled ? "on" : "off");
 	}
 	//',': 
 	else if(rawkey==KEY_COMMA)
 	{
 		is_time_seconds=!is_time_seconds;
-		fprintf(stderr,"time %s%s",is_time_seconds ? "seconds" : "frames"
-			,clear_to_eol_seq);
+		fprintf(stderr,"time %s",is_time_seconds ? "seconds" : "frames");
 	}
 	//'.': 
 	else if(rawkey==KEY_PERIOD)
 	{
 		is_time_absolute=!is_time_absolute;
-		fprintf(stderr,"time %s%s",is_time_absolute ? "absolute" : "relative"
-			,clear_to_eol_seq);
+		fprintf(stderr,"time %s",is_time_absolute ? "absolute" : "relative");
 	}
 	//'-': 
 	else if(rawkey==KEY_DASH)
 	{
 		is_time_elapsed=!is_time_elapsed;
-		fprintf(stderr,"time %s%s",is_time_elapsed ? "elapsed" : "remaining"
-			,clear_to_eol_seq);
+		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed" : "remaining");
 	}
+
+#ifndef WIN32
+		fprintf(stderr,"%s",clear_to_eol_seq);
+#endif
+
 }//end handle_key_hits()
 
 //=============================================================================
 static void print_keyboard_shortcuts()
 {
-	fprintf(stderr,"\rkeyboard shortcuts:%s\n",clear_to_eol_seq);
+	fprintf(stderr,"\r%s\rkeyboard shortcuts:\n",clear_to_eol_seq);
 
 	fprintf(stderr,"  h, f1:             help (this screen)\n");
 	fprintf(stderr,"  space:             toggle play/pause\n");
@@ -1389,7 +1382,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 	{
 		if(loop_enabled)
 		{
-			fprintf(stderr,"loop%s",clear_to_eol_seq);
+			fprintf(stderr,"loop");
 			total_frames_read_from_file=0;//frame_offset;
 
 			sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
@@ -1481,7 +1474,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 
 			if(loop_enabled)
 			{
-				fprintf(stderr,"loop%s",clear_to_eol_seq);
+				fprintf(stderr,"loop");
 				total_frames_read_from_file=0;//frame_offset;
 
 				sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
@@ -1640,7 +1633,7 @@ static void reset_ringbuffers()
 //=============================================================================
 static void signal_handler(int sig)
 {
-	fprintf(stderr,"\r%s",clear_to_eol_seq);
+	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 //	fprintf(stderr,"signal_handler() called\n");
 
 	print_stats();
@@ -1683,14 +1676,15 @@ static void signal_handler(int sig)
 
 	reset_terminal();
 
-	fprintf(stderr,"\rjack_playfile done.%s\n",clear_to_eol_seq);
+	fprintf(stderr,"jack_playfile done.\n");
 	exit(0);
 }//end signal_handler()
 
 //=============================================================================
 static void jack_shutdown_handler (void *arg)
 {
-	fprintf(stderr, "\n/!\\ JACK server down!\n");
+	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
+	fprintf(stderr, "/!\\ JACK server down!\n");
 
 	//close soundfile
 	if(soundfile!=NULL)
@@ -1833,7 +1827,7 @@ static void init_term_seq()
 	turn_off_cursor_seq=	"\033[?25l";
 	turn_on_cursor_seq=	"\033[?25h";
 #else
-	clear_to_eol_seq=	"                                          ";
+	clear_to_eol_seq=	"                                                                     ";
 	turn_on_cursor_seq=	"";
 	turn_on_cursor_seq=	"";
 #endif
