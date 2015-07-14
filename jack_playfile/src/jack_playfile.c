@@ -1579,7 +1579,7 @@ static void signal_handler(int sig)
 
 #endif
 
-	fprintf(stderr,"jack_playfile done.\n");
+	fprintf(stderr,"\rjack_playfile done.\n");
 	exit(0);
 }//end signal_handler()
 
