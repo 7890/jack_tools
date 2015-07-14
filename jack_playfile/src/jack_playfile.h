@@ -73,6 +73,8 @@ static int file_info(SF_INFO sf_info, int print);
 
 static void print_stats();
 
+static void reset_terminal();
+static void init_term_seq();
 static void set_terminal_raw();
 static int read_raw_key();
 static void init_key_codes();
