@@ -501,7 +501,7 @@ int main(int argc, char *argv[])
 				JackPortIsPhysical|JackPortIsTerminal|JackPortIsInput);
 	if (ports == NULL) 
 	{
-		fprintf(stderr, "/!\\ no physical capture ports found\n");
+		fprintf(stderr, "/!\\ no physical playback ports found\n");
 		free_ringbuffers();
 		exit(1);
 	}
@@ -519,25 +519,31 @@ int main(int argc, char *argv[])
 
 	if(autoconnect_jack_ports)
 	{
-		int j=0;
+		int k=0;
 		int i=0;
-		for(i=0;i<output_port_count;i++)
+		for(i;i<output_port_count;i++)
 		{
 			if (ports[i]!=NULL 
-				&& ioPortArray[j]!=NULL 
-				&& jack_port_name(ioPortArray[j])!=NULL)
+				&& ioPortArray[k]!=NULL 
+				&& jack_port_name(ioPortArray[k])!=NULL)
 			{
-				if(!jack_connect (client, jack_port_name(ioPortArray[j]) , ports[i]))
+				if((int)(ports[i][0])<32)
+				{
+//					fprintf(stderr,"(what's wrong here? doesn't happen with jack2) %d\n",ports[i][0]);
+					break;
+				}
+
+				if(!jack_connect (client, jack_port_name(ioPortArray[k]) , ports[i]))
 				{
 					//used variabled can't be NULL here
 					fprintf (stderr, "autoconnect: %s -> %s\n",
-						jack_port_name(ioPortArray[j]),ports[i]);
-					j++;
+						jack_port_name(ioPortArray[k]),ports[i]);
+					k++;
 				}
 				else
 				{
 					fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-						jack_port_name(ioPortArray[j]),ports[i]);
+						jack_port_name(ioPortArray[k]),ports[i]);
 				}
 			}
 		}
