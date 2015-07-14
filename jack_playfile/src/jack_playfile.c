@@ -832,9 +832,9 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  end:               seek to end\n");
 	fprintf(stderr,"  m:                 mute\n");
 	fprintf(stderr,"  l:                 loop\n");
-	fprintf(stderr,"  , comma:           toggle clock seconds*  / frames\n\n");
-	fprintf(stderr,"  . period:          toggle clock absolute* / relative\n\n");
-	fprintf(stderr,"  - dash:            toggle clock elapsed*  / remaining\n\n");
+	fprintf(stderr,"  , comma:           toggle clock seconds*  / frames\n");
+	fprintf(stderr,"  . period:          toggle clock absolute* / relative\n");
+	fprintf(stderr,"  - dash:            toggle clock elapsed*  / remaining\n");
 	fprintf(stderr,"  q:                 quit\n\n");
 }//end print_keyboard_shortcuts()
 
@@ -1833,7 +1833,7 @@ static void init_term_seq()
 	turn_off_cursor_seq=	"\033[?25l";
 	turn_on_cursor_seq=	"\033[?25h";
 #else
-	clear_to_eol_seq=	"                           ";
+	clear_to_eol_seq=	"                                          ";
 	turn_on_cursor_seq=	"";
 	turn_on_cursor_seq=	"";
 #endif
