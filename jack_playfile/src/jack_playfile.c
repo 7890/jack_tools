@@ -185,6 +185,8 @@ static int KEY_BACKSPACE=0;
 static int KEY_M=0;
 static int KEY_L=0;
 
+static const char *clear_to_eol_seq=NULL;
+
 //=============================================================================
 static int get_resampler_pad_size_start()
 {
@@ -642,11 +644,11 @@ static void handle_key_hits()
 		//clear
 		if(is_playing)
 		{
-			fprintf(stderr,"\033[0J");
+			fprintf(stderr,"%s",clear_to_eol_seq);
 		}
 		else
 		{
-			fprintf(stderr,"\033[0J");
+			fprintf(stderr,"%s",clear_to_eol_seq);
 		}
 	}
 
@@ -658,7 +660,7 @@ static void handle_key_hits()
 	//'q': quit
 	else if(rawkey==KEY_Q)
 	{
-		fprintf(stderr,"\rquit received\033[0J\n");
+		fprintf(stderr,"\rquit received%s\n",clear_to_eol_seq);
 		shutdown_in_progress=1;
 	}
 	//'h' or 'f1': help
@@ -671,7 +673,7 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"<< ");
 		print_next_wheel_state(-1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames(-seek_frames_per_hit);
 	}
 	//'>' (arrow right): 
@@ -679,23 +681,23 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,">> ");
 		print_next_wheel_state(+1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames( seek_frames_per_hit);
 	}
 	//'^' (arrow up):
 	else if(rawkey==KEY_ARROW_UP)
 	{
-		fprintf(stderr,"^^ \033[0J");
+		fprintf(stderr,"^^ ");
 		print_next_wheel_state(1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 //unused
 	}
 	//'v' (arrow down):
 	else if(rawkey==KEY_ARROW_DOWN)
 	{
-		fprintf(stderr,"vv \033[0J");
+		fprintf(stderr,"vv ");
 		print_next_wheel_state(-1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 //unused
 	}
 	//'|<' (home, backspace):
@@ -703,7 +705,7 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,"|< ");
 		print_next_wheel_state(-1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames_absolute(frame_offset);
 	}
 	//'>|' (end):
@@ -711,27 +713,29 @@ static void handle_key_hits()
 	{
 		fprintf(stderr,">| ");
 		print_next_wheel_state(1);
-		fprintf(stderr,"\033[0J");
+		fprintf(stderr,"%s",clear_to_eol_seq);
 		seek_frames_absolute(frame_offset+frame_count);
 	}
 	//'m': toggle mute
 	else if(rawkey==KEY_M)
 	{
 		is_muted=!is_muted;
-		fprintf(stderr,"mute %s\033[0J",is_muted ? "on" : "off" );
+		fprintf(stderr,"mute %s%s",is_muted ? "on" : "off"
+			,clear_to_eol_seq);
 	}
 	//'l': loop
 	else if(rawkey==KEY_L)
 	{
 		loop_enabled=!loop_enabled;
-		fprintf(stderr,"loop %s\033[0J",loop_enabled ? "on" : "off" );
+		fprintf(stderr,"loop %s%s",loop_enabled ? "on" : "off"
+			,clear_to_eol_seq);
 	}
 }//end handle_key_hits()
 
 //=============================================================================
 static void print_keyboard_shortcuts()
 {
-	fprintf(stderr,"\rkeyboard shortcuts:\033[0J\n");
+	fprintf(stderr,"\rkeyboard shortcuts:%s\n",clear_to_eol_seq);
 
 	fprintf(stderr,"  h, f1:             help (this screen)\n");
 	fprintf(stderr,"  space:             toggle play/pause\n");
@@ -1525,7 +1529,7 @@ static void reset_ringbuffers()
 //=============================================================================
 static void signal_handler(int sig)
 {
-	fprintf(stderr,"\r\033[0J");
+	fprintf(stderr,"\r%s",clear_to_eol_seq);
 //	fprintf(stderr,"signal_handler() called\n");
 
 	print_stats();
@@ -1569,10 +1573,11 @@ static void signal_handler(int sig)
 #ifndef WIN32
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
-#endif
 
 	//turn on cursor
 	fprintf(stderr,"\033[?25h");
+
+#endif
 
 	fprintf(stderr,"jack_playfile done.\n");
 	exit(0);
@@ -1595,10 +1600,10 @@ static void jack_shutdown_handler (void *arg)
 #ifndef WIN32
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
-#endif
 
 	//turn on cursor
 	fprintf(stderr,"\033[?25h");
+#endif
 
 	exit(1);	
 }
@@ -1674,13 +1679,25 @@ static int read_raw_key()
 #else
 	//https://msdn.microsoft.com/en-us/library/windows/desktop/ms687032%28v=vs.85%29.aspx
 	//get a single key PRESS
+
+	if (WaitForSingleObject(w_term_hstdin, 100) != WAIT_OBJECT_0)
+	{
+		return 0;
+	}
+/*
 	do ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
 	while ((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown);
+*/
+
+	ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
+	if((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown)
+	{
+		return 0;
+	}
 
 	//restore the console to its previous state
 	SetConsoleMode( w_term_hstdin, w_term_mode );
 
-	fprintf(stderr,",");
 	return w_term_inrec.Event.KeyEvent.wVirtualKeyCode;
 #endif
 }//end read_raw_key()
@@ -1702,6 +1719,8 @@ static void init_key_codes()
 	KEY_BACKSPACE=127;
 	KEY_M=109;
 	KEY_L=108;
+
+	clear_to_eol_seq="\033[0J";
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -1716,6 +1735,8 @@ static void init_key_codes()
 	KEY_BACKSPACE=8;
 	KEY_M=77;
 	KEY_L=76;
+	//...
+	clear_to_eol_seq="                 ";
 #endif
 }
 //EOF
