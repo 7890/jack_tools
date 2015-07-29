@@ -12,6 +12,10 @@
 	#include <termios.h>
 #endif
 
+#ifndef PRId64
+	#define PRId64 "llu"
+#endif
+
 #include "weak_libjack.h"
 
 #include <sndfile.h>
@@ -22,7 +26,6 @@
 
 #ifdef WIN32
 	#include <windows.h>
-	#define PRId64 "llu"
 	#define bzero(p, l) memset(p, 0, l)
 #endif
 
@@ -64,6 +67,14 @@ static void reset_ringbuffers();
 
 static void signal_handler(int sig);
 static void jack_shutdown_handler (void *arg);
+
+static void fill_jack_output_buffers_zero();
+static void set_seconds_from_exponent();
+static void set_frames_from_exponent();
+static void increment_seek_step_size();
+static void decrement_seek_step_size();
+static void seek_frames_absolute(int64_t frames_abs);
+static void seek_frames(int64_t frames_rel);
 
 static double frames_to_seconds(sf_count_t frames, int samplerate);
 static double get_seconds(SF_INFO *sf_info);

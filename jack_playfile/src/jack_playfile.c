@@ -1,5 +1,8 @@
 #include "jack_playfile.h"
 
+#include <sys/stat.h>
+#include <fcntl.h>
+
 //tb/150612+
 
 //simple file player for JACK
@@ -17,18 +20,42 @@ static uint64_t frame_offset=0; //optional
 static uint64_t frame_count=0; //optional, only in combination with offset
 //======================
 
+//if set to 0, keyboard entry won't be used (except ctrl+c)
+static int keyboard_control_enabled=1;
+
 //if set to 0, will not resample, even if file has different SR from JACK
 static int use_resampling=1;
 
 //if set to 1, connect available file channels to available physical outputs
 static int autoconnect_jack_ports=1;
 
-//prepare everything for playing but wait for user to toggle to play
-static int start_paused=0;
+static int try_jack_reconnect=1;
+
+static int jack_server_down=1;
 
 //don't quit program when everything has played out
-////////********
-static int pause_when_finished=0;
+///
+//static int pause_when_finished=0;
+
+//toggle play/pause with 'space'
+//if set to 0: prepare everything for playing but wait for user to toggle to play
+static int is_playing=1;
+
+//toggle mute with 'm'
+static int is_muted=0;
+
+//toggle loop with 'l'
+static int loop_enabled=0;
+
+//0: frames, 1: seconds
+static int is_time_seconds=1;
+
+//0: relative to frame_offset and frame_offset + frame_count
+//1: relative to frame 0
+static int is_time_absolute=0;
+
+//0: time remaining (-), 1: time elapsed
+static int is_time_elapsed=1;
 
 //if set to 1, will print stats
 static int debug=0;
@@ -142,33 +169,24 @@ static int resampling_finished=0;
 //frames put to resampler, without start/end padding
 static uint64_t total_input_frames_resampled=0;
 
-//toggle play/pause with 'space'
-static int is_playing=1;
-
-//toggle mute with 'm'
-static int is_muted=0;
-
-//toggle loop with 'l'
-static int loop_enabled=0; //unused
-
-//if set to 0, keyboard entry won't be used (except ctrl+c)
-static int keyboard_control_enabled=1;
-
-//0: frames, 1: seconds
-static int is_time_seconds=1;
-
-//0: relative to frame_offset and frame_offset + frame_count
-//1: relative to frame 0
-static int is_time_absolute=0;
-
-//0: time remaining (-), 1: time elapsed
-static int is_time_elapsed=1;
-
 //arrows left and right, home, end
 static int seek_frames_in_progress=0;
 
 //relative seek, how many (native) frames
 uint64_t seek_frames_per_hit=0;
+
+//relative seek, how many seconds
+double seek_seconds_per_hit=0;
+
+//10^0=1 - 10^8=10000000
+int scale_exponent_frames=0;
+int scale_exponent_frames_min=0;
+int scale_exponent_frames_max=8;
+
+//10-3=0.001 - 10^1=10, 2: 60 3: 600 4: 3600
+int scale_exponent_seconds=1;
+int scale_exponent_seconds_min=-3;
+int scale_exponent_seconds_max=4;
 
 #ifndef WIN32
 	static struct termios initial_settings; //cooked
@@ -249,6 +267,8 @@ static void print_stats()
 //=============================================================================
 int main(int argc, char *argv[])
 {
+	init_term_seq();
+
 	fprintf(stderr,"*** jack_playfile ALPHA - protect your ears! ***\n");
 	if( argc < 2	
 		|| (argc >= 2 && 
@@ -368,7 +388,11 @@ int main(int argc, char *argv[])
 		,frame_count);
 
 	//~1%
-	seek_frames_per_hit=ceil(frame_count / 100);
+//	seek_frames_per_hit=ceil(frame_count / 100);
+
+	set_frames_from_exponent();
+	set_seconds_from_exponent();
+
 //	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
 
 	if(have_libjack()!=0)
@@ -385,16 +409,54 @@ int main(int argc, char *argv[])
 	const char *client_name="jack_playfile";
 
 	//create an array of output ports
-	ioPortArray = (jack_port_t**) malloc(output_port_count * sizeof(jack_port_t*));
+	//calloc() zero-initializes the buffer, while malloc() leaves the memory uninitialized
+	ioPortArray = (jack_port_t**) calloc(
+		output_port_count * sizeof(jack_port_t*), sizeof(jack_port_t*));
 
-	//open a client connection to the JACK server
-	client = jack_client_open (client_name, jack_opts, &status, NULL);
+//=======
+//outer loop, start over if JACK went down and came back
+//option try_jack_reconnect
+while(true)
+{
+	fprintf (stderr, "waiting for connection to JACK server...");
 
-	if (client == NULL) 
+	//http://stackoverflow.com/questions/4832603/how-could-i-temporary-redirect-stdout-to-a-file-in-a-c-program
+	int bak_, new_;
+
+	while(client==NULL)
 	{
-		fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", status);
-		exit(1);
+		//hide possible error output from jack temporarily
+		fflush(stderr);
+		bak_ = dup(fileno(stderr));
+		new_ = open("/dev/null", O_WRONLY);
+		dup2(new_, fileno(stderr));
+		close(new_);
+
+		//open a client connection to the JACK server
+		client = jack_client_open (client_name, jack_opts, &status, NULL);
+
+		//show stderr again
+		fflush(stderr);
+		dup2(bak_, fileno(stderr));
+		close(bak_);
+
+		if (client == NULL) 
+		{
+//			fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", status);
+
+			if(!try_jack_reconnect)
+			{
+				fprintf (stderr, " failed.\n");
+				exit(1);
+			}
+			usleep(1000000);
+		}
 	}
+
+	fflush(stderr);
+	fprintf (stderr, "\r%s",clear_to_eol_seq);
+
+	jack_server_down=0;
 
 	jack_period_frames=jack_get_buffer_size(client);
 	jack_sample_rate=jack_get_sample_rate(client);
@@ -572,17 +634,12 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	init_term_seq();
+//	init_term_seq();
 
 	init_key_codes();
 
 	//now set raw to read key hits
 	set_terminal_raw();
-
-	if(start_paused)
-	{
-		is_playing=0;
-	}
 
 	process_enabled=1;
 //	fprintf(stderr,"process_enabled\n");
@@ -590,6 +647,17 @@ int main(int argc, char *argv[])
 	//run until interrupted
 	while (1) 
 	{
+		if(jack_server_down)
+		{
+			if(try_jack_reconnect)
+			{
+				goto _start_all_over;
+			}
+			else
+			{
+				shutdown_in_progress=1;
+			}
+		}
 
 		//try clean shutdown, mainly to avoid possible audible glitches 
 		if(shutdown_in_progress && !shutdown_in_progress_signalled)
@@ -635,13 +703,35 @@ int main(int argc, char *argv[])
 			print_clock();
 
 			handle_key_hits();
-		}
+		}//end if keyboard_control_enabled
 #ifdef WIN32
 		Sleep(100);
 #else
 		usleep(10000);
 #endif
-	}
+
+
+	}//end while true (inner, main / key handling loop
+
+_start_all_over:
+	process_enabled=0;
+	shutdown_in_progress=0;
+	shutdown_in_progress_signalled=0;
+
+	//will be created again once JACK available
+	client=NULL;
+
+	//leave intact as much as possible to retake playing at pos where JACK went away
+	//disk thread
+	//soundfile
+	//ringbuffers
+	//reset_ringbuffers();
+	//other variables
+
+	reset_terminal();
+
+//=======
+}//end while true (outer, JACK down/reconnect)
 	exit(0);
 }//end main
 
@@ -684,23 +774,130 @@ static void print_clock()
 
 	if(is_time_seconds)
 	{
-		fprintf(stderr,"S %s %s %9.1f %s(%s) "
-			,(is_time_absolute ? "abs" : "rel")
-			,(is_time_elapsed ? " " : "-")
-			,frames_to_seconds(pos,sf_info.samplerate)
-			,(is_time_elapsed ? " " : "-")
-			,format_duration_str(seconds));
+
+		if(seek_seconds_per_hit<1)
+		{
+			fprintf(stderr,"S %s %.3f %s %9.1f %s(%s) "
+				,(is_time_absolute ? "abs" : "rel")
+				,seek_seconds_per_hit
+				,(is_time_elapsed ? " " : "-")
+				,frames_to_seconds(pos,sf_info.samplerate)
+				,(is_time_elapsed ? " " : "-")
+				,format_duration_str(seconds));
+		}
+		else
+		{
+			fprintf(stderr,"S %s %5.0f  %s %9.1f %s(%s) "
+				,(is_time_absolute ? "abs" : "rel")
+				,seek_seconds_per_hit
+				,(is_time_elapsed ? " " : "-")
+				,frames_to_seconds(pos,sf_info.samplerate)
+				,(is_time_elapsed ? " " : "-")
+				,format_duration_str(seconds));
+		}
 	}
 	else
 	{
-		fprintf(stderr,"F %s %s %9"PRId64" %s(%s) "
+		//indicate high frame seek numbers witn k(ilo) and M(ega)
+		uint64_t seek_fph=0;
+		char *scale=" ";
+		if(seek_frames_per_hit>1000000)
+		{
+			seek_fph=seek_frames_per_hit/1000000;
+			scale="M";
+		}
+		else if(seek_frames_per_hit>1000)
+		{
+			seek_fph=seek_frames_per_hit/1000;
+			scale="k";
+		}
+		else
+		{
+			seek_fph=seek_frames_per_hit;
+		}
+
+		fprintf(stderr,"F %s %5"PRId64"%s %s %9"PRId64" %s(%s) "
 			,(is_time_absolute ? "abs" : "rel")
+			,seek_fph
+			,scale
 			,(is_time_elapsed ? " " : "-")
 			,pos
 			,(is_time_elapsed ? " " : "-")
 			,format_duration_str(seconds));
 	}
+}// end print_clock()
+
+//=============================================================================
+static void set_seconds_from_exponent()
+{
+		if(scale_exponent_seconds==2)
+		{
+			//60 seconds (1 minute)
+			seek_seconds_per_hit=60;
+		}
+		else if(scale_exponent_seconds==3)
+		{
+			//600 seconds (10 minutes)
+			seek_seconds_per_hit=600;
+		}
+		else if(scale_exponent_seconds==4)
+		{
+			//600 seconds (10 minutes)
+			seek_seconds_per_hit=3600;
+		}
+		else
+		{
+			//10^exp seconds
+			seek_seconds_per_hit=pow(10,scale_exponent_seconds);
+		}
+
+		seek_frames_per_hit=seek_seconds_per_hit*sf_info.samplerate;
+
+//		fprintf(stderr,"\nexp %d seek_seconds_per_hit %f\n",scale_exponent_seconds,seek_seconds_per_hit);
 }
+
+//=============================================================================
+static void set_frames_from_exponent()
+{
+		seek_frames_per_hit=pow(10,scale_exponent_frames);
+
+//		fprintf(stderr,"\nexp %d seek_frames_per_hit %"PRId64"\n",scale_exponent_frames,seek_frames_per_hit);
+}
+
+//=============================================================================
+static void increment_seek_step_size()
+{
+	if(is_time_seconds)
+	{
+		scale_exponent_seconds++;
+		scale_exponent_seconds=MIN(scale_exponent_seconds,scale_exponent_seconds_max);
+		set_seconds_from_exponent();
+	}
+	else
+	{
+		scale_exponent_frames++;
+		scale_exponent_frames=MIN(scale_exponent_frames,scale_exponent_frames_max);
+		set_frames_from_exponent();
+	}
+}
+
+//=============================================================================
+static void decrement_seek_step_size()
+{
+	if(is_time_seconds)
+	{
+		scale_exponent_seconds--;
+		scale_exponent_seconds=MAX(scale_exponent_seconds,scale_exponent_seconds_min);
+		set_seconds_from_exponent();
+	}
+	else
+	{
+		scale_exponent_frames--;
+		scale_exponent_frames=MAX(scale_exponent_frames,scale_exponent_frames_min);
+		set_frames_from_exponent();
+	}
+}
+
 //=============================================================================
 static void handle_key_hits()
 {
@@ -751,16 +948,14 @@ static void handle_key_hits()
 	//'^' (arrow up):
 	else if(rawkey==KEY_ARROW_UP)
 	{
-		fprintf(stderr,"^^ ");
-		print_next_wheel_state(1);
-//unused
+		fprintf(stderr,"^^ inc step");
+		increment_seek_step_size();
 	}
 	//'v' (arrow down):
 	else if(rawkey==KEY_ARROW_DOWN)
 	{
-		fprintf(stderr,"vv ");
-		print_next_wheel_state(-1);
-//unused
+		fprintf(stderr,"vv dec step");
+		decrement_seek_step_size();
 	}
 	//'|<' (home, backspace):
 	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
@@ -786,19 +981,28 @@ static void handle_key_hits()
 		loop_enabled=!loop_enabled;
 		fprintf(stderr,"loop %s",loop_enabled ? "on " : "off ");
 	}
-	//',': 
+	//',':  toggle seconds/frames
 	else if(rawkey==KEY_COMMA)
 	{
 		is_time_seconds=!is_time_seconds;
 		fprintf(stderr,"time %s",is_time_seconds ? "seconds " : "frames ");
+
+		if(is_time_seconds)
+		{
+			set_seconds_from_exponent();;
+		}
+		else
+		{
+			set_frames_from_exponent();
+		}
 	}
-	//'.': 
+	//'.': toggle relative/absolute
 	else if(rawkey==KEY_PERIOD)
 	{
 		is_time_absolute=!is_time_absolute;
 		fprintf(stderr,"time %s",is_time_absolute ? "absolute " : "relative ");
 	}
-	//'-': 
+	//'-': toggle elapsed/remaining
 	else if(rawkey==KEY_DASH)
 	{
 		is_time_elapsed=!is_time_elapsed;
@@ -816,12 +1020,18 @@ static void handle_key_hits()
 //=============================================================================
 static void print_keyboard_shortcuts()
 {
-	fprintf(stderr,"\r%s\rkeyboard shortcuts:\n",clear_to_eol_seq);
+	fprintf(stderr,"\r%s\r\n",clear_to_eol_seq);
+	fprintf(stderr,"HELP\n\n");
+
+//	fprintf(stderr,"\r%s\rkeyboard shortcuts:\n",clear_to_eol_seq);
+	fprintf(stderr,"keyboard shortcuts:\n\n");
 
 	fprintf(stderr,"  h, f1:             help (this screen)\n");
 	fprintf(stderr,"  space:             toggle play/pause\n");
-	fprintf(stderr,"  < left:            seek backward (1%%)\n");
-	fprintf(stderr,"  > right:           seek forward (1%%)\n");
+	fprintf(stderr,"  < arrow left:      seek one step backward\n");
+	fprintf(stderr,"  > arrow right:     seek one step forward\n");
+	fprintf(stderr,"  ^ arrow up:        increment seek step size\n");
+	fprintf(stderr,"  v arrow down:      decrement seek step size\n");
 	fprintf(stderr,"  home, backspace:   seek to start\n");
 	fprintf(stderr,"  end:               seek to end\n");
 	fprintf(stderr,"  m:                 mute\n");
@@ -830,7 +1040,39 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  . period:          toggle clock absolute* / relative\n");
 	fprintf(stderr,"  - dash:            toggle clock elapsed*  / remaining\n");
 	fprintf(stderr,"  q:                 quit\n\n");
+
+	fprintf(stderr,"prompt:\n\n");
+	fprintf(stderr,"|| paused   ML  S rel 0.001       943.1  (00:15:43.070)   \n");
+	fprintf(stderr,"^           ^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
+	fprintf(stderr,"1           23  4 5   6     7     8     7 9             10\n\n");
+	fprintf(stderr,"  1): status playing '>' or paused '||'\n");
+	fprintf(stderr,"  2): mute on/off 'M' or ' '\n");
+	fprintf(stderr,"  3): loop on/off 'L' or ' '\n");
+	fprintf(stderr,"  4): time and seek in seconds 'S' or frames 'F'\n");
+	fprintf(stderr,"  5): time indication 'rel' to frame_offset or 'abs'\n");
+	fprintf(stderr,"  6): seek step size in seconds or frames\n");
+	fprintf(stderr,"  7): time elapsed ' ' or remaining '-'\n");
+	fprintf(stderr,"  8): time in seconds or frames\n");
+	fprintf(stderr,"  9): time in HMS.millis\n");
+	fprintf(stderr," 10): keyboard input indication (i.e. seek)\n\n");
+
+	//need command to print current props (file, offset etc)
+
 }//end print_keyboard_shortcuts()
+
+//=============================================================================
+static void fill_jack_output_buffers_zero()
+{
+	//fill buffers with silence (last cycle before shutdown (?))
+	for(int i=0; i<output_port_count; i++)
+	{
+		sample_t *o1;
+		//get output buffer from JACK for that channel
+		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+		//set all samples zero
+		memset(o1, 0, jack_period_frames*bytes_per_sample);
+	}
+}
 
 //=============================================================================
 static int process(jack_nframes_t nframes, void *arg) 
@@ -869,7 +1111,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	resample();
 	deinterleave();
 
-	if(!is_playing || seek_frames_in_progress)
+	if(!is_playing || (seek_frames_in_progress && !loop_enabled))
 	{
 		for(int i=0; i<output_port_count; i++)
 		{
@@ -890,15 +1132,7 @@ static int process(jack_nframes_t nframes, void *arg)
 //		fprintf(stderr,"process(): diskthread finished and no more data in rb_interleaved, rb_resampled_interleaved, rb_deinterleaved\n");
 //		fprintf(stderr,"process(): shutdown condition 1 met\n");
 
-		//fill buffers with silence (last cycle before shutdown (?))
-		for(int i=0; i<output_port_count; i++)
-		{
-			sample_t *o1;
-			//get output buffer from JACK for that channel
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
-			//set all samples zero
-			memset(o1, 0, jack_period_frames*bytes_per_sample);
-		}
+		fill_jack_output_buffers_zero();
 
 		shutdown_in_progress=1;
 		return 0;
@@ -986,10 +1220,12 @@ static int process(jack_nframes_t nframes, void *arg)
 		//this should not happen
 		process_cycle_underruns++;
 
-//		fprintf(stderr,"process(): /!\\ ======== underrun\n");
+//		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
+
+		fill_jack_output_buffers_zero();
 
 		print_stats();
-		return 0;
+//		return 0;
 	}
 
 	req_buffer_from_disk_thread();
@@ -1009,11 +1245,12 @@ static void seek_frames_absolute(int64_t frames_abs)
 	uint64_t seek_=MAX(frame_offset,frames_abs);
 	uint64_t seek =MIN((frame_offset+frame_count),seek_);
 
+
 	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_SET);
 
 ////////////////
 //need to reset more
-total_frames_read_from_file=new_pos-frame_offset;
+	total_frames_read_from_file=new_pos-frame_offset;
 
 //	fprintf(stderr,"\nseek %"PRId64" new pos %"PRId64"\n",seek,count);
 
@@ -1384,7 +1621,7 @@ static int disk_read_frames(SNDFILE *soundfile_)
 		if(loop_enabled)
 		{
 			total_frames_read_from_file=0;//frame_offset;
-
+			seek_frames_in_progress=1;
 			sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
 		}
 		else
@@ -1479,7 +1716,10 @@ static int disk_read_frames(SNDFILE *soundfile_)
 #endif
 				total_frames_read_from_file=0;//frame_offset;
 
+				seek_frames_in_progress=1;
 				sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
+
+				return 1;
 			}
 			else
 			{
@@ -1566,6 +1806,12 @@ done:
 //=============================================================================
 static void setup_disk_thread()
 {
+	if(disk_thread!=NULL)
+	{
+//		fprintf(stderr,"/!\\ already have disk_thread, using that one\n");
+		return;
+	}
+
 	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 	//initially lock
 	pthread_mutex_lock(&disk_thread_lock);
@@ -1617,7 +1863,7 @@ static void req_buffer_from_disk_thread()
 //=============================================================================
 static void free_ringbuffers()
 {
-//	fprintf(stderr,"releasing ringbuffers\n");
+//	fprintf(stderr,"free ringbuffers\n");
 	jack_ringbuffer_free(rb_interleaved);
 	jack_ringbuffer_free(rb_resampled_interleaved);
 	jack_ringbuffer_free(rb_deinterleaved);
@@ -1626,7 +1872,7 @@ static void free_ringbuffers()
 //=============================================================================
 static void reset_ringbuffers()
 {
-//	fprintf(stderr,"releasing ringbuffers\n");
+//	fprintf(stderr,"reset ringbuffers\n");
 	jack_ringbuffer_reset(rb_deinterleaved);
 	jack_ringbuffer_reset(rb_resampled_interleaved);
 	jack_ringbuffer_reset(rb_interleaved);
@@ -1649,23 +1895,26 @@ static void signal_handler(int sig)
 
 	if(sig!=42)
 	{
-		fprintf(stderr, "terminate signal %d received\n",sig);
+//		fprintf(stderr, "terminate signal %d received\n",sig);
 	}
 
-	jack_deactivate(client);
-//	fprintf(stderr,"JACK client deactivated. ");
-
-	int index=0;
-	while(ioPortArray[index]!=NULL && index<output_port_count)
+	if(client!=NULL)
 	{
-		jack_port_unregister(client,ioPortArray[index]);
-		index++;
+		jack_deactivate(client);
+//		fprintf(stderr,"JACK client deactivated. ");
+
+		int index=0;
+		while(ioPortArray[index]!=NULL && index<output_port_count)
+		{
+			jack_port_unregister(client,ioPortArray[index]);
+			index++;
+		}
+
+//		fprintf(stderr,"JACK ports unregistered\n");
+
+		jack_client_close(client);
+//		fprintf(stderr,"JACK client closed\n");
 	}
-
-//	fprintf(stderr,"JACK ports unregistered\n");
-
-	jack_client_close(client);
-//	fprintf(stderr,"JACK client closed\n");
 
 	//close soundfile
 	if(soundfile!=NULL)
@@ -1685,21 +1934,10 @@ static void signal_handler(int sig)
 //=============================================================================
 static void jack_shutdown_handler (void *arg)
 {
-	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
-	fprintf(stderr, "/!\\ JACK server down!\n");
+//	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
+	fprintf(stderr, "\n/!\\ JACK server down!\n");
 
-	//close soundfile
-	if(soundfile!=NULL)
-	{
-		sf_close (soundfile);
-//		fprintf(stderr,"soundfile closed\n");
-	}
-
-	free_ringbuffers();
-
-	reset_terminal();
-
-	exit(1);	
+	jack_server_down=1;
 }
 
 //=============================================================================
