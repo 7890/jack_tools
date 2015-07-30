@@ -322,6 +322,19 @@ int main(int argc, char *argv[])
 	fprintf(stderr,"file:        %s\n",filename);
 	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
 
+	//flac has different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
+	if(is_flac(sf_info))
+	{
+		fprintf(stderr,"/!\\ reducing frame count by 1\n");
+		sf_info.frames=(sf_info.frames-1);//not nice
+	}
+
+	if(sf_info.frames<1)
+	{
+		fprintf(stderr,"/!\\ file has zero frames, nothing to play!\n");
+		exit(1);
+	}
+
 	//for now: just create as many JACK client output ports as the file has channels
 	output_port_count=sf_info.channels;
 
@@ -386,6 +399,13 @@ int main(int argc, char *argv[])
 		,frame_offset
 		,MIN(sf_info.frames,frame_offset+frame_count)
 		,frame_count);
+
+	//if for some reason from==to (count==0)
+	if(frame_count==0)
+	{
+		fprintf(stderr,"/!\\ zero frames, nothing to do\n");
+		exit(1);
+	}
 
 	//~1%
 //	seek_frames_per_hit=ceil(frame_count / 100);
@@ -738,7 +758,7 @@ _start_all_over:
 //=============================================================================
 static void print_clock()
 {
-	sf_count_t pos=sf_seek(soundfile,0,SEEK_CUR);;
+	sf_count_t pos=sf_seek(soundfile,0,SEEK_CUR);
 	double seconds=0;
 
 /*
@@ -1111,7 +1131,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	resample();
 	deinterleave();
 
-	if(!is_playing || (seek_frames_in_progress && !loop_enabled))
+	if(!is_playing || (seek_frames_in_progress && !loop_enabled && !all_frames_read))
 	{
 		fill_jack_output_buffers_zero();
 		return 0;
@@ -1131,7 +1151,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
-	//count at start of enabled cycles (1st cycle = #1)
+	//count at start of enabled, non-zero (seek) cycles (1st cycle = #1)
 	process_cycle_count++;
 
 	//normal operation
@@ -1170,6 +1190,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		{
 			sample_t *o1;			
 			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+
 			//put samples from ringbuffer to JACK output buffer
 			jack_ringbuffer_read(rb_deinterleaved
 				,(char*)o1
@@ -1238,8 +1259,14 @@ static void seek_frames_absolute(int64_t frames_abs)
 	uint64_t seek_=MAX(frame_offset,frames_abs);
 	uint64_t seek =MIN((frame_offset+frame_count),seek_);
 
-
+	//this can take a long time if audio format is compressed
+	//in that case, boom
 	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_SET);
+
+	if(new_pos<0)
+	{
+		fprintf(stderr,"/!\\ seek was <0. this should not happen\n");
+	}
 
 ////////////////
 //need to reset more
@@ -1307,7 +1334,14 @@ static void seek_frames(int64_t frames_rel)
 		);
 	}
 
+	//this can take a long time if audio format is compressed
+	//in that case, boom
 	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_CUR);
+
+	if(new_pos<0)
+	{
+		fprintf(stderr,"/!\\ seek was <0. this should not happen\n");
+	}
 
 ////////////////
 //need to reset more
