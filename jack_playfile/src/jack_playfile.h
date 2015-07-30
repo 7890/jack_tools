@@ -193,6 +193,19 @@ static const char * generate_duration_str(SF_INFO *sf_info)
 }
 
 //=============================================================================
+static int is_flac(SF_INFO sf_info)
+{
+	if( (sf_info.format & SF_FORMAT_TYPEMASK)==SF_FORMAT_FLAC )
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+//=============================================================================
 static int file_info(SF_INFO sf_info, int print)
 {
 	int bytes=0;
