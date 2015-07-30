@@ -95,6 +95,7 @@ static int shutdown_in_progress_signalled=0;
 static pthread_t disk_thread={0};
 static pthread_mutex_t disk_thread_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
+static int disk_thread_initialized=0;
 static int disk_thread_finished=0;
 
 //handle to currently playing file
@@ -1875,7 +1876,7 @@ done:
 //=============================================================================
 static void setup_disk_thread()
 {
-	if(disk_thread!=NULL)
+	if(disk_thread_initialized)
 	{
 //		fprintf(stderr,"/!\\ already have disk_thread, using that one\n");
 		return;
@@ -1889,6 +1890,8 @@ static void setup_disk_thread()
 	//(not attributes, no args)
 	pthread_create(&disk_thread, NULL, disk_thread_func, NULL);
 //	fprintf(stderr,"disk thread started\n");
+
+	disk_thread_initialized=1;
 }
 
 //=============================================================================
