@@ -178,6 +178,12 @@ uint64_t seek_frames_per_hit=0;
 //relative seek, how many seconds
 double seek_seconds_per_hit=0;
 
+//how many frames to seek
+//calculated / limited in seek_frames and seek_frames_absolute
+//executed in disk_thread
+static uint64_t frames_to_seek=0;
+static uint64_t frames_to_seek_type=SEEK_CUR; //or SEEK_SET
+
 //10^0=1 - 10^8=10000000
 int scale_exponent_frames=0;
 int scale_exponent_frames_min=0;
@@ -405,6 +411,12 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr,"/!\\ zero frames, nothing to do\n");
 		exit(1);
+	}
+
+	//initial seek
+	if(frame_offset>0)
+	{
+		seek_frames_in_progress=1;
 	}
 
 	//~1%
@@ -695,7 +707,14 @@ while(true)
 
 			if(is_playing)
 			{
-				fprintf(stderr,">  playing  ");
+				if(seek_frames_in_progress)
+				{
+					fprintf(stderr,"...seeking  ");
+				}
+				else
+				{
+					fprintf(stderr,">  playing  ");
+				}
 			}
 			else
 			{
@@ -740,14 +759,7 @@ _start_all_over:
 
 	//will be created again once JACK available
 	client=NULL;
-
 	//leave intact as much as possible to retake playing at pos where JACK went away
-	//disk thread
-	//soundfile
-	//ringbuffers
-	//reset_ringbuffers();
-	//other variables
-
 	reset_terminal();
 
 //=======
@@ -1110,6 +1122,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+
 	if(seek_frames_in_progress)
 	{
 		//test if already enough data available to play
@@ -1127,6 +1140,8 @@ static int process(jack_nframes_t nframes, void *arg)
 			}
 		}
 	}
+
+
 
 	resample();
 	deinterleave();
@@ -1259,25 +1274,24 @@ static void seek_frames_absolute(int64_t frames_abs)
 	uint64_t seek_=MAX(frame_offset,frames_abs);
 	uint64_t seek =MIN((frame_offset+frame_count),seek_);
 
+/*
 	//this can take a long time if audio format is compressed
 	//in that case, boom
 	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_SET);
-
 	if(new_pos<0)
 	{
 		fprintf(stderr,"/!\\ seek was <0. this should not happen\n");
 	}
 
-////////////////
-//need to reset more
 	total_frames_read_from_file=new_pos-frame_offset;
+*/
 
-//	fprintf(stderr,"\nseek %"PRId64" new pos %"PRId64"\n",seek,count);
+	//seek in disk_thread
+	frames_to_seek=seek;
+	frames_to_seek_type=SEEK_SET;
+	total_frames_read_from_file=seek-frame_offset;
 
-//	req_buffer_from_disk_thread();
-
-	//in process()
-	//seek_frames_in_progress=0;
+////need to reset more more
 }
 
 //=============================================================================
@@ -1333,7 +1347,7 @@ static void seek_frames(int64_t frames_rel)
 			,frames_rel
 		);
 	}
-
+/*
 	//this can take a long time if audio format is compressed
 	//in that case, boom
 	sf_count_t new_pos=sf_seek(soundfile,seek,SEEK_CUR);
@@ -1343,16 +1357,16 @@ static void seek_frames(int64_t frames_rel)
 		fprintf(stderr,"/!\\ seek was <0. this should not happen\n");
 	}
 
-////////////////
-//need to reset more
 	total_frames_read_from_file=new_pos-frame_offset;
 
-//	fprintf(stderr,"cur pos %"PRId64" seek %"PRId64" new pos %"PRId64"\n",current_read_pos,seek,new_pos);
+*/
 
-//	req_buffer_from_disk_thread();
-	
-	//in process()
-	//seek_frames_in_progress=0;
+	//seek in disk_thread
+	frames_to_seek=seek;
+	frames_to_seek_type=SEEK_CUR;
+	total_frames_read_from_file=current_read_pos+seek-frame_offset;
+
+////need to reset more
 }
 
 //=============================================================================
@@ -1782,6 +1796,16 @@ static void *disk_thread_func(void *arg)
 	for(;;)
 	{
 //		fprintf(stderr,"disk_thread_func() loop\n");
+
+		//check if seek is due
+		if(seek_frames_in_progress)
+		{
+//			fprintf(stderr,"\n===== seek start\n");
+			sf_count_t count=sf_seek(soundfile,frames_to_seek,frames_to_seek_type);
+			seek_frames_in_progress=0;
+			frames_to_seek=0;
+//			fprintf(stderr,"\n===== seek end\n");
+		}
 
 		//no resampling needed
 		if(out_to_in_sr_ratio==1.0 || !use_resampling)
