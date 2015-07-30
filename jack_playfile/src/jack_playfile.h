@@ -7,11 +7,11 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <pthread.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #ifndef WIN32
 	#include <termios.h>
-	#include <sys/stat.h>
-	#include <fcntl.h>
 #endif
 
 #ifndef PRId64
@@ -38,7 +38,7 @@ typedef jack_default_audio_sample_t sample_t;
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
 
-static const float version=0.5;
+static const float version=0.6;
 
 //================================================================
 int main(int argc, char *argv[]);

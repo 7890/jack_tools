@@ -448,30 +448,33 @@ int main(int argc, char *argv[])
 //option try_jack_reconnect
 while(true)
 {
-	fprintf (stderr, "waiting for connection to JACK server...");
+	fprintf (stderr, "\rwaiting for connection to JACK server...");
 
 	//http://stackoverflow.com/questions/4832603/how-could-i-temporary-redirect-stdout-to-a-file-in-a-c-program
 	int bak_, new_;
 
 	while(client==NULL)
 	{
-#ifndef WIN32
 		//hide possible error output from jack temporarily
 		fflush(stderr);
 		bak_ = dup(fileno(stderr));
+
+#ifndef WIN32
 		new_ = open("/dev/null", O_WRONLY);
+#else
+		new_ = open("nul", O_WRONLY);
+#endif
+
 		dup2(new_, fileno(stderr));
 		close(new_);
-#endif
+
 		//open a client connection to the JACK server
 		client = jack_client_open (client_name, jack_opts, &status, NULL);
 
-#ifndef WIN32
 		//show stderr again
 		fflush(stderr);
 		dup2(bak_, fileno(stderr));
 		close(bak_);
-#endif
 
 		if (client == NULL) 
 		{
