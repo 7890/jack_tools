@@ -1113,14 +1113,7 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	if(!is_playing || (seek_frames_in_progress && !loop_enabled))
 	{
-		for(int i=0; i<output_port_count; i++)
-		{
-			sample_t *o1;
-			//get output buffer from JACK for that channel
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
-			//set all samples zero
-			memset(o1, 0, jack_period_frames*bytes_per_sample);
-		}
+		fill_jack_output_buffers_zero();
 		return 0;
 	}
 
