@@ -749,7 +749,7 @@ while(true)
 			handle_key_hits();
 		}//end if keyboard_control_enabled
 #ifdef WIN32
-		Sleep(100);
+		Sleep(10);
 #else
 		usleep(10000);
 #endif
