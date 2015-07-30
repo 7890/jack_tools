@@ -10,6 +10,8 @@
 
 #ifndef WIN32
 	#include <termios.h>
+	#include <sys/stat.h>
+	#include <fcntl.h>
 #endif
 
 #ifndef PRId64

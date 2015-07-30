@@ -1,8 +1,5 @@
 #include "jack_playfile.h"
 
-#include <sys/stat.h>
-#include <fcntl.h>
-
 //tb/150612+
 
 //simple file player for JACK
@@ -457,20 +454,23 @@ while(true)
 
 	while(client==NULL)
 	{
+#ifndef WIN32
 		//hide possible error output from jack temporarily
 		fflush(stderr);
 		bak_ = dup(fileno(stderr));
 		new_ = open("/dev/null", O_WRONLY);
 		dup2(new_, fileno(stderr));
 		close(new_);
-
+#endif
 		//open a client connection to the JACK server
 		client = jack_client_open (client_name, jack_opts, &status, NULL);
 
+#ifndef WIN32
 		//show stderr again
 		fflush(stderr);
 		dup2(bak_, fileno(stderr));
 		close(bak_);
+#endif
 
 		if (client == NULL) 
 		{
@@ -481,7 +481,11 @@ while(true)
 				fprintf (stderr, " failed.\n");
 				exit(1);
 			}
-			usleep(1000000);
+#ifdef WIN32
+		Sleep(1000);
+#else
+		usleep(1000000);
+#endif
 		}
 	}
 
