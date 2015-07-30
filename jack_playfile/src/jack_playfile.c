@@ -448,33 +448,50 @@ int main(int argc, char *argv[])
 //option try_jack_reconnect
 while(true)
 {
-	fprintf (stderr, "\rwaiting for connection to JACK server...");
+	fprintf (stderr, "\r%s\rwaiting for connection to JACK server...",clear_to_eol_seq);
 
 	//http://stackoverflow.com/questions/4832603/how-could-i-temporary-redirect-stdout-to-a-file-in-a-c-program
-	int bak_, new_;
+	int bak_stderr, bak_stdout, new_;
 
 	while(client==NULL)
 	{
 		//hide possible error output from jack temporarily
 		fflush(stderr);
-		bak_ = dup(fileno(stderr));
+		bak_stderr = dup(fileno(stderr));
 
 #ifndef WIN32
 		new_ = open("/dev/null", O_WRONLY);
-#else
-		new_ = open("nul", O_WRONLY);
-#endif
 
 		dup2(new_, fileno(stderr));
 		close(new_);
+
+#else
+		new_ = open("nul", O_WRONLY);
+		dup2(new_, fileno(stderr));
+		close(new_);
+
+		fflush(stdout);
+		bak_stdout = dup(fileno(stdout));
+
+		new_ = open("nul", O_WRONLY);
+		dup2(new_, fileno(stdout));
+		close(new_);
+#endif
 
 		//open a client connection to the JACK server
 		client = jack_client_open (client_name, jack_opts, &status, NULL);
 
 		//show stderr again
 		fflush(stderr);
-		dup2(bak_, fileno(stderr));
-		close(bak_);
+		dup2(bak_stderr, fileno(stderr));
+		close(bak_stderr);
+
+#ifdef WIN32
+		//show stdout again
+		fflush(stdout);
+		dup2(bak_stdout, fileno(stdout));
+		close(bak_stdout);
+#endif
 
 		if (client == NULL) 
 		{
@@ -494,7 +511,7 @@ while(true)
 	}
 
 	fflush(stderr);
-	fprintf (stderr, "\r%s",clear_to_eol_seq);
+	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
 
 	jack_server_down=0;
 
