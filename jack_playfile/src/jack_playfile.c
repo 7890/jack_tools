@@ -705,20 +705,20 @@ while(true)
 			//go to start of line, add spaces ~"clear", go to start of line
 			//fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 
-			if(is_playing)
+			if(seek_frames_in_progress)
 			{
-				if(seek_frames_in_progress)
-				{
-					fprintf(stderr,"...seeking  ");
-				}
-				else
-				{
-					fprintf(stderr,">  playing  ");
-				}
+				fprintf(stderr,"...seeking  ");
 			}
 			else
 			{
-				fprintf(stderr,"|| paused   ");
+				if(is_playing)
+				{
+					fprintf(stderr,">  playing  ");
+				}
+				else
+				{
+					fprintf(stderr,"|| paused   ");
+				}
 			}
 
 			if(is_muted)
@@ -1133,11 +1133,11 @@ static int process(jack_nframes_t nframes, void *arg)
 		}
 		else
 		{
-			if(is_playing)
-			{
+//			if(is_playing)
+//			{
 				//read more data
 				req_buffer_from_disk_thread();
-			}
+//			}
 		}
 	}
 
@@ -1289,7 +1289,7 @@ static void seek_frames_absolute(int64_t frames_abs)
 	//seek in disk_thread
 	frames_to_seek=seek;
 	frames_to_seek_type=SEEK_SET;
-	total_frames_read_from_file=seek-frame_offset;
+//	total_frames_read_from_file=seek-frame_offset;
 
 ////need to reset more more
 }
@@ -1364,7 +1364,7 @@ static void seek_frames(int64_t frames_rel)
 	//seek in disk_thread
 	frames_to_seek=seek;
 	frames_to_seek_type=SEEK_CUR;
-	total_frames_read_from_file=current_read_pos+seek-frame_offset;
+//	total_frames_read_from_file=current_read_pos+seek-frame_offset;
 
 ////need to reset more
 }
@@ -1800,11 +1800,25 @@ static void *disk_thread_func(void *arg)
 		//check if seek is due
 		if(seek_frames_in_progress)
 		{
-//			fprintf(stderr,"\n===== seek start\n");
+//			fprintf(stderr,"\nseek start === frames to seek %"PRId64"\n",frames_to_seek);
+
 			sf_count_t count=sf_seek(soundfile,frames_to_seek,frames_to_seek_type);
 			seek_frames_in_progress=0;
 			frames_to_seek=0;
-//			fprintf(stderr,"\n===== seek end\n");
+
+			sf_count_t new_pos=sf_seek(soundfile,0,SEEK_CUR);
+			total_frames_read_from_file=new_pos-frame_offset;
+
+//			fprintf(stderr,"\nseek end === new pos %"PRId64" total read %"PRId64"\n",new_pos,total_frames_read_from_file);
+		}
+
+		//don't read yet, possibly was started paused or another seek will follow shortly
+		if(!is_playing)
+		{
+			//===wait here until process() requests to continue
+			pthread_cond_wait (&ok_to_read, &disk_thread_lock);
+			//once waked up, restart loop
+			continue;
 		}
 
 		//no resampling needed
