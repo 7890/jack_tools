@@ -1,5 +1,7 @@
 CC ?= gcc
 CFLAGS ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -lm -ldl
+CFLAGS_STATIC ?= -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -lm -ldl -lpthread
+
 # -ldl
 
 PREFIX ?= /usr/local
@@ -30,6 +32,11 @@ PKG_GROUP ?= "sound"
 ARCH ?= "i386"
 #ARCH ?= "amd64"
 #ARCH ?= "armhf"
+
+DISTRO_LIBS_DIR = /usr/lib/x86_64-linux-gnu
+LOCAL_LIBS_DIR = /usr/local/lib
+
+STATIC_LIBS = -l:$(LOCAL_LIBS_DIR)/liblo.a
 
 default: compile
 
@@ -79,9 +86,13 @@ compile:
 	$(CC) -c -o $(BLD)/jack_audio_send.o $(SRC)/jack_audio_send.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_audio_send $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(BLD)/weak_libjack.o $(CFLAGS)
 
+	$(CC) -o $(BLD)/jack_audio_send_static $(BLD)/jack_audio_common.o $(BLD)/jack_audio_send.o $(BLD)/weak_libjack.o  $(CFLAGS_STATIC) $(STATIC_LIBS)
+
 #receive
 	$(CC) -c -o $(BLD)/jack_audio_receive.o $(SRC)/jack_audio_receive.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_audio_receive $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(BLD)/weak_libjack.o $(CFLAGS)
+
+	$(CC) -o $(BLD)/jack_audio_receive_static $(BLD)/jack_audio_common.o $(BLD)/jack_audio_receive.o $(BLD)/weak_libjack.o $(CFLAGS_STATIC) $(STATIC_LIBS) 
 
 #post_send
 	#experimental
