@@ -33,6 +33,13 @@
 
 typedef jack_default_audio_sample_t sample_t;
 
+typedef struct
+{ sf_count_t  frames ; //Used to be called samples.
+  int         samplerate ;
+  int         channels ;
+  int         format ;
+} SF_INFO_GENERIC ;
+
 //tb/150612
 
 //simple file player for JACK
@@ -59,7 +66,7 @@ static void resample();
 static void deinterleave();
 
 //static int disk_read_frames(SNDFILE *soundfile, sample_t *sf_float_buffer, size_t frames_requested);
-static int disk_read_frames(SNDFILE *soundfile);
+static int disk_read_frames();//SNDFILE *soundfile);
 static void *disk_thread_func(void *arg);
 static void setup_disk_thread();
 static void req_buffer_from_disk_thread();
@@ -79,10 +86,12 @@ static void seek_frames_absolute(int64_t frames_abs);
 static void seek_frames(int64_t frames_rel);
 
 static double frames_to_seconds(sf_count_t frames, int samplerate);
-static double get_seconds(SF_INFO *sf_info);
+static double get_seconds(SF_INFO_GENERIC *sf_info);
 static const char * format_duration_str(double seconds);
-static const char * generate_duration_str(SF_INFO *sf_info);
-static int file_info(SF_INFO sf_info, int print);
+static const char * generate_duration_str(SF_INFO_GENERIC *sf_info);
+static int file_info(SF_INFO_GENERIC sf_info, int print);
+static sf_count_t sf_seek_(sf_count_t offset, int whence);
+static void sf_close_();
 
 static void print_stats();
 
@@ -153,7 +162,7 @@ static double frames_to_seconds(sf_count_t frames, int samplerate)
 }
 
 //=============================================================================
-static double get_seconds(SF_INFO *sf_info)
+static double get_seconds(SF_INFO_GENERIC *sf_info)
 {
 	double seconds;
 	if (sf_info->samplerate < 1)
@@ -185,7 +194,7 @@ static const char * format_duration_str(double seconds)
 
 //=============================================================================
 //https://github.com/erikd/libsndfile/blob/master/programs/sndfile-info.c
-static const char * generate_duration_str(SF_INFO *sf_info)
+static const char * generate_duration_str(SF_INFO_GENERIC *sf_info)
 {
 	return(
 		format_duration_str(
@@ -195,7 +204,7 @@ static const char * generate_duration_str(SF_INFO *sf_info)
 }
 
 //=============================================================================
-static int is_flac(SF_INFO sf_info)
+static int is_flac(SF_INFO_GENERIC sf_info)
 {
 	if( (sf_info.format & SF_FORMAT_TYPEMASK)==SF_FORMAT_FLAC )
 	{
@@ -208,7 +217,7 @@ static int is_flac(SF_INFO sf_info)
 }
 
 //=============================================================================
-static int file_info(SF_INFO sf_info, int print)
+static int file_info(SF_INFO_GENERIC sf_info, int print)
 {
 	int bytes=0;
 

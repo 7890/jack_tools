@@ -12,9 +12,12 @@ INSTALLPATH=/usr/local/bin/
 DISTRO_LIBS_DIR = /usr/lib/x86_64-linux-gnu
 LOCAL_LIBS_DIR = /usr/local/lib
 
-STATIC_LIBS = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(LOCAL_LIBS_DIR)/libzita-resampler.a
-#-l:$(DISTRO_LIBS_DIR)/libpthread.a
+#--enable-static
+#ar rcs x.a x.o
+
+STATIC_LIBS = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(LOCAL_LIBS_DIR)/libzita-resampler.a -l:$(LOCAL_LIBS_DIR)/libmpg123.a 
 #-l:$(DISTRO_LIBS_DIR)/libdl.a
+#-l:$(DISTRO_LIBS_DIR)/libpthread.a
 
 default: jack_playfile
 
@@ -24,7 +27,7 @@ jack_playfile: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile`
-	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread -ldl -lzita-resampler
+	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile` -lpthread -ldl -lzita-resampler -lmpg123
 
 #	$(CC) -o jack_playfile $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile jack` -lpthread -lzita-resampler
 
@@ -33,7 +36,8 @@ jack_playfile_static: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_
 #	@echo $(STATIC_LIBS)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile`
-	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) $(STATIC_LIBS) -lpthread -ldl
+	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) $(STATIC_LIBS) -ldl -lpthread
+
 	strip --strip-all jack_playfile_static
 	readelf -h jack_playfile_static
 	du -h jack_playfile_static
