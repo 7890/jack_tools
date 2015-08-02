@@ -7,7 +7,6 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 
 #ifndef WIN32
@@ -69,7 +68,6 @@ static void setup_resampler();
 static void resample();
 static void deinterleave();
 
-//static int disk_read_frames(SNDFILE *soundfile, sample_t *sf_float_buffer, size_t frames_requested);
 static int disk_read_frames();
 static void *disk_thread_func(void *arg);
 static void setup_disk_thread();
@@ -315,6 +313,5 @@ static int file_info(SF_INFO_GENERIC sf_info, int print)
 	}
 
 	return bytes;
-
 }//end print_file_info
 //EOF
