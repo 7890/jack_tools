@@ -270,7 +270,7 @@ static void print_stats()
 		return;
 	}
 
-	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %"PRId64" resampled %"PRId64" deinterleaved %"PRId64" resampling finished %d all frames read %d disk thread finished %d\n"
+	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %du resampled %du deinterleaved %du resampling finished %d all frames read %d disk thread finished %d\n"
 		,process_cycle_count
 		,disk_read_cycle_count
 		,process_cycle_underruns
@@ -283,6 +283,7 @@ static void print_stats()
 		,jack_ringbuffer_read_space(rb_interleaved)          /output_port_count/bytes_per_sample
 		,jack_ringbuffer_read_space(rb_resampled_interleaved)/output_port_count/bytes_per_sample
 		,jack_ringbuffer_read_space(rb_deinterleaved)        /output_port_count/bytes_per_sample
+
 		,resampling_finished
 		,all_frames_read
 		,disk_thread_finished
@@ -781,8 +782,6 @@ while(true)
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-//	init_term_seq();
-
 	init_key_codes();
 
 	//now set raw to read key hits
@@ -893,30 +892,22 @@ static sf_count_t sf_seek_(sf_count_t offset, int whence)
 	{
 		if(whence==SEEK_SET)
 		{
-			return op_pcm_seek(soundfile_opus,offset); //abs
+			return op_pcm_seek(soundfile_opus,offset);
 		}
 		else if(whence==SEEK_CUR)
 		{
-//			ogg_int64_t op_pcm_tell 	( 	const OggOpusFile *  	_of	) 
 			ogg_int64_t pos=op_pcm_tell(soundfile_opus);
 
 
 			if(offset==0)
 			{
 				//no need to seek
-//fprintf(stderr,"cur pos %"PRId64" offset %ld\n",pos,offset);
-
 				return pos;
 			}
 			else
 			{
 				//make relative seek absolute
 				pos+=offset;
-
-//fprintf(stderr,"new abs pos %"PRId64"\n",pos);
-
-
-
 				return op_pcm_seek(soundfile_opus,pos);
 			}
 		}
@@ -992,7 +983,6 @@ static void print_clock()
 
 	if(is_time_seconds)
 	{
-
 		if(seek_seconds_per_hit<1)
 		{
 			fprintf(stderr,"S %s %.3f %s %9.1f %s(%s) "
@@ -1275,7 +1265,6 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr," 10): keyboard input indication (i.e. seek)\n\n");
 
 	//need command to print current props (file, offset etc)
-
 }//end print_keyboard_shortcuts()
 
 //=============================================================================
@@ -1307,7 +1296,6 @@ static int process(jack_nframes_t nframes, void *arg)
 		shutdown_in_progress=1;
 		return 0;
 	}
-
 
 	if(seek_frames_in_progress)
 	{
@@ -1378,7 +1366,6 @@ static int process(jack_nframes_t nframes, void *arg)
 	else if(all_frames_read && jack_ringbuffer_read_space(rb_deinterleaved)>0)
 	{
 		int remaining_frames=jack_ringbuffer_read_space(rb_deinterleaved)/output_port_count/bytes_per_sample;
-
 //		fprintf(stderr,"process(): partial data, remaining frames in db_deinterleaved:  %d\n", remaining_frames);
 
 		//use what's available
@@ -1429,13 +1416,10 @@ static int process(jack_nframes_t nframes, void *arg)
 	{
 		//this should not happen
 		process_cycle_underruns++;
-
 //		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
 
 		fill_jack_output_buffers_zero();
-
 		print_stats();
-//		return 0;
 	}
 
 	req_buffer_from_disk_thread();
@@ -1519,7 +1503,6 @@ static void seek_frames(int64_t frames_rel)
 	//seek in disk_thread
 	frames_to_seek=seek;
 	frames_to_seek_type=SEEK_CUR;
-//	total_frames_read_from_file=current_read_pos+seek-frame_offset;
 
 ////need to reset more
 }
@@ -1607,7 +1590,6 @@ static void resample()
 	if(jack_ringbuffer_read_space(rb_interleaved) 
 		>= sndfile_request_frames * output_port_count * bytes_per_sample)
 	{
-
 //		fprintf(stderr,"resample(): normal operation\n");
 
 		float *interleaved_frame_buffer=new float [sndfile_request_frames * output_port_count];
@@ -1663,11 +1645,9 @@ static void resample()
 	else if(all_frames_read && jack_ringbuffer_read_space(rb_interleaved)>=0)
 	{
 		int frames_left=jack_ringbuffer_read_space(rb_interleaved)/output_port_count/bytes_per_sample;
-
 //		fprintf(stderr,"resample(): partial data in rb_interleaved (frames): %d\n",frames_left);
 
 		//adding zero pad to get full output of resampler
-
 ////////////////////
 		int final_frames=frames_left + get_resampler_pad_size_end();
 
@@ -1710,15 +1690,10 @@ static void resample()
 			,(const char*)buffer_resampling_out
 			,(int)(out_to_in_sr_ratio * final_frames) * output_port_count * bytes_per_sample);
 
-////////////////////
-//		delete[] interleaved_frame_buffer;
-//		delete[] buffer_resampling_out;
-
 		resampling_finished=1;
 	}
 	else
 	{
-////////////////////
 //		fprintf(stderr,"/!\\ this should not happen\n");
 	}
 
@@ -1769,7 +1744,6 @@ static void deinterleave()
 			int bytepos_frame=0;
 
 			for(int frame_loop=0; frame_loop < resampled_frames_use; frame_loop++)
-
 			{
 				bytepos_frame=bytepos_channel + frame_loop * output_port_count * bytes_per_sample;
 				//read 1 sample
@@ -1788,7 +1762,6 @@ static void deinterleave()
 				jack_ringbuffer_write(rb_deinterleaved
 					,(char*)&f1
 					,bytes_per_sample);
-
 			}//frame
 		}//channel
 
@@ -1896,7 +1869,6 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 
 				continue;
 			}
-
 		}//end mpg123
 	}//end while(frames_to_go>0 && !file_eof)
 
@@ -1927,7 +1899,6 @@ static int disk_read_frames()
 
 	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
-
 
 	//only read/write as many frames as requested (frame_count)
 	int frames_read=(int)MIN(frames_to_go,sndfile_request_frames);
@@ -1964,20 +1935,16 @@ static int disk_read_frames()
 	//put to the selected ringbuffer
 	jack_ringbuffer_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*output_port_count*bytes_per_sample);
 
-	if (frames_read_from_file > 0)
+	if(frames_read_from_file>0)
 	{
 		disk_read_cycle_count++;
-
 		total_bytes_read_from_file+=frames_read_from_file * output_port_count * bytes_per_sample_native;
-
 		total_frames_read_from_file+=frames_read_from_file;
-
 //		fprintf(stderr,"disk_read_frames(): frames: read %"PRId64" total %"PRId64"\n",frames_read_from_file,total_frames_read_from_file);
 
 		if(total_frames_read_from_file>=frame_count)
 		{
 //			fprintf(stderr,"disk_read_frame(): all frames read from file\n");
-
 			if(loop_enabled)
 			{
 #ifndef WIN32
@@ -1996,11 +1963,9 @@ static int disk_read_frames()
 				all_frames_read=1;
 			}
 		}
-
 		return frames_read_from_file;
 	}
 	//if no frames were read assume we're at EOF
-
 	all_frames_read=1;
 
 	return 0;
@@ -2055,13 +2020,11 @@ static void *disk_thread_func(void *arg)
 			if(jack_ringbuffer_write_space(rb_resampled_interleaved)
 				< sndfile_request_frames * output_port_count * bytes_per_sample )
 			{
-
 				//===wait here until process() requests to continue
 				pthread_cond_wait (&ok_to_read, &disk_thread_lock);
 				//once waked up, restart loop
 				continue;
 			}
-
 		}
 		else //if out_to_in_sr_ratio!=1.0
 		{
@@ -2301,9 +2264,9 @@ static int read_raw_key()
 		//error
 		return 0;
 	}
-//else
-	// stdin has data, read it
-	// (we know stdin is readable, since we only asked for read events
+	//else if ret>0
+	//stdin has data, read it
+	//(we know stdin is readable, since we only asked for read events
 	//and stdin is the only fd in our select set.
 
 	int count = read( STDIN_FILENO, (void*)keycodes, MAGIC_MAX_CHARS );
@@ -2362,6 +2325,7 @@ static void init_term_seq()
 	turn_off_cursor_seq=	"\033[?25l";
 	turn_on_cursor_seq=	"\033[?25h";
 #else
+	//			 ---------------------------------------------------------------------
 	clear_to_eol_seq=	"                                                                     ";
 	turn_on_cursor_seq=	"";
 	turn_on_cursor_seq=	"";
