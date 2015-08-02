@@ -1,8 +1,5 @@
 #include "jack_playfile.h"
 
-#include "mpg123.h"
-
-
 //tb/150612+
 
 //simple file player for JACK
@@ -32,6 +29,9 @@ static int autoconnect_jack_ports=1;
 static int try_jack_reconnect=1;
 
 static int jack_server_down=1;
+
+//debug: connect to jalv.gtk http://gareus.org/oss/lv2/sisco#Stereo_gtk
+static int connect_to_sisco=0;
 
 //don't quit program when everything has played out
 ///
@@ -101,6 +101,9 @@ static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
 static int disk_thread_initialized=0;
 static int disk_thread_finished=0;
 
+//readers read into this buffer
+static float* frames_from_file_buffer;
+
 //handle to currently playing file
 static SNDFILE *soundfile=NULL;
 
@@ -115,6 +118,12 @@ static mpg123_handle *soundfile_123=NULL;
 
 //if found to be mp3 file
 int is_mpg123=0;
+
+//yet another reader
+OggOpusFile  *soundfile_opus;
+
+//if found to be opus file
+int is_opus=0;
 
 //reported by stat()
 static uint64_t file_size_bytes=0;
@@ -332,55 +341,73 @@ int main(int argc, char *argv[])
 		sf_info_generic.channels=sf_info_sndfile.channels;
 		sf_info_generic.format=sf_info_sndfile.format;
 	}
-	else //try mp3
+	else
 	{
-		mpg123_init();
-		soundfile_123=mpg123_new(NULL, NULL);
+		//try opus
 
-		mpg123_format_none(soundfile_123);
-		int format=mpg123_format(soundfile_123
-			,48000
-			,MPG123_STEREO
-			,MPG123_ENC_FLOAT_32
-		);
+		int ret;
+	        soundfile_opus=op_open_file(filename,&ret);
 
-		int ret = mpg123_open(soundfile_123, filename);
-		if(ret == MPG123_OK)
-		{
-			long rate;
-			int channels, format;
-			mpg123_getformat(soundfile_123, &rate, &channels, &format);
-
-			struct mpg123_frameinfo mp3info;
-			mpg123_info(soundfile_123, &mp3info);
-
-			if(format==0)
-			{
-				fprintf (stderr, "/!\\ cannot open file \"%s\"\n", filename);
-				exit(1);
-			}
-
-			fprintf(stderr, "mp3 sampling rate %lu bitrate %d channels %d format %d\n"
-				,rate
-				,mp3info.bitrate
-				,channels
-				,format);
-
-			is_mpg123=1;
+	        if(soundfile_opus!=NULL)
+	        {
+			is_opus=1;
 
 			//seek to end, get frame count
-			sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
+			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1);
 			sf_info_generic.samplerate=48000; ///
-			sf_info_generic.channels=2; //
+			sf_info_generic.channels=2; ///
 			sf_info_generic.format=SF_FORMAT_FLOAT;
 		}
 		else
 		{
-			fprintf (stderr, "/!\\ cannot open file \"%s\"\n", filename);
-			exit(1);
-		}
-	}
-	//sf_close (soundfile);
+			//try mp3
+			mpg123_init();
+			soundfile_123=mpg123_new(NULL, NULL);
+
+			mpg123_format_none(soundfile_123);
+			int format=mpg123_format(soundfile_123
+				,48000
+				,MPG123_STEREO
+				,MPG123_ENC_FLOAT_32
+			);
+
+			int ret = mpg123_open(soundfile_123, filename);
+			if(ret == MPG123_OK)
+			{
+				long rate;
+				int channels, format;
+				mpg123_getformat(soundfile_123, &rate, &channels, &format);
+
+				struct mpg123_frameinfo mp3info;
+				mpg123_info(soundfile_123, &mp3info);
+
+				if(format==0)
+				{
+					fprintf (stderr, "/!\\ cannot open file \"%s\"\n", filename);
+					exit(1);
+				}
+
+				fprintf(stderr, "mp3 sampling rate %lu bitrate %d channels %d format %d\n"
+					,rate
+					,mp3info.bitrate
+					,channels
+					,format);
+
+				is_mpg123=1;
+
+				//seek to end, get frame count
+				sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
+				sf_info_generic.samplerate=48000; ///
+				sf_info_generic.channels=2; ///
+				sf_info_generic.format=SF_FORMAT_FLOAT;
+			}
+			else 
+			{
+				fprintf (stderr, "/!\\ cannot open file \"%s\"\n", filename);
+				exit(1);
+			}
+		}//end try mpg123
+	}//end try opus
 
 	struct stat st;
 	stat(filename, &st);
@@ -390,7 +417,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
 
 	//flac has different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
-	if(!is_mpg123 && is_flac(sf_info_generic))
+	if((is_opus || is_flac(sf_info_generic)))
 	{
 		fprintf(stderr,"/!\\ reducing frame count by 1\n");
 		sf_info_generic.frames=(sf_info_generic.frames-1);//not nice
@@ -411,10 +438,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	if(!is_mpg123)
-	{
-		bytes_per_sample_native=file_info(sf_info_generic,1);
-	}
+	bytes_per_sample_native=file_info(sf_info_generic,1);
 
 	if(bytes_per_sample_native<=0)
 	{
@@ -630,9 +654,9 @@ while(true)
 	}
 
 	///
-	int rb_interleaved_size_bytes		=100 * sndfile_request_frames    * output_port_count * bytes_per_sample;
-	int rb_resampled_interleaved_size_bytes	=100 * jack_period_frames        * output_port_count * bytes_per_sample;
-	int rb_deinterleaved_size_bytes		=100 * jack_period_frames        * output_port_count * bytes_per_sample;
+	int rb_interleaved_size_bytes		=50 * sndfile_request_frames    * output_port_count * bytes_per_sample;
+	int rb_resampled_interleaved_size_bytes	=50 * jack_period_frames        * output_port_count * bytes_per_sample;
+	int rb_deinterleaved_size_bytes		=50 * jack_period_frames        * output_port_count * bytes_per_sample;
 
 	rb_interleaved=jack_ringbuffer_create (rb_interleaved_size_bytes);
 	rb_resampled_interleaved=jack_ringbuffer_create (rb_resampled_interleaved_size_bytes);
@@ -710,14 +734,14 @@ while(true)
 	}
 
 	//test (stereo)
-	if(false)
+	if(connect_to_sisco)
 	{
 		const char *left_out= "Simple Scope (Stereo) GTK:in1";
 		const char *right_out="Simple Scope (Stereo) GTK:in2";
 		jack_connect (client, jack_port_name(ioPortArray[0]) , left_out);
 		jack_connect (client, jack_port_name(ioPortArray[1]) , right_out);
 		//override
-		autoconnect_jack_ports=0;
+		//autoconnect_jack_ports=0;
 	}
 
 	if(autoconnect_jack_ports)
@@ -861,32 +885,70 @@ _start_all_over:
 //=============================================================================
 static sf_count_t sf_seek_(sf_count_t offset, int whence)
 {
-	if(!is_mpg123)
-	{
-		return sf_seek(soundfile,offset,whence);
-	}
-	else
+	if(is_mpg123)
 	{
 		return mpg123_seek(soundfile_123,offset,whence);
 	}
-}
+	else if(is_opus)
+	{
+		if(whence==SEEK_SET)
+		{
+			return op_pcm_seek(soundfile_opus,offset); //abs
+		}
+		else if(whence==SEEK_CUR)
+		{
+//			ogg_int64_t op_pcm_tell 	( 	const OggOpusFile *  	_of	) 
+			ogg_int64_t pos=op_pcm_tell(soundfile_opus);
 
+
+			if(offset==0)
+			{
+				//no need to seek
+//fprintf(stderr,"cur pos %"PRId64" offset %ld\n",pos,offset);
+
+				return pos;
+			}
+			else
+			{
+				//make relative seek absolute
+				pos+=offset;
+
+//fprintf(stderr,"new abs pos %"PRId64"\n",pos);
+
+
+
+				return op_pcm_seek(soundfile_opus,pos);
+			}
+		}
+	}
+	else //sndfile
+	{
+		return sf_seek(soundfile,offset,whence);
+	}
+}
 
 //=============================================================================
 static void sf_close_()
 {
-	if(!is_mpg123)
-	{
-		if(soundfile!=NULL)
-		{
-			sf_close(soundfile);
-		}
-	}
-	else
+	if(is_mpg123)
 	{
 		if(soundfile_123!=NULL)
 		{
 			mpg123_close(soundfile_123);
+		}
+	}
+	else if(is_opus)
+	{
+		if(soundfile_opus!=NULL)
+		{
+			op_free(soundfile_opus);
+		}
+	}
+	else //sndfile
+	{
+		if(soundfile!=NULL)
+		{
+			sf_close(soundfile);
 		}
 	}
 }
@@ -894,7 +956,6 @@ static void sf_close_()
 //=============================================================================
 static void print_clock()
 {
-
 	sf_count_t pos=sf_seek_(0,SEEK_CUR);
 	double seconds=0;
 
@@ -1267,6 +1328,7 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	if(!is_playing || (seek_frames_in_progress && !loop_enabled && !all_frames_read))
 	{
+		fprintf(stderr,".");
 		fill_jack_output_buffers_zero();
 		return 0;
 	}
@@ -1745,6 +1807,103 @@ static void deinterleave()
 */
 }//end deinterleave()
 
+//==============================================================================
+int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
+{
+	int64_t frames_to_go=count;
+	int64_t could_read_frame_count=0;
+
+	int file_eof=0;
+
+//	fprintf(stderr,"\nread_frames_from_file_to_buffer() called\n");
+
+	while(frames_to_go>0 && !file_eof)
+	{
+//		fprintf(stderr,"\nto go %"PRId64"\n",frames_to_go);
+
+		//==================================== sndfile
+		if(!is_mpg123 && !is_opus)
+		{
+			could_read_frame_count=sf_readf_float(soundfile,(float*)buffer,frames_to_go);
+
+			if(could_read_frame_count<=0)
+			{
+//				fprintf(stderr,"\ncould not read, return was %"PRId64"\n",could_read_frame_count);
+
+				file_eof=1;
+				break;
+			}
+			else
+			{
+				frames_to_go-=could_read_frame_count;
+
+				//set offset in buffer for next cycle
+				buffer+=could_read_frame_count*output_port_count;
+
+//				fprintf(stderr,"\ncould read %"PRId64", to go %"PRId64"\n",could_read_frame_count,frames_to_go);
+
+				continue;
+			}
+		}//end sndfile
+		//==================================== opus
+		else if(is_opus)
+		{
+			could_read_frame_count=op_read_float_stereo(soundfile_opus,(float*)buffer
+				,frames_to_go*2); //output_port_count
+
+			if(could_read_frame_count<=0)
+			{
+//				fprintf(stderr,"\ncould not read, return was %"PRId64"\n",could_read_frame_count);
+
+				file_eof=1;
+				break;
+			}
+			else 
+			{
+				frames_to_go-=could_read_frame_count;
+
+				//set offset in buffer for next cycle
+				buffer+=could_read_frame_count*output_port_count;
+
+//				fprintf(stderr,"\ncould read %"PRId64", to go %"PRId64"\n",could_read_frame_count,frames_to_go);
+
+				continue;
+			}
+		}//end opus
+		//==================================== mpg123
+		else if(is_mpg123)
+		{
+			size_t fill=0;
+			mpg123_read(soundfile_123,(unsigned char*)buffer
+				,frames_to_go*output_port_count*bytes_per_sample, &fill) ;
+
+			if(fill<=0)
+			{
+//				fprintf(stderr,"\ncould not read, return was %"PRId64"\n",fill);
+
+				file_eof=1;
+				break;
+			}
+			else
+			{
+				could_read_frame_count=fill/(output_port_count*bytes_per_sample);
+				frames_to_go-=could_read_frame_count;
+
+				//set offset in buffer for next cycle
+				buffer+=could_read_frame_count*output_port_count;
+
+//				fprintf(stderr,"\ncould read %"PRId64", to go %"PRId64"\n",could_read_frame_count,frames_to_go);
+
+				continue;
+			}
+
+		}//end mpg123
+	}//end while(frames_to_go>0 && !file_eof)
+
+	//in case of a normal, full buffer read, this will be equal to count
+	return count-frames_to_go;
+}//end read_frames_from_file_to_buffer
+
 //=============================================================================
 static int disk_read_frames()
 {
@@ -1769,80 +1928,41 @@ static int disk_read_frames()
 	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
 
+
+	//only read/write as many frames as requested (frame_count)
+	int frames_read=(int)MIN(frames_to_go,sndfile_request_frames);
+
+	if(frames_read==0)
+	{
+		return 0;
+	}
+
 	sf_count_t frames_read_from_file=0;
-	int buf_avail=0;
-	jack_ringbuffer_data_t write_vec[2];
+
+	jack_ringbuffer_t *rb_to_use;
 
 	if(out_to_in_sr_ratio==1.0 || !use_resampling)
 	{
 		//directly write to rb_resampled_interleaved (skipping rb_interleaved)
-		jack_ringbuffer_get_write_vector (rb_resampled_interleaved, write_vec) ;
+		rb_to_use=rb_resampled_interleaved;
 	}
 	else 
 	{
 		//write to rb_interleaved
-		jack_ringbuffer_get_write_vector (rb_interleaved, write_vec) ;
+		rb_to_use=rb_interleaved;
 	}
 
-	//common
-	//only read/write as many frames as requested (frame_count)
-	//respecting available split buffer lengths and given read chunk size (sndfile_request_frames)
-	int frames_read_=0;
-	int frames_read =0;
-
-	if (write_vec [0].len)
+	if(jack_ringbuffer_write_space(rb_to_use) < sndfile_request_frames )
 	{
-		buf_avail = write_vec [0].len / output_port_count / bytes_per_sample ;
-
-		frames_read_=MIN(frames_to_go,sndfile_request_frames);
-		frames_read =MIN(frames_read_,buf_avail);
-
-		//fill the first part of the ringbuffer
-
-		size_t fill;
-
-		if(!is_mpg123)
-		{
-			frames_read_from_file = sf_readf_float (soundfile, (float *) write_vec [0].buf, frames_read);
-		}
-		else
-		{
-			mpg123_read(soundfile_123, (unsigned char *) write_vec [0].buf, frames_read*output_port_count*bytes_per_sample, &fill) ;
-			if(fill>0)
-			{
-				frames_read_from_file=(fill/(output_port_count*bytes_per_sample));
-			}
-		}
-
-
-		frames_to_go-=frames_read_from_file;
-
-		if (write_vec [1].len && frames_to_go>0)
-		{
-			buf_avail = write_vec [1].len / output_port_count / bytes_per_sample ;
-
-			frames_read_=MIN(frames_to_go,sndfile_request_frames-frames_read_from_file);
-			frames_read=MIN(frames_read_,buf_avail);
-
-			//fill the second part of the ringbuffer
-			if(!is_mpg123)
-			{
-				frames_read_from_file += sf_readf_float (soundfile, (float *) write_vec [1].buf, frames_read);
-			}
-			else
-			{
-				mpg123_read(soundfile_123, (unsigned char *) write_vec [1].buf, frames_read*output_port_count*bytes_per_sample, &fill) ;
-				if(fill>0)
-				{
-					frames_read_from_file+=(fill/(output_port_count*bytes_per_sample));
-				}
-			}
-		}
+		fprintf(stderr,"/!\\ not enough space in ringbuffer\n");
+		return 0;
 	}
-	else
-	{
-		fprintf(stderr,"disk_read_frames(): /!\\ can not write to ringbuffer\n");
-	}
+
+	//get float frames from any of the readers, requested size ensured to be returned except eof
+	frames_read_from_file=read_frames_from_file_to_buffer(frames_read, frames_from_file_buffer);
+
+	//put to the selected ringbuffer
+	jack_ringbuffer_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*output_port_count*bytes_per_sample);
 
 	if (frames_read_from_file > 0)
 	{
@@ -1853,18 +1973,6 @@ static int disk_read_frames()
 		total_frames_read_from_file+=frames_read_from_file;
 
 //		fprintf(stderr,"disk_read_frames(): frames: read %"PRId64" total %"PRId64"\n",frames_read_from_file,total_frames_read_from_file);
-
-		//advance write pointers
-		if(out_to_in_sr_ratio==1.0 || !use_resampling)
-		{
-			jack_ringbuffer_write_advance (rb_resampled_interleaved
-				,frames_read_from_file * output_port_count * bytes_per_sample) ;
-		}
-		else 
-		{
-			jack_ringbuffer_write_advance (rb_interleaved
-				,frames_read_from_file * output_port_count * bytes_per_sample) ;
-		}
 
 		if(total_frames_read_from_file>=frame_count)
 		{
@@ -1907,6 +2015,9 @@ static void *disk_thread_func(void *arg)
 
 	//seek to given offset position
 	sf_count_t count=sf_seek_(frame_offset,SEEK_SET);
+
+	//readers read into this buffer
+	frames_from_file_buffer=new float[sndfile_request_frames*output_port_count];
 
 	//===main disk loop
 	for(;;)
@@ -1976,10 +2087,7 @@ static void *disk_thread_func(void *arg)
 		pthread_cond_wait (&ok_to_read, &disk_thread_lock);
 	}//end main loop
 done:
-
-///////////////
-//	sf_close(soundfile);
-	sf_close_();
+//	sf_close_();//close in shutdown handler
 
 	pthread_mutex_unlock (&disk_thread_lock);
 //	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
@@ -2104,6 +2212,11 @@ static void signal_handler(int sig)
 	}
 
 	sf_close_();
+//	fprintf(stderr,"soundfile closed\n");
+	if(is_mpg123)
+	{
+		mpg123_exit();
+	}
 
 	free_ringbuffers();
 

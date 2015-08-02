@@ -23,6 +23,10 @@
 #include <sndfile.h>
 #include <zita-resampler/resampler.h>
 
+//should be optional
+#include <mpg123.h>
+#include <opusfile.h>
+
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
@@ -45,7 +49,7 @@ typedef struct
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
 
-static const float version=0.6;
+static const float version=0.7;
 
 //================================================================
 int main(int argc, char *argv[]);
@@ -66,7 +70,7 @@ static void resample();
 static void deinterleave();
 
 //static int disk_read_frames(SNDFILE *soundfile, sample_t *sf_float_buffer, size_t frames_requested);
-static int disk_read_frames();//SNDFILE *soundfile);
+static int disk_read_frames();
 static void *disk_thread_func(void *arg);
 static void setup_disk_thread();
 static void req_buffer_from_disk_thread();
@@ -120,8 +124,6 @@ static void print_next_wheel_state(int direction)
 	{
 		wheel_state=5;
 	}
-
-//▔
 
 	if(wheel_state==0)
 	{
