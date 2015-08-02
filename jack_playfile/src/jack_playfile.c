@@ -623,16 +623,16 @@ while(true)
 	downsampling (ratio>1)
 	in: 10
 	out: 2
-	out_to_in: 10/2 = 5
+	out_to_in: 2/10 = 0.2
 	read 10 samples for 2 output samples
-	read 5 samples for 1 output sample
+	read 0.2 samples for 1 output sample
 
 	upsampling (ratio<1)
 	in: 2
 	out: 10
-	out_to_in: 2/10 = 0.2
+	out_to_in: 10/2 = 5
 	read two samples for 10 output samples
-	read 0.2 samples for 1 output sample
+	read 5 samples for 1 output sample
 
 	file 44100, jack 96000 -> 0.459375
 	for one jack_period_frames, we need at least period_size * out_to_in_sr_ratio frames from input
