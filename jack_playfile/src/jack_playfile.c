@@ -1328,7 +1328,7 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	if(!is_playing || (seek_frames_in_progress && !loop_enabled && !all_frames_read))
 	{
-		fprintf(stderr,".");
+//		fprintf(stderr,".");
 		fill_jack_output_buffers_zero();
 		return 0;
 	}
