@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -Wno-write-strings -Wno-pointer-arith
+CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -Wno-write-strings -Wno-pointer-arith
 #-DNO_JACK_METADATA -w
 
 #http://www.cprogramdevelop.com/4787258/
