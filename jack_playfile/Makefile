@@ -12,12 +12,16 @@ INSTALLPATH=/usr/local/bin/
 DISTRO_LIBS_DIR = /usr/lib/x86_64-linux-gnu
 LOCAL_LIBS_DIR = /usr/local/lib
 
-#--enable-static
-#ar rcs x.a x.o
+STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(DISTRO_LIBS_DIR)/libopus.a
+#custom install locaiton
+LIB_OPUSFILE_A = -l:/usr/lib/libopusfile.a
 
-STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a 
-STATIC_LIBS_LOCAL = -l:$(LOCAL_LIBS_DIR)/libzita-resampler.a -l:$(LOCAL_LIBS_DIR)/libmpg123.a -l:$(LOCAL_LIBS_DIR)/libopusfile.a -l:$(LOCAL_LIBS_DIR)/libopus.a
-STATIC_LIBS = $(STATIC_LIBS_DISTRO) $(STATIC_LIBS_LOCAL)
+#zita-resampler: ar -cvq libzita-resampler.a resampler.o vresampler.o resampler-table.o
+#mpg123: ./configure --enable static
+
+STATIC_LIBS_LOCAL = -l:$(LOCAL_LIBS_DIR)/libzita-resampler.a -l:$(LOCAL_LIBS_DIR)/libmpg123.a 
+
+STATIC_LIBS = $(LIB_OPUSFILE_A) $(STATIC_LIBS_DISTRO) $(STATIC_LIBS_LOCAL)
 
 #-l:$(DISTRO_LIBS_DIR)/libdl.a
 #-l:$(DISTRO_LIBS_DIR)/libpthread.a
@@ -32,9 +36,6 @@ jack_playfile: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile` -lpthread -ldl -lzita-resampler -lmpg123
 
-#	$(CC) -o jack_playfile $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile jack` -lpthread -lzita-resampler
-
-#test
 jack_playfile_static: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 #	@echo $(STATIC_LIBS)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
