@@ -57,6 +57,9 @@ static int is_time_absolute=0;
 //0: time remaining (-), 1: time elapsed
 static int is_time_elapsed=1;
 
+//0: no running clock
+static int is_clock_displayed=1;
+
 //if set to 1, will print stats
 static int debug=0;
 
@@ -243,6 +246,7 @@ static int KEY_L=0;
 static int KEY_COMMA=0;
 static int KEY_PERIOD=0;
 static int KEY_DASH=0;
+static int KEY_C=0;
 
 static const char *clear_to_eol_seq=NULL;
 static const char *turn_on_cursor_seq=NULL;
@@ -610,6 +614,7 @@ while(true)
 	jack_sample_rate=jack_get_sample_rate(client);
 
 	jack_cycles_per_second=(float)jack_sample_rate / jack_period_frames;
+
 	jack_output_data_rate_bytes_per_second=jack_sample_rate * output_port_count * bytes_per_sample;
 	out_to_in_byte_ratio=jack_output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
 
@@ -954,6 +959,11 @@ static void sf_close_()
 //=============================================================================
 static void print_clock()
 {
+	if(!is_clock_displayed)
+	{
+		return;
+	}
+
 	sf_count_t pos=sf_seek_(0,SEEK_CUR);
 	double seconds=0;
 
@@ -1223,6 +1233,12 @@ static void handle_key_hits()
 		is_time_elapsed=!is_time_elapsed;
 		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed " : "remaining ");
 	}
+	//'c': toggle clock on/off
+	else if(rawkey==KEY_C)
+	{
+		is_clock_displayed=!is_clock_displayed;
+		fprintf(stderr,"clock %s", is_clock_displayed ? "on " : "off ");
+	}
 
 #ifndef WIN32
 		fprintf(stderr,"%s",clear_to_eol_seq);
@@ -1251,6 +1267,7 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  end:               seek to end\n");
 	fprintf(stderr,"  m:                 mute\n");
 	fprintf(stderr,"  l:                 loop\n");
+	fprintf(stderr,"  c:                 toggle clock display on / off\n");
 	fprintf(stderr,"  , comma:           toggle clock seconds*  / frames\n");
 	fprintf(stderr,"  . period:          toggle clock absolute* / relative\n");
 	fprintf(stderr,"  - dash:            toggle clock elapsed*  / remaining\n");
@@ -2364,6 +2381,7 @@ static void init_key_codes()
 	KEY_COMMA=44;
 	KEY_PERIOD=46;
 	KEY_DASH=45;
+	KEY_C=99;
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -2381,6 +2399,7 @@ static void init_key_codes()
 	KEY_COMMA=188;
 	KEY_PERIOD=190;
 	KEY_DASH=189;
+	KEY_C=67;///////
 #endif
 }
 //EOF
