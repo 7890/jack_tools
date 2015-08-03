@@ -891,14 +891,7 @@ static sf_count_t sf_seek_(sf_count_t offset, int whence)
 {
 	if(is_mpg123)
 	{
-		if(whence==SEEK_SET)
-		{
-			return mpg123_seek(soundfile_123,offset,whence);
-		}
-		else if(whence==SEEK_CUR && offset==0)
-		{
-			return mpg123_tell(soundfile_123);
-		}
+		return mpg123_seek(soundfile_123,offset,whence);
 	}
 	else if(is_opus)
 	{
