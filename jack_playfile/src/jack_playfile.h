@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <pthread.h>
 #include <fcntl.h>
+#include <getopt.h>
 
 #ifndef WIN32
 	#include <termios.h>
@@ -48,7 +49,7 @@ typedef struct
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
 
-static const float version=0.7;
+static const float version=0.8;
 
 //================================================================
 int main(int argc, char *argv[]);
@@ -105,6 +106,95 @@ static void init_key_codes();
 
 static void print_next_wheel_state(int direction);
 static void print_clock();
+
+//for comments on these variables, see jack_playfile.c
+extern const char *server_name;
+extern const char *client_name;
+
+extern uint64_t frame_offset;
+extern uint64_t frame_count;
+extern int keyboard_control_enabled;
+extern int use_resampling;
+extern int autoconnect_jack_ports;
+extern int try_jack_reconnect;
+extern int connect_to_sisco;
+extern int pause_when_finished;
+extern int is_playing;
+extern int is_muted;
+extern int loop_enabled;
+extern int is_time_seconds;
+extern int is_time_absolute;
+extern int is_time_elapsed;
+extern int is_clock_displayed;
+
+//================================================================
+static void print_main_help (void)
+{
+	fprintf (stderr, "Usage: jack_playfile [Options] audiofile\n");
+	fprintf (stderr, "Options:\n");
+	fprintf (stderr, "  Display this text and quit          --help\n");
+	fprintf (stderr, "  Show program version and quit       --version\n");
+	fprintf (stderr, "  JACK client name    (jack_playfile) --name <string>\n");
+	fprintf (stderr, "  JACK server name          (default) --sname <string>\n");
+	fprintf (stderr, "  Don't connect JACK ports            --noconnect\n");
+	fprintf (stderr, "  Don't wait for JACK to re-connect   --noreconnect\n");
+	fprintf (stderr, "  Disable keyboard control            --nocontrol\n");
+	fprintf (stderr, "  Disable resampling                  --noresampling\n");
+	fprintf (stderr, "  Start paused                        --paused\n");
+	fprintf (stderr, "  Start muted                         --muted\n");
+	fprintf (stderr, "  Enable loop                         --loop\n");
+	fprintf (stderr, "  Show time as frames       (seconds) --frames\n");
+	fprintf (stderr, "  Show absolute time            (rel) --absolute\n");
+	fprintf (stderr, "  Show remaining time       (elapsed) --remaining\n");
+	fprintf (stderr, "  Disable clock display               --noclock\n");
+	fprintf (stderr, "  Frame offset:                   (0) --offset <integer>\n");
+	fprintf (stderr, "  Frame count:                  (all) --count <integer>\n\n");
+	fprintf (stderr, "Example: jack_playfile --remaining --loop music.opus 0 44100\n");
+	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
+	exit (0);
+}
+
+//data structure for command line options parsing
+//http://www.gnu.org/software/libc/manual/html_node/Using-Getopt.html
+//================================================================
+static struct option long_options[] =
+{
+	{"help",	no_argument,		0, 'a'},
+	{"version",	no_argument,		0, 'b'},
+	{"name",	required_argument,	0, 'c'},
+	{"sname",	required_argument,	0, 'd'},
+
+	{"offset",	required_argument,	0, 'e'},
+	{"count",	required_argument,	0, 'f'},
+
+	{"nocontrol",	no_argument,  &keyboard_control_enabled,0},
+	{"noresampling",no_argument,  &use_resampling,		0},
+	{"noconnect",	no_argument,  &autoconnect_jack_ports,	0},
+	{"noreconnect",	no_argument,  &try_jack_reconnect,	0},
+	{"paused",	no_argument,  &is_playing,		0},
+	{"muted",	no_argument,  &is_muted,		1},
+	{"loop",	no_argument,  &loop_enabled,		1},
+	{"frames",	no_argument,  &is_time_seconds,		0},
+	{"absolute",	no_argument,  &is_time_absolute,	1},
+	{"remaining",	no_argument,  &is_time_elapsed,		0},
+	{"noclock",	no_argument,  &is_clock_displayed,	0},
+//{"",  no_argument,  &connect_to_sisco, 0},
+//{"",  no_argument,  &pause_when_finished, 1},
+	{0, 0, 0, 0}
+};
+
+//=========================================================
+void print_header()
+{
+	fprintf (stderr, "\njack_playfile v%.2f\n", version);
+	fprintf (stderr, "(C) 2015 Thomas Brand  <tom@trellis.ch>\n");
+}
+
+//=========================================================
+void print_version()
+{
+	fprintf (stderr, "%.2f\n",version);
+}
 
 //for displaying 'wheel' as progress indicator
 static int wheel_state=0;

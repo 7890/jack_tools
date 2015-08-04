@@ -7,58 +7,59 @@
 
 
 //command line arguments
-//======================
+//========================================
+const char *server_name = NULL;
+const char *client_name = NULL;
+
 static const char *filename=NULL; //mandatory
 
 //start from absolute frame pos (skip n frames from start)
-static uint64_t frame_offset=0; //optional
+uint64_t frame_offset=0; //optional
 
 //number of frames to read & play from offset (if argument not provided or 0: all frames)
-static uint64_t frame_count=0; //optional, only in combination with offset
-//======================
+uint64_t frame_count=0; //optional, only in combination with offset
 
 //if set to 0, keyboard entry won't be used (except ctrl+c)
-static int keyboard_control_enabled=1;
+int keyboard_control_enabled=1;
 
 //if set to 0, will not resample, even if file has different SR from JACK
-static int use_resampling=1;
+int use_resampling=1;
 
 //if set to 1, connect available file channels to available physical outputs
-static int autoconnect_jack_ports=1;
+int autoconnect_jack_ports=1;
 
-static int try_jack_reconnect=1;
-
-static int jack_server_down=1;
+int try_jack_reconnect=1;
 
 //debug: connect to jalv.gtk http://gareus.org/oss/lv2/sisco#Stereo_gtk
-static int connect_to_sisco=0;
+int connect_to_sisco=1;
 
 //don't quit program when everything has played out
-///
 //static int pause_when_finished=0;
 
 //toggle play/pause with 'space'
 //if set to 0: prepare everything for playing but wait for user to toggle to play
-static int is_playing=1;
+int is_playing=1;
 
 //toggle mute with 'm'
-static int is_muted=0;
+int is_muted=0;
 
 //toggle loop with 'l'
-static int loop_enabled=0;
+int loop_enabled=0;
 
 //0: frames, 1: seconds
-static int is_time_seconds=1;
+int is_time_seconds=1;
 
 //0: relative to frame_offset and frame_offset + frame_count
 //1: relative to frame 0
-static int is_time_absolute=0;
+int is_time_absolute=0;
 
 //0: time remaining (-), 1: time elapsed
-static int is_time_elapsed=1;
+int is_time_elapsed=1;
 
 //0: no running clock
-static int is_clock_displayed=1;
+int is_clock_displayed=1;
+
+//========================================
 
 //if set to 1, will print stats
 static int debug=0;
@@ -90,7 +91,10 @@ static int bytes_per_sample_native=0;
 //array of pointers to JACK input or output ports
 static jack_port_t **ioPortArray;
 static jack_client_t *client;
-static jack_options_t jack_opts = JackNoStartServer;
+//http://jack-audio.10948.n7.nabble.com/jack-options-t-td3483.html
+static jack_options_t jack_opts = jack_options_t(JackNoStartServer | JackServerName);
+
+static int jack_server_down=1;
 
 //process() will return immediately if 0
 static int process_enabled=0;
@@ -299,30 +303,77 @@ int main(int argc, char *argv[])
 {
 	init_term_seq();
 
-	fprintf(stderr,"*** jack_playfile ALPHA - protect your ears! ***\n");
-	if( argc < 2	
-		|| (argc >= 2 && 
-			( strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
-	)
+	int opt;
+	//do until command line options parsed
+	while(1)
 	{
-		fprintf(stderr,"jack_playfile v%1.1f - (c) 2015 Thomas Brand <tom@trellis.ch>\n\n",version);
-		fprintf(stderr,"syntax: jack_playfile <file> [frame offset [frame count]]\n\n");
-		exit(0);
-	}
-	else if (argc >= 2)
+		//getopt_long stores the option index here
+		int option_index=0;
+
+		opt=getopt_long(argc, argv, "", long_options, &option_index);
+
+		//Detect the end of the options
+		if(opt==-1)
+		{
+			break;
+		}
+		switch(opt)
+		{
+			case 0:
+
+			//If this option set a flag, do nothing else now
+			if(long_options[option_index].flag!=0)
+			{
+				break;
+			}
+
+			case 'a':
+				print_header();
+				print_main_help();
+				break;
+
+			case 'b':
+				print_version();
+				exit(0);
+				//break;
+
+			case 'c':
+				client_name=optarg;
+				break;
+
+			case 'd':
+				server_name=optarg;
+				break;
+
+			case 'e':
+				frame_offset=strtoull(optarg, NULL, 10);
+				break;
+
+			case 'f':
+				frame_count=strtoull(optarg, NULL, 10);
+				break;
+
+			case '?': //invalid commands
+				//getopt_long already printed an error message
+				print_header();
+				fprintf(stderr, "Wrong arguments, see --help.\n\n");
+				exit(1);
+				break;
+
+			default:
+				break;
+		 } //end switch op
+	}//end while(1) parse args
+
+	//remaining non optional parameters must be file
+	if(argc-optind!=1)
 	{
-		filename=argv[1];
+		print_header();
+		fprintf(stderr, "Wrong arguments, see --help.\n\n");
+		exit(1);
 	}
 
-	if (argc >= 3)
-	{
-		frame_offset=atoi(argv[2]);
-	}
-
-	if (argc >= 4)
-	{
-		frame_count=atoi(argv[3]);
-	}
+	filename=argv[optind];
 
 	memset (&sf_info_sndfile, 0, sizeof (sf_info_sndfile)) ;
 	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
@@ -351,10 +402,10 @@ int main(int argc, char *argv[])
 		//try opus
 
 		int ret;
-	        soundfile_opus=op_open_file(filename,&ret);
+		soundfile_opus=op_open_file(filename,&ret);
 
-	        if(soundfile_opus!=NULL)
-	        {
+		if(soundfile_opus!=NULL)
+		{
 			is_opus=1;
 
 			//seek to end, get frame count
@@ -530,8 +581,15 @@ int main(int argc, char *argv[])
 	const char **ports;
 	jack_status_t status;
 
-	//===
-	const char *client_name="jack_playfile";
+	if(server_name==NULL || strlen(server_name)<1)
+	{
+		server_name="default";
+	}
+
+	if(client_name==NULL)
+	{
+		client_name="jack_playfile";
+	}
 
 	//create an array of output ports
 	//calloc() zero-initializes the buffer, while malloc() leaves the memory uninitialized
@@ -574,7 +632,7 @@ while(true)
 #endif
 
 		//open a client connection to the JACK server
-		client = jack_client_open (client_name, jack_opts, &status, NULL);
+		client = jack_client_open (client_name, jack_opts, &status, server_name);
 
 		//show stderr again
 		fflush(stderr);
@@ -603,7 +661,10 @@ while(true)
 		usleep(1000000);
 #endif
 		}
-	}
+	}//end while client==NULL
+
+	//could have changed (i.e. another client with the same name already exists)
+	client_name=jack_get_client_name(client);
 
 	fflush(stderr);
 	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
@@ -742,8 +803,11 @@ while(true)
 	//test (stereo)
 	if(connect_to_sisco)
 	{
-		const char *left_out= "Simple Scope (Stereo) GTK:in1";
-		const char *right_out="Simple Scope (Stereo) GTK:in2";
+//		const char *left_out= "Simple Scope (Stereo) GTK:in1";
+//		const char *right_out="Simple Scope (Stereo) GTK:in2";
+		const char *left_out= "Simple Scope (3 channel) GTK:in1";
+		const char *right_out="Simple Scope (3 channel) GTK:in2";
+
 		jack_connect (client, jack_port_name(ioPortArray[0]) , left_out);
 		jack_connect (client, jack_port_name(ioPortArray[1]) , right_out);
 		//override
