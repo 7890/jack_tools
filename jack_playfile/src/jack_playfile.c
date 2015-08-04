@@ -31,7 +31,7 @@ int autoconnect_jack_ports=1;
 int try_jack_reconnect=1;
 
 //debug: connect to jalv.gtk http://gareus.org/oss/lv2/sisco#Stereo_gtk
-int connect_to_sisco=1;
+int connect_to_sisco=0;
 
 //don't quit program when everything has played out
 //static int pause_when_finished=0;
