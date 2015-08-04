@@ -163,6 +163,7 @@ static void print_main_help (void)
 	fprintf (stderr, "JACK audio connection kit - http://jackaudio.org/\n");
 	fprintf (stderr, "libsndfile - http://www.mega-nerd.com/libsndfile/\n");
 	fprintf (stderr, "libopus, libopusfile - http://www.opus-codec.org/\n");
+	fprintf (stderr, "libvorbisfile - http://xiph.org/vorbis/\n");
 	fprintf (stderr, "libmpg123 - http://www.mpg123.de/ (optional due to patent foo)\n\n");
 
 	fprintf (stderr, "libraries abstracted by libsndfile:\n\n");
