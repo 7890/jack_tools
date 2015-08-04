@@ -132,6 +132,15 @@ OggOpusFile  *soundfile_opus;
 //if found to be opus file
 int is_opus=0;
 
+//..and another (for faster seeking)
+OggVorbis_File soundfile_vorbis;
+
+//if found to be opus file
+int is_ogg_=0;
+
+//multichannel float buffer for ov_read_float
+float **ogg_buffer;
+
 //reported by stat()
 static uint64_t file_size_bytes=0;
 
@@ -396,6 +405,17 @@ int main(int argc, char *argv[])
 		sf_info_generic.samplerate=sf_info_sndfile.samplerate;
 		sf_info_generic.channels=sf_info_sndfile.channels;
 		sf_info_generic.format=sf_info_sndfile.format;
+
+		//use vorbisfile to decode ogg
+		if(is_ogg(sf_info_generic))
+		{
+			sf_close(soundfile);
+
+			FILE *file_;
+			file_  = fopen(filename,"r");
+			ov_open(file_,&soundfile_vorbis,NULL,0);
+			is_ogg_=1;
+		}
 	}
 	else
 	{
@@ -966,7 +986,6 @@ static sf_count_t sf_seek_(sf_count_t offset, int whence)
 		{
 			ogg_int64_t pos=op_pcm_tell(soundfile_opus);
 
-
 			if(offset==0)
 			{
 				//no need to seek
@@ -977,6 +996,29 @@ static sf_count_t sf_seek_(sf_count_t offset, int whence)
 				//make relative seek absolute
 				pos+=offset;
 				return op_pcm_seek(soundfile_opus,pos);
+			}
+		}
+	}
+	else if(is_ogg_)
+	{
+		if(whence==SEEK_SET)
+		{
+			return ov_pcm_seek(&soundfile_vorbis,offset);
+		}
+		else if(whence==SEEK_CUR)
+		{
+			ogg_int64_t pos=ov_pcm_tell(&soundfile_vorbis);
+
+			if(offset==0)
+			{
+				//no need to seek
+				return pos;
+			}
+			else
+			{
+				//make relative seek absolute
+				pos+=offset;
+				return ov_pcm_seek(&soundfile_vorbis,pos);
 			}
 		}
 	}
@@ -1333,7 +1375,7 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"|| paused   ML  S rel 0.001       943.1  (00:15:43.070)   \n");
 	fprintf(stderr,"^           ^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
 	fprintf(stderr,"1           23  4 5   6     7     8     7 9             10\n\n");
-	fprintf(stderr,"  1): status playing '>' or paused '||'\n");
+	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
 	fprintf(stderr,"  2): mute on/off 'M' or ' '\n");
 	fprintf(stderr,"  3): loop on/off 'L' or ' '\n");
 	fprintf(stderr,"  4): time and seek in seconds 'S' or frames 'F'\n");
@@ -1496,7 +1538,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	{
 		//this should not happen
 		process_cycle_underruns++;
-//		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
+		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
 
 		fill_jack_output_buffers_zero();
 		print_stats();
@@ -1868,6 +1910,9 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 
 	int file_eof=0;
 
+	int ogg_buffer_offset=0;
+	int current_section;
+
 //	fprintf(stderr,"\nread_frames_from_file_to_buffer() called\n");
 
 	while(frames_to_go>0 && !file_eof)
@@ -1875,7 +1920,7 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 //		fprintf(stderr,"\nto go %"PRId64"\n",frames_to_go);
 
 		//==================================== sndfile
-		if(!is_mpg123 && !is_opus)
+		if(!is_mpg123 && !is_opus && !is_ogg)
 		{
 			could_read_frame_count=sf_readf_float(soundfile,(float*)buffer,frames_to_go);
 
@@ -1923,6 +1968,72 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 				continue;
 			}
 		}//end opus
+		//==================================== ogg
+		else if(is_ogg_)
+		{
+			/*
+			//https://xiph.org/vorbis/doc/vorbisfile/example.html
+			//http://lists.xiph.org/pipermail/vorbis-dev/2002-January/005500.html
+
+			long ov_read_float(OggVorbis_File *vf, float ***pcm_channels, int samples, int *bitstream);
+			float **pcm; samples_read = ov_read_float(&vf, &pcm, 1024, &current_section)
+
+			**pcm is a multichannel float vector. In stereo, for example, pcm[0] is left, and pcm[1] is right. 
+			samples is the size of each channel.
+
+			As you might expect, buffer[0][0] will be the first sample in the
+			left channel, and buffer[1][0] will be the first sample in the right channel.
+
+			Also make sure that you don't free() buffer anywhere since you don't own it.
+			*/
+
+			could_read_frame_count=ov_read_float(&soundfile_vorbis
+				,&ogg_buffer
+				,frames_to_go
+				,&current_section);
+
+			//interleave
+			//(if no resampling is involved, we could directly put to rb_deinterleaved..)
+			for(int i=0;i<could_read_frame_count;i++)
+			{
+				int buffer_index=i*output_port_count;
+
+				for(int k=0;k<output_port_count;k++)
+				{
+					buffer[buffer_index+k+ogg_buffer_offset]=ogg_buffer[k][i];
+//					fprintf(stderr,"buffer[%d] ogg_pcm[%d][%d]\n",buffer_index+k+ogg_buffer_offset,k,i);
+					/*
+					buffer: interleaved samples
+					ogg_pcm [channel] [sample]
+					...
+					buffer[250] ogg_pcm[0][125]
+					buffer[251] ogg_pcm[1][125]
+					buffer[252] ogg_pcm[0][126]
+					buffer[253] ogg_pcm[1][126]
+					buffer[254] ogg_pcm[0][127]
+					buffer[255] ogg_pcm[1][127]
+					*/
+
+				}
+			}
+			if(could_read_frame_count<=0)
+			{
+//				fprintf(stderr,"\ncould not read, return was %"PRId64"\n",could_read_frame_count);
+
+				file_eof=1;
+				break;
+			}
+			else
+			{
+				frames_to_go-=could_read_frame_count;
+
+				//set offset in buffer for next cycle
+				ogg_buffer_offset+=could_read_frame_count*output_port_count;
+
+//				fprintf(stderr,"\ncould read %"PRId64", to go %"PRId64"\n",could_read_frame_count,frames_to_go);
+				continue;
+			}
+		}//end ogg
 		//==================================== mpg123
 		else if(is_mpg123)
 		{
@@ -2009,6 +2120,8 @@ static int disk_read_frames()
 		return 0;
 	}
 
+	//frames_read: number of (multi-channel) samples to read, i.e. 1 frame in a stereo file = two values
+
 	//get float frames from any of the readers, requested size ensured to be returned except eof
 	frames_read_from_file=read_frames_from_file_to_buffer(frames_read, frames_from_file_buffer);
 
@@ -2061,7 +2174,7 @@ static void *disk_thread_func(void *arg)
 	//seek to given offset position
 	sf_count_t count=sf_seek_(frame_offset,SEEK_SET);
 
-	//readers read into this buffer
+	//readers read into this buffer, interleaved channels
 	frames_from_file_buffer=new float[sndfile_request_frames*output_port_count];
 
 	//===main disk loop

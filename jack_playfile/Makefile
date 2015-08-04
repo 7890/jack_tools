@@ -12,7 +12,7 @@ INSTALLPATH=/usr/local/bin/
 DISTRO_LIBS_DIR = /usr/lib/x86_64-linux-gnu
 LOCAL_LIBS_DIR = /usr/local/lib
 
-STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(DISTRO_LIBS_DIR)/libopus.a
+STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(DISTRO_LIBS_DIR)/libopus.a -l:$(DISTRO_LIBS_DIR)/libvorbisfile.a
 #custom install locaiton
 LIB_OPUSFILE_A = -l:/usr/lib/libopusfile.a
 
@@ -34,7 +34,7 @@ jack_playfile: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
-	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile` -lpthread -ldl -lzita-resampler -lmpg123
+	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -ldl -lzita-resampler -lmpg123
 
 jack_playfile_static: $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 #	@echo $(STATIC_LIBS)

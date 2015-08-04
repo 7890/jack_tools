@@ -22,10 +22,11 @@
 
 #include <sndfile.h>
 #include <zita-resampler/resampler.h>
+#include <opusfile.h>
+#include <vorbis/vorbisfile.h>
 
 //should be optional
 #include <mpg123.h>
-#include <opusfile.h>
 
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -315,6 +316,19 @@ static const char * generate_duration_str(SF_INFO_GENERIC *sf_info)
 static int is_flac(SF_INFO_GENERIC sf_info)
 {
 	if( (sf_info.format & SF_FORMAT_TYPEMASK)==SF_FORMAT_FLAC )
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+//=============================================================================
+static int is_ogg(SF_INFO_GENERIC sf_info)
+{
+	if( (sf_info.format & SF_FORMAT_TYPEMASK)==SF_FORMAT_OGG )
 	{
 		return 1;
 	}
