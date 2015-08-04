@@ -663,9 +663,6 @@ while(true)
 		}
 	}//end while client==NULL
 
-	//could have changed (i.e. another client with the same name already exists)
-	client_name=jack_get_client_name(client);
-
 	fflush(stderr);
 	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
 
