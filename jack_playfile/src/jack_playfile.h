@@ -152,8 +152,23 @@ static void print_main_help (void)
 	fprintf (stderr, "  Disable clock display               --noclock\n");
 	fprintf (stderr, "  Frame offset:                   (0) --offset <integer>\n");
 	fprintf (stderr, "  Frame count:                  (all) --count <integer>\n\n");
+
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
+
+	fprintf (stderr, "jack_playfile is free software.\n");
+	fprintf (stderr, "major audio libraries jack_playfile depends on:\n\n");
+
+	fprintf (stderr, "JACK audio connection kit - http://jackaudio.org/\n");
+	fprintf (stderr, "libsndfile - http://www.mega-nerd.com/libsndfile/\n");
+	fprintf (stderr, "libopus, libopusfile - http://www.opus-codec.org/\n");
+	fprintf (stderr, "libmpg123 - http://www.mpg123.de/ (optional due to patent foo)\n\n");
+
+	fprintf (stderr, "libraries abstracted by libsndfile:\n\n");
+	fprintf (stderr, "libFLAC - http://xiph.org/flac/\n");
+	fprintf (stderr, "libvorbis, libvorbisenc - http://xiph.org/vorbis/\n");
+	fprintf (stderr, "libogg - http://xiph.org/ogg/\n\n");
+
 	exit (0);
 }
 
