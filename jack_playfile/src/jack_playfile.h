@@ -157,7 +157,7 @@ static void print_main_help (void)
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
 
 	fprintf (stderr, "jack_playfile is free software.\n");
-	fprintf (stderr, "major audio libraries jack_playfile depends on:\n\n");
+	fprintf (stderr, "Major audio libraries jack_playfile depends on:\n\n");
 
 	fprintf (stderr, "JACK audio connection kit - http://jackaudio.org/\n");
 	fprintf (stderr, "libsndfile - http://www.mega-nerd.com/libsndfile/\n");
