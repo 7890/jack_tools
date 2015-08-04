@@ -1052,7 +1052,7 @@ static void sf_close_()
 			op_free(soundfile_opus);
 		}
 	}
-	else if(is_ogg)
+	else if(is_ogg_)
 	{
 //		if(soundfile_vorbis!=NULL)
 //		{
