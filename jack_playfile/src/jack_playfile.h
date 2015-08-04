@@ -149,7 +149,7 @@ static void print_main_help (void)
 	fprintf (stderr, "  Disable clock display               --noclock\n");
 	fprintf (stderr, "  Frame offset:                   (0) --offset <integer>\n");
 	fprintf (stderr, "  Frame count:                  (all) --count <integer>\n\n");
-	fprintf (stderr, "Example: jack_playfile --remaining --loop music.opus 0 44100\n");
+	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
 	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
 	exit (0);
 }
