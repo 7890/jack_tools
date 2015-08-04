@@ -44,6 +44,9 @@ typedef struct
   int         format ;
 } SF_INFO_GENERIC ;
 
+#define SF_FORMAT_OPUS 0x900000
+#define SF_FORMAT_MP3 0x910000
+
 //tb/150612
 
 //simple file player for JACK
@@ -309,6 +312,10 @@ static int is_flac(SF_INFO_GENERIC sf_info)
 //=============================================================================
 static int file_info(SF_INFO_GENERIC sf_info, int print)
 {
+	/*
+	SF_FORMAT_SUBMASK               = 0x0000FFFF
+	SF_FORMAT_TYPEMASK              = 0x0FFF0000
+	*/
 	int bytes=0;
 
 	char* format_string;
@@ -342,6 +349,9 @@ static int file_info(SF_INFO_GENERIC sf_info, int print)
 	case SF_FORMAT_OGG 	:format_string="Xiph OGG container"; break;
 	case SF_FORMAT_MPC2K 	:format_string="Akai MPC 2000 sampler"; break;
 	case SF_FORMAT_RF64 	:format_string="RF64 WAV file"; bytes=8; break;
+	case SF_FORMAT_OPUS 	:format_string="Opus (RFC6716)"; break;
+	case SF_FORMAT_MP3 	:format_string="MPEG Layer 3 (mp3)"; break;
+
 	default :
 		format_string="unknown format!";
 		break ;

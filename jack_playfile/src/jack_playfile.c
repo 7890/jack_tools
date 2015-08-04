@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
 			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1);
 			sf_info_generic.samplerate=48000; ///
 			sf_info_generic.channels=2; ///
-			sf_info_generic.format=SF_FORMAT_FLOAT;
+			sf_info_generic.format=SF_FORMAT_OPUS | SF_FORMAT_FLOAT;
 		}
 		else
 		{
@@ -443,11 +443,13 @@ int main(int argc, char *argv[])
 					exit(1);
 				}
 
+/*
 				fprintf(stderr, "mp3 sampling rate %lu bitrate %d channels %d format %d\n"
 					,rate
 					,mp3info.bitrate
 					,channels
 					,format);
+*/
 
 				is_mpg123=1;
 
@@ -455,7 +457,7 @@ int main(int argc, char *argv[])
 				sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
 				sf_info_generic.samplerate=48000; ///
 				sf_info_generic.channels=2; ///
-				sf_info_generic.format=SF_FORMAT_FLOAT;
+				sf_info_generic.format=SF_FORMAT_MP3 | SF_FORMAT_FLOAT;
 			}
 			else 
 			{
