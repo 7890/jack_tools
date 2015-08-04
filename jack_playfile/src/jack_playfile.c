@@ -1045,6 +1045,13 @@ static void sf_close_()
 			op_free(soundfile_opus);
 		}
 	}
+	else if(is_ogg)
+	{
+//		if(soundfile_vorbis!=NULL)
+//		{
+			ov_clear(&soundfile_vorbis);
+//		}
+	}
 	else //sndfile
 	{
 		if(soundfile!=NULL)
@@ -1920,7 +1927,7 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 //		fprintf(stderr,"\nto go %"PRId64"\n",frames_to_go);
 
 		//==================================== sndfile
-		if(!is_mpg123 && !is_opus && !is_ogg)
+		if(!is_mpg123 && !is_opus && !is_ogg_)
 		{
 			could_read_frame_count=sf_readf_float(soundfile,(float*)buffer,frames_to_go);
 
