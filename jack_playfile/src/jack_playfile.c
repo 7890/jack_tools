@@ -432,8 +432,27 @@ int main(int argc, char *argv[])
 
 			//seek to end, get frame count
 			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1);
-			sf_info_generic.samplerate=48000; ///
-			sf_info_generic.channels=2; ///
+			//the libopusfile API always decodes files to 48 kHz.
+			sf_info_generic.samplerate=48000;
+
+			//int 	op_channel_count (const OggOpusFile *_of, int _li) OP_ARG_NONNULL(1)
+			//sf_info_generic.channels=2;
+			/*
+			from opusfile.h
+			Opus files can contain anywhere from 1 to 255 channels of audio.
+
+			The channel mappings for up to *8* channels are the same as the
+			<a href="http://www.xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-800004.3.9">Vorbis mappings</a>.
+			Although the <tt>libopusfile</tt> ABI provides support for the theoretical
+			maximum number of channels, the current implementation 
+
+			***does not support files with more than 8 channels***
+
+			 as they do not have well-defined channel mappings.
+			*/
+
+			sf_info_generic.channels=op_channel_count(soundfile_opus,0);
+
 			sf_info_generic.format=SF_FORMAT_OPUS | SF_FORMAT_FLOAT;
 		}
 		else
@@ -1964,8 +1983,17 @@ int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 		//==================================== opus
 		else if(is_opus)
 		{
+/*
 			could_read_frame_count=op_read_float_stereo(soundfile_opus,(float*)buffer
 				,frames_to_go*2); //output_port_count
+*/
+
+			//int op_read_float(OggOpusFile *_of, float *_pcm, int _buf_size, int *_li)
+			//read multichannel as normal
+			could_read_frame_count=op_read_float(soundfile_opus
+				,(float*)buffer
+				,frames_to_go*output_port_count
+				,NULL);
 
 			if(could_read_frame_count<=0)
 			{
