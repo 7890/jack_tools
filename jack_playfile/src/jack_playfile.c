@@ -141,6 +141,8 @@ int is_ogg_=0;
 //multichannel float buffer for ov_read_float
 float **ogg_buffer;
 
+int is_flac_=0;
+
 //reported by stat()
 static uint64_t file_size_bytes=0;
 
@@ -494,6 +496,8 @@ int main(int argc, char *argv[])
 	fprintf(stderr,"file:        %s\n",filename);
 	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
 
+	is_flac_=is_flac(sf_info_generic);
+
 	//flac has different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
 	if((is_opus || is_flac(sf_info_generic)))
 	{
@@ -518,13 +522,13 @@ int main(int argc, char *argv[])
 
 	bytes_per_sample_native=file_info(sf_info_generic,1);
 
-	if(bytes_per_sample_native<=0)
+	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
 	{
 		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
 		file_data_rate_bytes_per_second=(float)file_size_bytes
 			/get_seconds(&sf_info_generic);
 
-		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
+		fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
 			,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
 	}
 	else
