@@ -28,7 +28,7 @@ Main features:
 Please note:
 
 - MP3 supports a maximum of two channels (no "MP3 Surround" support).
-- Opus files are limited to 8 channels by libvorbisfile.
+- Opus files are limited to 8 channels by libopusfile.
 - FLAC files are limited to 8 channels per stream by spec.
 
 Best results are achieved when playing back 32-bit float RIFF wave files at JACK sample rate (without resampling).
@@ -125,9 +125,9 @@ For the audio formats opus and mp3, frame offsets and counts always relate to a 
 KEYBOARD SHORTCUTS
 ------------------
 
-Start refers to the relative start given with --offset which is 0 by default.
-
-End refers to relative end made up of --offset + --count.
+- Start refers to the relative start given with --offset which is 0 by default. Relative start is always 0.
+- End refers to relative end made which is always equal to --count.
+- Default Values are marked with "*"
 
 *h, f1*::		Help (this screen)
 *space*::		Toggle play/pause
@@ -148,6 +148,14 @@ End refers to relative end made up of --offset + --count.
 *. period*::		Toggle clock absolute*/relative
 *- dash*::		Toggle clock elapsed*/remaining
 *q*::			Quit
+
+If clock set to seconds, changing the seek step size is using the following grid:
+
+- 0.001, 0.010, 0.100, 1, 10*, 60, 600, 3600 (seconds)
+
+If clock set to frames, changing the seek step size is using the following grid:
+
+- 1*, 10, 100, 1000, 10k, 100k, 1000k, 10M, 100M (frames)
 
 TIMELINE
 --------
@@ -287,7 +295,7 @@ PROGRAM STATUSES
 - Shutting down
 
 PROGRAM LIFE CYCLE
------------------
+------------------
 
 'jack_playfile' procedure:
 
