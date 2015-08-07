@@ -165,9 +165,10 @@ The relation of absolute and relative start and end using offset and count, limi
                      current abs pos    
   abs start          v                                   abs end
   |------------------------------------------------------|
+             rel start                  rel end
              |--------------------------|
              frame_offset               offset + frame_count
-             |                          | 
+             |       rel pos            | 
              |-------|------------------|
              |                          |
       .======x=======.=============.====x=======.
@@ -305,15 +306,17 @@ PROGRAM LIFE CYCLE
 
 2) Check if JACK libraries are available on host, quit on fail
 
-3) Register JACK client, register ports, optionally connect ports
+3) Eventually wait for JACK server to become available
 
-4) Start operation based on playback settings (paused, muted etc)
+4) Register JACK client, register ports, optionally connect ports, quit on fail
 
-5) Eventually stop operation if JACK away
+5) Start operation based on playback settings (paused, muted etc.)
 
-6) Eventually resume operation if JACK available
+6) Eventually stop operation if JACK away
 
-7) Eventually release resources and quit nicely 
+7) Eventually resume operation if JACK available
+
+8) Release resources and quit nicely if all done or quit was requested
 
 During all operation 'jack_playfile' tries to prevent to produce JACK x-runs or 'jack_playfile' internal buffer underflows.
 It's very likely that underruns happen inside 'jack_playfile' though (not enough data to play in buffer), i.e. while seeking.
@@ -356,7 +359,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Fri Aug  7 23:39:00 CEST 2015
+Last Update: Sat Aug  8 00:29:58 CEST 2015
 
 COPYING
 -------
