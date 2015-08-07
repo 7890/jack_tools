@@ -86,7 +86,7 @@ OPTIONS
 
 *--loop* (w/o argument)::
 	Enable loop. If end of track is reached (given offset+count), start over at offset.
-	Default not enabled. What happens when end of track reached depends on other conditions.
+	*Default:* Not enabled. What happens when end of track reached depends on other conditions.
 
 *--pae* (w/o argument)::
 	Pause at end: If end of track is reached (given offset+count), pause playback but don't quit.
