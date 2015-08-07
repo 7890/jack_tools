@@ -845,10 +845,7 @@ static void seek_frames(int64_t frames_rel)
                      |--------------------------|
                      frame_offset               offset + frame_count
 
-
-                     |-----|--------------------|
-
-                     max <   max >
+                     |------|-------------------|
 
               .======x======.=============.=====x=======.
                      |      seek steps          |

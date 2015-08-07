@@ -687,7 +687,7 @@ static int file_info(SF_INFO_GENERIC sf_info, int print)
 
 	if(print)
 	{
-		fprintf(stderr,"format:      %s\n	     %s (0x%08X)\nduration:    %s (%"PRId64" frames)\nsamplerate:  %d\nchannels:    %d\n"
+		fprintf(stderr,"format:      %s\n	     %s (0x%08X)\nduration:    %s (%"PRId64" frames)\nsample rate: %d\nchannels:    %d\n"
 			,format_string, sub_format_string, sf_info.format
 			,duration_str
 			,sf_info.frames

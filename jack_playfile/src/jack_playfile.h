@@ -24,7 +24,7 @@
 #ifndef JACK_PLAYFILE_H_INC
 #define JACK_PLAYFILE_H_INC
 
-static const float version=0.8;
+static const float version=0.81;
 
 //================================================================
 int main(int argc, char *argv[]);
