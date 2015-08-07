@@ -307,7 +307,7 @@ Please report any bugs as issues to the github repository. Patches and pull requ
 
 SEE ALSO
 --------
-*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1) *zita-njbridge(1)*
+*jack_audio_receive*(1) *jackd*(1) *jack_netsource*(1) *jacktrip*(1) *zita-njbridge*(1)
 
 AUTHORS
 -------
