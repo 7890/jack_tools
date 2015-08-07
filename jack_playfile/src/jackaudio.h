@@ -250,7 +250,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	{
 		//this should not happen
 		process_cycle_underruns++;
-		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
+//		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
 
 		jack_fill_output_buffers_zero();
 		print_stats();
