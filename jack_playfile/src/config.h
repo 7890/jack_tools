@@ -73,6 +73,10 @@ static int connect_to_sisco=0;
 //if set to 0: prepare everything for playing but wait for user to toggle to play
 static int is_playing=1;
 
+//status, not to be set as a configuration
+//kind of pause but locked
+static int is_idling_at_end=0;
+
 //toggle mute with 'm'
 static int is_muted=0;
 
@@ -93,7 +97,7 @@ static int is_time_elapsed=1;
 static int is_clock_displayed=1;
 
 //don't quit program when everything has played out
-//static int pause_when_finished=0;
+static int pause_at_end=0;
 
 static const char *server_name = NULL; //default: 'default'
 static const char *client_name = NULL; //default: 'jack_playfile'
@@ -131,8 +135,12 @@ static int shutdown_in_progress_signalled=0; //handled in loop in main()
 //if jack shutdown handler called, set to 1
 static int jack_server_down=1;
 
-//arrows left and right, home, end
+//arrows left and right, home, end etc
 static int seek_frames_in_progress=0;
+
+//don't operate on ringbuffers while reseting
+//simple "lock"
+static int reset_ringbuffers_in_progress=0;
 
 //relative seek, how many (native) frames
 uint64_t seek_frames_per_hit=0;
