@@ -65,7 +65,7 @@ OPTIONS
 	If 'jack_playfile' was playing when JACK went down, it should continue right at the position where it was before JACK went down.
 	If JACK settings were changed between a restart, 'jack_playfile' tries to adapt to the new settings as good as possible.
 
-*--nocontrol*::
+*--nocontrol*:: (w/o argument)::
 	Disable keyboard control.
 	*Default:* 'jack_playfile' accepts keyboard input while playing.
 	For a detailed overview on available control actions, see 'KEYBOARD SHORTCUTS' below or hit 'F1' or 'h' while 'jack_playfile' is started and control is enabled.
@@ -102,7 +102,7 @@ OPTIONS
 	Show absolute time. Frame and second indications relate to absolute 0 of audio samples in file.
 	*Default:* Show relative time. Frame and second indications relate to given offset of audio samples in file (offset=relative 0).
 
-*--remaining*::
+*--remaining*:: (w/o argument)::
 	Show remaining time. How many frames or seconds until the end of the track is reached (offset+count).
 	*Default:* Show elapsed time. How many frames or seconds away from start (offset).
 
@@ -119,8 +119,8 @@ OPTIONS
 	Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACKs).
 	*Default:* All available frames, full length of track (respecting given offset).
 
-Counts and offset relate to the indicated sample rate and duration (frame count).
-For the audio formats opus and mp3, frame offsets and counts always relate to a fixed sample rate of 48k.
+Count and offset relate to the sample rate and duration (frame count) indicated when 'jack_playfile' starts up.
+For the audio formats Opus and MP3, frame offsets and counts always relate to a fixed sample rate of 48k.
 
 KEYBOARD SHORTCUTS
 ------------------
@@ -209,7 +209,7 @@ Example output of 'jack_playfile':
 
 Note on ratios:
 
-- byte_out_to_in_ratio: Bytes delivered to jack divided by bytes read from file. For lossy compressed formats (Ogg,Opus,MP3), the total file size is used for calculation.
+- byte_out_to_in_ratio: Bytes delivered to jack divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
 - resampler out_to_in ratio: JACK sample rate divided by file sample rate.
 - data_rate: Bytes to read from file per second to satisfy constant flow to JACK output. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
 
@@ -231,7 +231,7 @@ Legend (example prompt):
 	 10): time in HMS.millis
 	 11): keyboard input indication (i.e. seek)
 
-Play opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
+Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
 showing remaining absolute time, pause at end and loop:
 
 *$ jack_playfile --offset 480000 --count 48000 --remaining --absolute --pae --loop audio.opus*
@@ -328,10 +328,10 @@ Major audio libraries 'jack_playfile' depends on:
 
 - JACK audio connection kit - http://jackaudio.org/ - 'jack_playfile' works exclusively with JACK as audio backend.
 - libsndfile - http://www.mega-nerd.com/libsndfile/ - This is the main library to read audio files.
-- libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/ - High-quality resampler.
+- libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/ - High quality resampler.
 - libopus, libopusfile - http://www.opus-codec.org/ - RFC 6716, incorporates SILK & CELT codecs.
 - libvorbisfile - http://xiph.org/vorbis/
-- libmpg123 - http://www.mpg123.de/ - (optional due to patent foo)
+- libmpg123 - http://www.mpg123.org/ - (optional due to patent foo)
 
 Libraries abstracted by libsndfile:
 
@@ -359,7 +359,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sat Aug  8 00:29:58 CEST 2015
+Last Update: Sat Aug  8 00:44:41 CEST 2015
 
 COPYING
 -------
