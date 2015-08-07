@@ -225,7 +225,9 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 				is_mpg123=1;
 
 				//seek to end, get frame count
-				sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
+				//sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
+				//this is better
+				sf_info_generic.frames=mpg123_length(soundfile_123);
 				sf_info_generic.samplerate=48000; ///
 				sf_info_generic.channels=2; ///
 				sf_info_generic.format=SF_FORMAT_MP3 | SF_FORMAT_FLOAT;
