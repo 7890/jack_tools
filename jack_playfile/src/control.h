@@ -65,6 +65,9 @@ static int KEY_COMMA=0;
 static int KEY_PERIOD=0;
 static int KEY_DASH=0;
 static int KEY_C=0;
+static int KEY_P=0;
+static int KEY_ENTER=0;
+static int KEY_0=0;
 
 static const char *clear_to_eol_seq=NULL;
 static const char *turn_on_cursor_seq=NULL;
@@ -94,34 +97,39 @@ static void print_keyboard_shortcuts()
 
 	fprintf(stderr,"  h, f1:             help (this screen)\n");
 	fprintf(stderr,"  space:             toggle play/pause\n");
+	fprintf(stderr,"  enter:             play\n");
 	fprintf(stderr,"  < arrow left:      seek one step backward\n");
 	fprintf(stderr,"  > arrow right:     seek one step forward\n");
 	fprintf(stderr,"  ^ arrow up:        increment seek step size\n");
 	fprintf(stderr,"  v arrow down:      decrement seek step size\n");
-	fprintf(stderr,"  home, backspace:   seek to start\n");
+	fprintf(stderr,"  home               seek to start\n");
+	fprintf(stderr,"  0:                 seek to start and pause\n");
+	fprintf(stderr,"  backspace:         seek to start and play\n");
 	fprintf(stderr,"  end:               seek to end\n");
-	fprintf(stderr,"  m:                 mute\n");
-	fprintf(stderr,"  l:                 loop\n");
-	fprintf(stderr,"  c:                 toggle clock display on / off\n");
-	fprintf(stderr,"  , comma:           toggle clock seconds*  / frames\n");
-	fprintf(stderr,"  . period:          toggle clock absolute* / relative\n");
-	fprintf(stderr,"  - dash:            toggle clock elapsed*  / remaining\n");
+	fprintf(stderr,"  m:                 toggle mute on/off*\n");
+	fprintf(stderr,"  l:                 toggle loop on/off*\n");
+	fprintf(stderr,"  p:                 toggle pause at end on/off*\n");
+	fprintf(stderr,"  c:                 toggle clock display on*/off\n");
+	fprintf(stderr,"  , comma:           toggle clock seconds* /frames\n");
+	fprintf(stderr,"  . period:          toggle clock absolute*/relative\n");
+	fprintf(stderr,"  - dash:            toggle clock elapsed* /remaining\n");
 	fprintf(stderr,"  q:                 quit\n\n");
 
 	fprintf(stderr,"prompt:\n\n");
-	fprintf(stderr,"|| paused   ML  S rel 0.001       943.1  (00:15:43.070)   \n");
-	fprintf(stderr,"^           ^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
-	fprintf(stderr,"1           23  4 5   6     7     8     7 9             10\n\n");
+	fprintf(stderr,"|| paused   MLP  S rel 0.001       943.1  (00:15:43.070)   \n");
+	fprintf(stderr,"^           ^^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
+	fprintf(stderr,"1           234  5 6   7     8     9     8 10            11\n\n");
 	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
 	fprintf(stderr,"  2): mute on/off 'M' or ' '\n");
 	fprintf(stderr,"  3): loop on/off 'L' or ' '\n");
-	fprintf(stderr,"  4): time and seek in seconds 'S' or frames 'F'\n");
-	fprintf(stderr,"  5): time indication 'rel' to frame_offset or 'abs'\n");
-	fprintf(stderr,"  6): seek step size in seconds or frames\n");
-	fprintf(stderr,"  7): time elapsed ' ' or remaining '-'\n");
-	fprintf(stderr,"  8): time in seconds or frames\n");
-	fprintf(stderr,"  9): time in HMS.millis\n");
-	fprintf(stderr," 10): keyboard input indication (i.e. seek)\n\n");
+	fprintf(stderr,"  4): pause at end on/off 'P' or ' '\n");
+	fprintf(stderr,"  5): time and seek in seconds 'S' or frames 'F'\n");
+	fprintf(stderr,"  6): time indication 'rel' to frame_offset or 'abs'\n");
+	fprintf(stderr,"  7): seek step size in seconds or frames\n");
+	fprintf(stderr,"  8): time elapsed ' ' or remaining '-'\n");
+	fprintf(stderr,"  9): time in seconds or frames\n");
+	fprintf(stderr," 10): time in HMS.millis\n");
+	fprintf(stderr," 11): keyboard input indication (i.e. seek)\n\n");
 
 	//need command to print current props (file, offset etc)
 }//end print_keyboard_shortcuts()
@@ -129,10 +137,15 @@ static void print_keyboard_shortcuts()
 //=============================================================================
 static void handle_key_hits()
 {
+//the single cases could be further put to actions / separate methods
+//since some status updates are made.
+//should call method for each command and decide in the method what to do
+
+
 //>  playing   ML  1234.5 (0:12:34.1)  << (``)  
 //^            ^^  ^       ^           ^  ^
 	int rawkey=read_raw_key();
-//      fprintf(stderr,"rawkey: %d\n",rawkey);
+//	fprintf(stderr,"rawkey: %d\n",rawkey);
 
 	//no key while timeout not reached
 	if(rawkey==0)
@@ -144,7 +157,28 @@ static void handle_key_hits()
 	//'space': toggle play/pause
 	else if(rawkey==KEY_SPACE)
 	{
-		is_playing=!is_playing;
+		if(pause_at_end && is_idling_at_end)
+		{
+			fprintf(stderr,"idle at end");
+		}
+		else
+		{
+			is_idling_at_end=0;
+			is_playing=!is_playing;
+		}
+	}
+	//'enter': play
+	else if(rawkey==KEY_ENTER)
+	{
+		if(pause_at_end && is_idling_at_end)
+		{
+			fprintf(stderr,"idle at end");
+		}
+		else
+		{
+			is_idling_at_end=0;
+			is_playing=1;
+		}
 	}
 	//'q': quit
 	else if(rawkey==KEY_Q)
@@ -167,9 +201,17 @@ static void handle_key_hits()
 	//'>' (arrow right): 
 	else if(rawkey==KEY_ARROW_RIGHT)
 	{
-		fprintf(stderr,">> ");
-		print_next_wheel_state(+1);
-		seek_frames( seek_frames_per_hit);
+		if(pause_at_end && is_idling_at_end)
+		{
+			fprintf(stderr,"idle at end");
+		}
+		else
+		{
+			is_idling_at_end=0;
+			fprintf(stderr,">> ");
+			print_next_wheel_state(+1);
+			seek_frames( seek_frames_per_hit);
+		}
 	}
 	//'^' (arrow up):
 	else if(rawkey==KEY_ARROW_UP)
@@ -183,17 +225,39 @@ static void handle_key_hits()
 		fprintf(stderr,"vv dec step");
 		decrement_seek_step_size();
 	}
-	//'|<' (home, backspace):
-	else if(rawkey==KEY_HOME || rawkey==KEY_BACKSPACE)
+	//'|<' (home):
+	else if(rawkey==KEY_HOME)
 	{
 		fprintf(stderr,"|< home ");
+		seek_frames_absolute(frame_offset);
+	}
+	//'|< && >' (backspace):
+	else if(rawkey==KEY_BACKSPACE)
+	{
+		fprintf(stderr,"|< home play");
+		is_playing=0;
+		seek_frames_absolute(frame_offset);
+		is_playing=1;
+	}
+	//'|< && ||' (0):
+	else if(rawkey==KEY_0)
+	{
+		fprintf(stderr,"|< home pause");
+		is_playing=0;
 		seek_frames_absolute(frame_offset);
 	}
 	//'>|' (end):
 	else if(rawkey==KEY_END)
 	{
-		fprintf(stderr,">| end ");
-		seek_frames_absolute(frame_offset+frame_count);
+		if(is_idling_at_end)
+		{
+				fprintf(stderr,"idle at end");
+		}
+		else
+		{
+			fprintf(stderr,">| end ");
+			seek_frames_absolute(frame_offset+frame_count);
+		}
 	}
 	//'m': toggle mute
 	else if(rawkey==KEY_M)
@@ -205,7 +269,24 @@ static void handle_key_hits()
 	else if(rawkey==KEY_L)
 	{
 		loop_enabled=!loop_enabled;
+
+		if(loop_enabled && all_frames_read)
+		{
+			seek_frames_absolute(frame_offset);
+		}
+
 		fprintf(stderr,"loop %s",loop_enabled ? "on " : "off ");
+	}
+	//'p': pause at end
+	else if(rawkey==KEY_P)
+	{
+		pause_at_end=!pause_at_end;
+		if(pause_at_end && all_frames_read)
+		{
+			is_idling_at_end=1;
+		}
+
+		fprintf(stderr,"pae %s",pause_at_end ? "on " : "off ");
 	}
 	//',':  toggle seconds/frames
 	else if(rawkey==KEY_COMMA)
@@ -227,6 +308,12 @@ static void handle_key_hits()
 	{
 		is_time_elapsed=!is_time_elapsed;
 		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed " : "remaining ");
+	}
+	//'.': toggle abs / rel
+	else if(rawkey==KEY_PERIOD)
+	{
+		is_time_absolute=!is_time_absolute;
+		fprintf(stderr,"time %s",is_time_absolute ? "abs " : "rel ");
 	}
 	//'c': toggle clock on/off
 	else if(rawkey==KEY_C)
@@ -540,6 +627,9 @@ static void init_key_codes()
 	KEY_PERIOD=46;
 	KEY_DASH=45;
 	KEY_C=99;
+	KEY_P=112;
+	KEY_ENTER=10;
+	KEY_0=48;
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -558,6 +648,9 @@ static void init_key_codes()
 	KEY_PERIOD=190;
 	KEY_DASH=189;
 	KEY_C=67;///////
+	KEY_P=80;///
+	KEY_ENTER=10;////////
+	KEY_0=48;/////
 #endif
 }//init_key_codes()
 

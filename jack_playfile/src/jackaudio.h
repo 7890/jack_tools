@@ -116,6 +116,21 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		return 0;
 	}
 
+	if(reset_ringbuffers_in_progress)
+	{
+//		fprintf(stderr,"?");
+		jack_fill_output_buffers_zero();
+		return 0;
+	}
+
+	if(is_idling_at_end)
+	{
+//		fprintf(stderr,"!");
+		jack_fill_output_buffers_zero();
+		req_buffer_from_disk_thread();
+		return 0;
+	}
+
 	if(seek_frames_in_progress)
 	{
 		//test if already enough data available to play
@@ -133,7 +148,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	resample();
 	deinterleave();
 
-	if(!is_playing || (seek_frames_in_progress && !loop_enabled && !all_frames_read))
+	if(!is_playing || (seek_frames_in_progress && !loop_enabled))// && !all_frames_read))
 	{
 //		fprintf(stderr,".");
 		jack_fill_output_buffers_zero();
@@ -145,7 +160,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		&& jack_ringbuffer_read_space(rb_resampled_interleaved)==0
 		&& jack_ringbuffer_read_space(rb_deinterleaved)==0)
 	{
-//		fprintf(stderr,"process(): diskthread finished and no more data in rb_interleaved, rb_resampled_interleaved, rb_deinterleaved\n");
+//		fprintf(stderr,"process(): all frames read and no more data in rb_interleaved, rb_resampled_interleaved, rb_deinterleaved\n");
 //		fprintf(stderr,"process(): shutdown condition 1 met\n");
 
 		jack_fill_output_buffers_zero();
@@ -178,7 +193,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		}
 		total_frames_pushed_to_jack+=jack_period_frames;
 
-//		print_stats();
+		print_stats();
 	}
 
 	//partial data left
@@ -238,7 +253,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
 
 		jack_fill_output_buffers_zero();
-//		print_stats();
+		print_stats();
 	}
 
 	req_buffer_from_disk_thread();

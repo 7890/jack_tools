@@ -48,6 +48,7 @@ static void print_main_help (void)
 	fprintf (stderr, "  Start paused                        --paused\n");
 	fprintf (stderr, "  Start muted                         --muted\n");
 	fprintf (stderr, "  Enable loop                         --loop\n");
+	fprintf (stderr, "  Pause at end (at start if --loop)   --pae\n");
 	fprintf (stderr, "  Show time as frames       (seconds) --frames\n");
 	fprintf (stderr, "  Show absolute time            (rel) --absolute\n");
 	fprintf (stderr, "  Show remaining time       (elapsed) --remaining\n");
@@ -100,8 +101,8 @@ static struct option long_options[] =
 	{"absolute",	no_argument,  &is_time_absolute,	1},
 	{"remaining",	no_argument,  &is_time_elapsed,		0},
 	{"noclock",	no_argument,  &is_clock_displayed,	0},
+	{"pae",		no_argument,  &pause_at_end,	1},
 //{"",  no_argument,  &connect_to_sisco, 0},
-//{"",  no_argument,  &pause_when_finished, 1},
 	{0, 0, 0, 0}
 };
 

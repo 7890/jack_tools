@@ -332,8 +332,22 @@ while(true)
 	jack_register_callbacks();
 	jack_register_output_ports();
 
-	//request first chunk from file
-	req_buffer_from_disk_thread();
+/*
+	for(int i=0;i<jack_cycles_per_second;i++)
+	{
+		fprintf(stderr,"+");
+*/
+		//request first chunk from file
+		req_buffer_from_disk_thread();
+		usleep((double)100000/jack_cycles_per_second);
+/*
+	}
+
+	fprintf(stderr,"\ninterleaved buffer %"PRId64" resampled frame buffer %"PRId64" bytes \n"
+		,jack_ringbuffer_read_space(rb_interleaved)
+		,jack_ringbuffer_read_space(rb_resampled_interleaved)
+	);
+*/
 
 	jack_activate_client();
 	jack_connect_output_ports();
@@ -406,7 +420,15 @@ while(true)
 
 			if(loop_enabled)
 			{
-				fprintf(stderr,"L  ");
+				fprintf(stderr,"L");
+			}
+			else
+			{
+				fprintf(stderr," ");
+			}
+			if(pause_at_end)
+			{
+				fprintf(stderr,"P  ");
 			}
 			else
 			{
@@ -422,8 +444,6 @@ while(true)
 #else
 		usleep(10000);
 #endif
-
-
 	}//end while true (inner, main / key handling loop
 
 _start_all_over:
@@ -446,35 +466,22 @@ static int disk_read_frames()
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
 
-	if(total_frames_read_from_file>=frame_count)
-	{
-		if(loop_enabled)
-		{
-			total_frames_read_from_file=0;//frame_offset;
-			seek_frames_in_progress=1;
-			//sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
-			sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
-		}
-		else
-		{
-			all_frames_read=1;
-			return 0;
-		}
-	}
-
 	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
 
 	//only read/write as many frames as requested (frame_count)
 	int frames_read=(int)MIN(frames_to_go,sndfile_request_frames);
 
-	if(frames_read==0)
+	if(frames_read<=0 && !is_idling_at_end)
 	{
+		all_frames_read=1;
 		return 0;
 	}
 
 	sf_count_t frames_read_from_file=0;
 
+if(!is_idling_at_end)
+{
 	jack_ringbuffer_t *rb_to_use;
 
 	if(out_to_in_sr_ratio==1.0 || !use_resampling)
@@ -501,6 +508,8 @@ static int disk_read_frames()
 
 	//put to the selected ringbuffer
 	jack_ringbuffer_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*output_port_count*bytes_per_sample);
+}
+
 
 	if(frames_read_from_file>0)
 	{
@@ -511,30 +520,35 @@ static int disk_read_frames()
 
 		if(total_frames_read_from_file>=frame_count)
 		{
-//			fprintf(stderr,"disk_read_frame(): all frames read from file\n");
+			if(pause_at_end)//
+			{
+#ifndef WIN32
+				fprintf(stderr,"pae ");
+#endif
+				total_frames_read_from_file=frame_count;
+				all_frames_read=1;//
+				is_playing=0;
+				is_idling_at_end=1;
+			}
+
 			if(loop_enabled)
 			{
 #ifndef WIN32
-				fprintf(stderr,"loop");
+				fprintf(stderr,"loop ");
 #endif
-				total_frames_read_from_file=0;//frame_offset;
-
+				total_frames_read_from_file=0;
+				all_frames_read=0;
 				seek_frames_in_progress=1;
-				//sf_count_t new_pos=sf_seek(soundfile,frame_offset,SEEK_SET);
 				sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
-
-				return 1;
+				seek_frames_in_progress=0;
+				is_idling_at_end=0;
+				return 1;///
 			}
-			else
-			{
-				all_frames_read=1;
-			}
-		}
+		}//end if(total_frames_read_from_file>=frame_count)
 		return frames_read_from_file;
-	}
+	}//end if(frames_read_from_file>0)
 	//if no frames were read assume we're at EOF
 	all_frames_read=1;
-
 	return 0;
 }//end disk_read_frames()
 
@@ -569,11 +583,41 @@ static void *disk_thread_func(void *arg)
 
 			total_frames_read_from_file=new_pos-frame_offset;
 
+			//reset some variables before update
+			all_frames_read=0;
+			is_idling_at_end=0;
+			resampling_finished=0;
+			if(total_frames_read_from_file>=frame_count)
+			{
+				all_frames_read=1;
+				if(pause_at_end)
+				{
+#ifndef WIN32
+				fprintf(stderr,"pae ");
+#endif
+					is_idling_at_end=1;
+					is_playing=0;
+				}
+
+				if(loop_enabled)
+				{
+#ifndef WIN32
+				fprintf(stderr,"loop ");
+#endif
+					total_frames_read_from_file=0;
+					all_frames_read=0;
+					seek_frames_in_progress=1;
+					sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
+					seek_frames_in_progress=0;
+					is_idling_at_end=0;
+				}
+			}
+
 //			fprintf(stderr,"\nseek end === new pos %"PRId64" total read %"PRId64"\n",new_pos,total_frames_read_from_file);
 		}
 
 		//don't read yet, possibly was started paused or another seek will follow shortly
-		if(!is_playing)
+		if(!is_playing && !is_idling_at_end)
 		{
 			//===wait here until process() requests to continue
 			pthread_cond_wait (&ok_to_read, &disk_thread_lock);
@@ -607,10 +651,15 @@ static void *disk_thread_func(void *arg)
 		}
 
 		//for both resampling, non-resampling
-		if(!disk_read_frames())//soundfile))
+		//disk_read() returns 0 on EOF
+		if(!disk_read_frames())
 		{
-			//disk_read() returns 0 on EOF
-			goto done;
+			if(!is_idling_at_end)
+			{
+				//not idling so eof
+				goto done;
+			}
+			//idling so continuing
 		}
 
 		//===wait here until process() requests to continue
@@ -650,7 +699,8 @@ static void setup_disk_thread()
 //=============================================================================
 static void req_buffer_from_disk_thread()
 {
-	if(all_frames_read)
+	if((all_frames_read && !seek_frames_in_progress)
+	|| reset_ringbuffers_in_progress)
 	{
 		return;
 	}
@@ -760,9 +810,6 @@ static void decrement_seek_step_size()
 //>=0
 static void seek_frames_absolute(int64_t frames_abs)
 {
-	seek_frames_in_progress=1;
-
-	reset_ringbuffers();
 
 	//limit absolute seek to given boundaries (frame_offset, frame_count)
 	uint64_t seek_=MAX(frame_offset,frames_abs);
@@ -771,6 +818,9 @@ static void seek_frames_absolute(int64_t frames_abs)
 	//seek in disk_thread
 	frames_to_seek=seek;
 	frames_to_seek_type=SEEK_SET;
+
+	reset_ringbuffers();
+	seek_frames_in_progress=1;
 
 ////need to reset more more
 }
@@ -785,9 +835,8 @@ static void seek_frames(int64_t frames_rel)
 		return;
 	}
 
-	seek_frames_in_progress=1;
-
-	reset_ringbuffers();
+	//0-seek
+	sf_count_t current_read_pos=sin_seek(0,SEEK_CUR);
 
 /*
                             current abs pos    
@@ -805,10 +854,6 @@ static void seek_frames(int64_t frames_rel)
                      |      seek steps          |
                      limit                      limit
 */
-
-
-	//0-seek
-	sf_count_t current_read_pos=sin_seek(0,SEEK_CUR);
 
 	int64_t seek=0;
 
@@ -832,6 +877,12 @@ static void seek_frames(int64_t frames_rel)
 	//seek in disk_thread
 	frames_to_seek=seek;
 	frames_to_seek_type=SEEK_CUR;
+
+	reset_ringbuffers();
+
+	seek_frames_in_progress=1;
+
+//	fprintf(stderr,"frames to seek %"PRId64"\n",frames_to_seek);
 
 ////need to reset more
 }
