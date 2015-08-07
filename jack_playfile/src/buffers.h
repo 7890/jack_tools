@@ -79,10 +79,12 @@ static void free_ringbuffers()
 //=============================================================================
 static void reset_ringbuffers()
 {
+	reset_ringbuffers_in_progress=1;
 //	fprintf(stderr,"reset ringbuffers\n");
 	jack_ringbuffer_reset(rb_deinterleaved);
 	jack_ringbuffer_reset(rb_resampled_interleaved);
 	jack_ringbuffer_reset(rb_interleaved);
+	reset_ringbuffers_in_progress=0;
 }
 
 #endif
