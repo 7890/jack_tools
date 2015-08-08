@@ -19,7 +19,7 @@ Main features:
 - Plays most RIFF, AIFF PCM wave files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
 - High quality resampling to match JACK sample rate (can be turned off)
 - Keyboard control while playing (can be turned off)
-- Frame accurate and fast seeking
+- Fast and frame accurate seeking
 - Supports multichannel files
 - Adapts to a broad range of file formats and JACK settings
 - Versatile command line options and live control
@@ -27,11 +27,16 @@ Main features:
 
 Please note:
 
-- MP3 supports a maximum of two channels (no "MP3 Surround" support).
 - Opus files are limited to 8 channels by libopusfile.
 - FLAC files are limited to 8 channels per stream by spec.
+- MP3 supports a maximum of two channels (no "MP3 Surround" support).
 
 Best results are achieved when playing back 32-bit float RIFF wave files at JACK sample rate (without resampling).
+
+'jack_playfile' can read and play local files only. 
+No DSP other than optional resampling is applied to the audio signal.
+To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with 'jack_plafile'.
+This plugin collection is a good starting point: https://github.com/x42/x42-plugins
 
 The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.
 
@@ -60,9 +65,9 @@ OPTIONS
 	*Default:* 'jack_playfile' tries to connect all available channels to all available physical output/playback ports 1:1.
 
 *--noreconnect* (w/o argument)::
-	Don't wait for JACK to re-connect as a client.
-	*Default:* If JACK goes down, 'jack_playfile' waits for the server to come back and continue operation.
-	If 'jack_playfile' was playing when JACK went down, it should continue right at the position where it was before JACK went down.
+	Don't wait for JACK to reconnect as a client.
+	*Default:* If JACK goes down, 'jack_playfile' waits for the server to come back and then continues operation.
+	If 'jack_playfile' was playing when JACK went down, it will continue right at the position where it was before JACK went down.
 	If JACK settings were changed between a restart, 'jack_playfile' tries to adapt to the new settings as good as possible.
 
 *--nocontrol*:: (w/o argument)::
@@ -89,8 +94,8 @@ OPTIONS
 	*Default:* Not enabled. What happens when end of track reached depends on other conditions.
 
 *--pae* (w/o argument)::
-	Pause at end: If end of track is reached (given offset+count), pause playback but don't quit.
-	If loop is disabled, the position will correspond to end. If loop is enabled, the position will be at start.
+	Pause at end: If end of track is reached (given offset+count), don't quit but pause playback instead.
+	If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
 	While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
 	*Default:* Off. If end of track reached and loop is not enabled, 'jack_playfile' is done and will quit.
 
@@ -99,8 +104,8 @@ OPTIONS
 	*Default:* Show time as seconds.
 
 *--absolute* (w/o argument)::
-	Show absolute time. Frame and second indications relate to absolute 0 of audio samples in file.
-	*Default:* Show relative time. Frame and second indications relate to given offset of audio samples in file (offset=relative 0).
+	Show absolute time. The frames and seconds indication relate to absolute position 0 of audio samples in file.
+	*Default:* Show relative time. Frames and seconds indication relate to given offset of audio samples in file (offset=relative position 0).
 
 *--remaining*:: (w/o argument)::
 	Show remaining time. How many frames or seconds until the end of the track is reached (offset+count).
@@ -112,8 +117,8 @@ OPTIONS
 
 *--offset* (integer)::
 	Set frame offset: A number of (multichannel) frames to seek before start reading from file. The frame offset relates to native file sample rate (not JACKs).
-	The offset is relative frame/time 0 and will be used for seeking to start and looping.
-	*Default:* 0 (At start of audio samples).
+	The offset is relative frame/time position 0 and will be used for seeking to start and looping.
+	*Default:* 0 (At first audio sample in file).
 
 *--count* (integer)::
 	Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACKs).
@@ -205,11 +210,11 @@ Example output of 'jack_playfile':
 	autoconnect: jack_playfile-01:output_2 -> firewire_pcm:000a9200d6012385_MainOut 2R_out
 	>  playing       S rel    10          4.3  (00:00:04.321) 
 
-	(the last line is being updated in an interval)
+(the last line is being updated in an interval)
 
 Note on ratios:
 
-- byte_out_to_in_ratio: Bytes delivered to jack divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
+- byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
 - resampler out_to_in ratio: JACK sample rate divided by file sample rate.
 - data_rate: Bytes to read from file per second to satisfy constant flow to JACK output. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
 
@@ -240,7 +245,7 @@ ERROR MESSAGES
 --------------
 
 'jack_playfile' does not automatically start a JACK default server if there is none running.
-If 'jack_playfile' is started the option --noreconnect,  this will lead to the following message:
+If 'jack_playfile' is started with the option --noreconnect,  this will lead to the following message:
 
 	Cannot connect to server socket err = No such file or directory
 	Cannot connect to server request channel
@@ -249,12 +254,12 @@ If 'jack_playfile' is started the option --noreconnect,  this will lead to the f
 	Unable to connect to JACK server
 
 Simply start JACK before using 'jack_playfile'.
-If --noreconnect is given, 'jack_playfile' will wait until JACK is reachable:
+If --noreconnect is not present, 'jack_playfile' will wait until JACK is reachable:
 
 	waiting for connection to JACK server...
 
 To find out how to start JACK, see 'jackd' manpage and tutorials on http://jackaudio.org.
-There is an excellent graphical JACK manager tool called 'qjackctl', http://qjackctl.sourceforge.net/.
+There is an excellent graphical JACK control program called 'qjackctl', http://qjackctl.sourceforge.net/.
 
 In a nutshell:
 
@@ -262,11 +267,11 @@ In a nutshell:
 	#(i.e. onboard audio), using first available audio card
 	$ jackd -R -dalsa -r48000 -p512 -n3 -dhw:0
 
-That can fail for several reasons:
+This can fail for several reasons:
 
 - 'jackd' is not installed -> check repository for "jackd" or similar and install
 - The default JACK server is already running -> no need to start again
-- The device at hw:0 is already in use by another audio server, i.e. 'pulseaudio' -> try to stop pulse
+- The device at hw:0 is already in use by another audio server, i.e. 'pulseaudio' -> try to stop pulse or try another card (i.e. hw:1)
 - You don't have permissions to run 'jackd' because of security limits (rtprio, memlock) -> check /etc/security/limits.d/audio.conf, check that user is part of group "audio", eventually log out and login to make group changes take effect.
 - Other reason
 
@@ -275,10 +280,10 @@ If 'jackd' is installed, it's possible to start JACK with a dummy backend where 
 	#starting JACK with dummy backend, server name "virtual"
 	$ jackd --name virtual -ddummy -r4800 -p128
 
-	#telling 'jack_playfile' to use JACK server "virtual"
+	#telling jack_playfile to use JACK server "virtual"
 	$ jack_playfile --sname virtual audio.ogg
 
-If you have trouble starting 'jackd' on your host, please consult JACK FAQ at http://jackaudio.org/faq/ and join IRC #jack on freenode.
+If you have trouble starting 'jackd' on your host, please consult JACK FAQ at http://jackaudio.org/faq/ and join IRC #jack on freenode. There is a mailinglist too.
 
 'jack_playfile' returns 0 on regular program exit, or 1 if there was an error.
 
@@ -318,19 +323,22 @@ PROGRAM LIFE CYCLE
 
 8) Release resources and quit nicely if all done or quit was requested
 
-During all operation 'jack_playfile' tries to prevent to produce JACK x-runs or 'jack_playfile' internal buffer underflows.
-It's very likely that underruns happen inside 'jack_playfile' though (not enough data to play in buffer), i.e. while seeking.
+During all operation 'jack_playfile' tries to prevent to cause JACK X-runs or 'jack_playfile' internal buffer underflows.
+It's very likely that underruns happen inside 'jack_playfile' though (not enough data available to play in buffer), 
+i.e. while seeking, during startup or shutdown.
+'jack_playfile' relies on constant fast file read access. Files can be copied to a RAM disk (i.e. /dev/shm/) before playing 
+to prevent physical disk access on non-SSD disks.
 
 LIBRARIES AND DEPENDENCIES
 --------------------------
 
 Major audio libraries 'jack_playfile' depends on:
 
-- JACK audio connection kit - http://jackaudio.org/ - 'jack_playfile' works exclusively with JACK as audio backend.
+- JACK audio connection kit - http://jackaudio.org/ - 'jack_playfile' works exclusively with JACK as audio backend. JACK is available for Linux, Windows and OSX.
 - libsndfile - http://www.mega-nerd.com/libsndfile/ - This is the main library to read audio files.
 - libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/ - High quality resampler.
 - libopus, libopusfile - http://www.opus-codec.org/ - RFC 6716, incorporates SILK & CELT codecs.
-- libvorbisfile - http://xiph.org/vorbis/
+- libvorbisfile - http://xiph.org/vorbis/ - Fast seeking in Ogg Vorbis files
 - libmpg123 - http://www.mpg123.org/ - (optional due to patent foo)
 
 Libraries abstracted by libsndfile:
@@ -345,7 +353,7 @@ Libraries abstracted by libsndfile:
 
 RESOURCES
 ---------
-Github: <https://github.com/7890/jack_tools>
+Github: <https://github.com/7890/jack_tools> in subdirectory jack_playfile
 
 BUGS
 ----
@@ -353,13 +361,13 @@ Please report any bugs as issues to the github repository. Patches and pull requ
 
 SEE ALSO
 --------
-*jackd*(1) *sndfile-info*(1) *zresample*(1) *flac*(1) *oggenc*(1) *opusenc*(1) *mpg123*(1) *sox*(1)
+*jackd*(1) *jack_capture*(1) *sndfile-info*(1) *zresample*(1) *flac*(1) *oggenc*(1) *opusenc*(1) *mpg123*(1) *sox*(1) *patchage*(1)
 
 AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sat Aug  8 00:44:41 CEST 2015
+Last Update: Sat Aug  8 18:56:49 CEST 2015
 
 COPYING
 -------
