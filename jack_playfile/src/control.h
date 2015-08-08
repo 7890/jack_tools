@@ -647,10 +647,10 @@ static void init_key_codes()
 	KEY_COMMA=188;
 	KEY_PERIOD=190;
 	KEY_DASH=189;
-	KEY_C=67;///////
-	KEY_P=80;///
-	KEY_ENTER=10;////////
-	KEY_0=48;/////
+	KEY_C=67;
+	KEY_P=80;
+	KEY_ENTER=13;
+	KEY_0=48;
 #endif
 }//init_key_codes()
 
