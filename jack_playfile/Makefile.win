@@ -3,19 +3,37 @@ PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
 
 CFLAGS ?= -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA -Wno-write-strings -Wno-pointer-arith
 
-SRC ?= src
-BUILD ?= build
+SRC = src
+BUILD = build
+ARCHIVE = archive
 
 INSTALLPATH=/usr/local/bin/
 
 all:	jack_playfile
 
-jack_playfile:	$(SRC)/jack_playfile.c $(SRC)/weak_libjack.c $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
+zita_resampler:
+	mkdir -p $(BUILD)
+	cp $(ARCHIVE)/zita-resampler-1.3.0.tar.bz2 $(BUILD)/ \
+	&& cd $(BUILD)/ \
+	&& bunzip2 -f zita-resampler-1.3.0.tar.bz2 \
+	&& tar xf zita-resampler-1.3.0.tar --overwrite \
+	&& cd zita-resampler-1.3.0/libs/ \
+	&& $(CC) -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler.o resampler.cc \
+	&& $(CC) -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o vresampler.o vresampler.cc \
+	&& $(CC) -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler-table.o resampler-table.cc \
+	&& $(CC) -shared -o libzita-resampler.dll resampler.o vresampler.o resampler-table.o  -Wl,-static,--out-implib,libzita-resampler.a \
+	&& cp *.o ../../ \
+
+#cp libzita-resampler.dll ${PREFIX}/bin
+#cp libzita-resampler.a ${PREFIX}/lib
+#cp -r zita-resampler ${PREFIX}/include
+
+jack_playfile:	zita_resampler $(SRC)/jack_playfile.c $(SRC)/weak_libjack.c $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
-	$(CC) -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -lzita-resampler -lmpg123
+	$(CC) -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -lmpg123
 
 clean:
 	rm jack_playfile.exe
-	rm $(BUILD)/*.o
+	rm -rf $(BUILD)/*
