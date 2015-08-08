@@ -2,7 +2,7 @@ CC = i686-w64-mingw32-g++
 
 BUILD_LIB = /home/winbuild/win-stack-w32/lib
 BUILD_INCLUDE = /home/winbuild/win-stack-w32/include
-BUILD_INCLUDE = /home/winbuild/win-stack-w32/bin
+BUILD_BIN = /home/winbuild/win-stack-w32/bin
 
 PKG_CONFIG_PATH=$(BUILD_LIB)/pkgconfig/
 
