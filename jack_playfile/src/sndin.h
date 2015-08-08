@@ -21,6 +21,51 @@
 //tb/150612+
 // ----------------------------------------------------------------------------
 
+/*
+format specialities:
+
+FLAC: maximum of 8 channels
+
+	in opusfile-0.6/src/internal.h:
+	//The maximum number of channels permitted by the format.
+	#define FLAC__MAX_CHANNELS (8u)
+
+Opus: maximum of 8 channels
+
+	in opusfile-0.6/src/internal.h:
+	//The maximum channel count for any mapping we'll actually decode
+	# define OP_NCHANNELS_MAX (8)
+
+	from opusfile.h
+	Opus files can contain anywhere from 1 to 255 channels of audio.
+	Sampling rates 8000, 12000, 16000, 24000, 48000
+
+	The channel mappings for up to *8* channels are the same as the
+	<a href="http://www.xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-800004.3.9">Vorbis mappings</a>.
+	Although the <tt>libopusfile</tt> ABI provides support for the theoretical
+	maximum number of channels, the current implementation (libopusfile)
+
+	***does not support files with more than 8 channels***
+
+	 as they do not have well-defined channel mappings.
+
+	(note: iiuc opusfile supports 48000 only)
+
+MP3:
+
+	https://en.wikipedia.org/wiki/MP3
+	Several bit rates are specified in the MPEG-1 Audio Layer III standard: 
+	32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256 and 320 kbit/s, 
+	with available sampling frequencies of 32, 44.1 and 48 kHz. 
+	MPEG-2 Audio Layer III allows bit rates of 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160 kbit/s 
+	with sampling frequencies of 16, 22.05 and 24 kHz. 
+	MPEG-2.5 Audio Layer III is restricted to bit rates of 8, 16, 24, 32, 40, 48, 56 and 64 kbit/s 
+	with sampling frequencies of 8, 11.025, and 12 kHz.
+
+	(note: iiuc limited to two channels)
+
+*/
+
 #ifndef SNDIN_H_INC
 #define SNDIN_H_INC
 
@@ -167,19 +212,6 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 
 			//int op_channel_count (const OggOpusFile *_of, int _li) OP_ARG_NONNULL(1)
 			//sf_info_generic.channels=2;
-			/*
-			from opusfile.h
-			Opus files can contain anywhere from 1 to 255 channels of audio.
-
-			The channel mappings for up to *8* channels are the same as the
-			<a href="http://www.xiph.org/vorbis/doc/Vorbis_I_spec.html#x1-800004.3.9">Vorbis mappings</a>.
-			Although the <tt>libopusfile</tt> ABI provides support for the theoretical
-			maximum number of channels, the current implementation 
-
-			***does not support files with more than 8 channels***
-
-			 as they do not have well-defined channel mappings.
-			*/
 
 			sf_info_generic.channels=op_channel_count(soundfile_opus,0);
 
