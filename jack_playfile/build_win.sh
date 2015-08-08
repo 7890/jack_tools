@@ -79,7 +79,7 @@ echo "   do you want to continue? (ctrl+c to abort)"
 read a
 
 ###############################################################################
-#set -e
+set -e
 
 if test "$XARCH" = "x86_64" -o "$XARCH" = "amd64"; then
 	echo "Target: 64bit Windows (x86_64)"
@@ -155,7 +155,7 @@ cd $1
 }
 
 function autoconfconf {
-#set -e
+set -e
 echo "===========================new compile task"
 echo "$(pwd)"
 #CPPFLAGS="-I${PREFIX}/include -DDEBUG$CPPFLAGS" \
@@ -179,7 +179,7 @@ echo "===========================configure done `date`"
 }
 
 function autoconfbuild {
-#set -e
+set -e
 autoconfconf $@
 echo "===========================start make `date`"
 make $MAKEFLAGS && make install
@@ -225,9 +225,6 @@ cp -vf libpthreadGC2.a ${PREFIX}/lib/libpthread.a
 cp -vf pthread.h sched.h ${PREFIX}/include
 
 
-
-
-
 src libogg-1.3.2 tar.gz http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.gz
 autoconfbuild
 
@@ -254,20 +251,22 @@ wq
 EOF
 
 
-src zita-resampler-1.3.0 tar.bz2 http://kokkinizita.linuxaudio.org/linuxaudio/downloads/zita-resampler-1.3.0.tar.bz2
-cd libs
+#inlined
 
-echo "building zita-resampler..."
+#src zita-resampler-1.3.0 tar.bz2 http://kokkinizita.linuxaudio.org/linuxaudio/downloads/zita-resampler-1.3.0.tar.bz2
+#cd libs
 
-i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler.o resampler.cc
-i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o vresampler.o vresampler.cc
-i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler-table.o resampler-table.cc
-i686-w64-mingw32-g++ -shared -o libzita-resampler.dll resampler.o vresampler.o resampler-table.o  -Wl,-static,--out-implib,libzita-resampler.a
-cp libzita-resampler.dll ${PREFIX}/bin
-cp libzita-resampler.a ${PREFIX}/lib
-cp -r zita-resampler ${PREFIX}/include
+#echo "building zita-resampler..."
 
-echo "done."
+#i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler.o resampler.cc
+#i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o vresampler.o vresampler.cc
+#i686-w64-mingw32-g++ -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler-table.o resampler-table.cc
+#i686-w64-mingw32-g++ -shared -o libzita-resampler.dll resampler.o vresampler.o resampler-table.o  -Wl,-static,--out-implib,libzita-resampler.a
+#cp libzita-resampler.dll ${PREFIX}/bin
+#cp libzita-resampler.a ${PREFIX}/lib
+#cp -r zita-resampler ${PREFIX}/include
+
+#echo "done."
 
 src opus-1.1 tar.gz http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz
 autoconfbuild --disable-doc --disable-extra-programs
@@ -275,36 +274,16 @@ autoconfbuild --disable-doc --disable-extra-programs
 src opusfile-0.6 tar.gz https://ftp.mozilla.org/pub/mozilla.org/opus/opusfile-0.6.tar.gz
 autoconfbuild --disable-doc --disable-http #this is to prevent need for ssl
 
-src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.22.3.tar.bz2
-autoconfbuild --enable-static --disable-id3v2 --with-module-suffix=.dll --enable-gapless=no --enable-fifo=no --enable-ipv6=no --enable-network=no --disable-downsample --disable-16bit --disable-8bit --disable-32bit --disable-messages
 
-#control_generic.o:/home/winbuild/win-build-w32/mpg123-1.22.3/src/control_generic.c:395: more undefined references to `_imp__select@20' follow
-#collect2: error: ld returned 1 exit status
-#make[3]: *** [mpg123.exe] Error 1
-#make[3]: Leaving directory `/home/winbuild/win-build-w32/mpg123-1.22.3/src'
-
+#dont build, use pre-made win32 binaries
+#src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.22.3.tar.bz2
+#autoconfbuild --enable-static --disable-id3v2 --with-module-suffix=.dll --enable-gapless=no --enable-fifo=no --enable-ipv6=no --enable-network=no --disable-messages
 #set -e temporary off
-
-make install
-
+#make install
 #ls -1 /home/winbuild/win-stack-w32/lib/libmpg123*
 #/home/winbuild/win-stack-w32/lib/libmpg123.a
 #/home/winbuild/win-stack-w32/lib/libmpg123.dll.a
 #/home/winbuild/win-stack-w32/lib/libmpg123.la
-
-
-echo NOSTACK ${NOSTACK}
-echo COPY_HOME ${COPY_HOME}
-echo COPY_HOME_LOCATION ${COPY_HOME_LOCATION} 
-
-# windows 32 bit binaries will/should work also on 64 bit 
-echo XARCH ${XARCH}
-echo MAKEFLAGS ${MAKEFLAGS}
-echo STACKCFLAGS ${STACKCFLAGS}
-
-echo SRCDIR ${SRCDIR}
-echo TMPDIR ${TMPDIR}
-echo ROOT ${ROOT}
 
 
 ################################################################################
@@ -334,6 +313,7 @@ echo ROOT ${ROOT}
 #./autogen.sh --disable-tests --disable-examples
 #autoconfconf --enable-shared --disable-tests --disable-examples
 #make $MAKEFLAGS && make install
+
 
 ################################################################################
 fi  # $NOSTACK
