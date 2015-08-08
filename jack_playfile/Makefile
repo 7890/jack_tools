@@ -43,8 +43,7 @@ zita_resampler:
 	&& tar xf zita-resampler-1.3.0.tar --overwrite \
 	&& cd zita-resampler-1.3.0/libs/ \
 	&& make \
-	&& cp *.o ../../ \
-	&& touch ../../resampler
+	&& cp *.o ../../
 
 #$(BUILD)/resampler.o $(BUILD)/resampler-table.o $(BUILD)/vresampler.o
 
