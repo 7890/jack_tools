@@ -28,6 +28,7 @@ zita_resampler:
 	&& $(CC) -Wall -O2 -ffast-math -march=native -I. -D_REENTRANT -D_POSIX_PTHREAD_SEMANTICS  -c -o resampler-table.o resampler-table.cc \
 	&& $(CC) -shared -o libzita-resampler.dll resampler.o vresampler.o resampler-table.o  -Wl,-static,--out-implib,libzita-resampler.a \
 	&& cp *.o ../../ \
+	&& cp -r zita-resampler $(BUILD_INCLUDE)/
 
 #cp libzita-resampler.dll ${PREFIX}/bin
 #cp libzita-resampler.a ${PREFIX}/lib
