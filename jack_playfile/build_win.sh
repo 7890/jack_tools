@@ -79,7 +79,7 @@ echo "   do you want to continue? (ctrl+c to abort)"
 read a
 
 ###############################################################################
-set -e
+#set -e
 
 if test "$XARCH" = "x86_64" -o "$XARCH" = "amd64"; then
 	echo "Target: 64bit Windows (x86_64)"
@@ -124,6 +124,11 @@ mkdir -p ${BUILDD}
 unset PKG_CONFIG_PATH
 export XPREFIX
 export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig
+
+echo "=================="
+echo "PKG_CONFIG_PATH ${PKG_CONFIG_PATH}"
+echo "=================="
+
 export PREFIX
 export SRCDIR
 
@@ -150,21 +155,35 @@ cd $1
 }
 
 function autoconfconf {
-set -e
-echo "======= $(pwd) ======="
+#set -e
+echo "===========================new compile task"
+echo "$(pwd)"
 #CPPFLAGS="-I${PREFIX}/include -DDEBUG$CPPFLAGS" \
+cat << EOF_
 	CPPFLAGS="-I${PREFIX}/include$CPPFLAGS" \
 	CFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CFLAGS" \
 	CXXFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CXXFLAGS" \
 	LDFLAGS="-L${PREFIX}/lib$LDFLAGS" \
 	./configure --host=${XPREFIX} --build=${HPREFIX}-linux \
 	--prefix=$PREFIX $@
+EOF_
+echo "===========================start configure `date`"
+
+	CPPFLAGS="-I${PREFIX}/include$CPPFLAGS" \
+	CFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CFLAGS" \
+	CXXFLAGS="-I${PREFIX}/include ${STACKCFLAGS} -mstackrealign$CXXFLAGS" \
+	LDFLAGS="-L${PREFIX}/lib$LDFLAGS" \
+	./configure --host=${XPREFIX} --build=${HPREFIX}-linux \
+	--prefix=$PREFIX $@
+echo "===========================configure done `date`"
 }
 
 function autoconfbuild {
-set -e
+#set -e
 autoconfconf $@
+echo "===========================start make `date`"
 make $MAKEFLAGS && make install
+echo "===========================make done `date`"
 }
 
 #function wafbuild was here
@@ -220,7 +239,7 @@ ed Makefile.in << EOF
 %s/examples / /
 wq
 EOF
-autoconfbuild --enable-static
+autoconfbuild --enable-static --disable-xmms-plugin --disable-cpplibs --disable-doxygen-docs 
 
 src libsndfile-1.0.25 tar.gz http://www.mega-nerd.com/libsndfile/files/libsndfile-1.0.25.tar.gz
 ed Makefile.in << EOF
@@ -228,7 +247,7 @@ ed Makefile.in << EOF
 wq
 EOF
 LDFLAGS=" -lFLAC -lwsock32 -lvorbis -logg -lwsock32" \
-autoconfbuild
+autoconfbuild --disable-sqlite --disable-alsa
 ed $PREFIX/lib/pkgconfig/sndfile.pc << EOF
 %s/ -lsndfile/ -lsndfile -lvorbis -lvorbisenc -lFLAC -logg -lwsock32/
 wq
@@ -250,9 +269,42 @@ cp -r zita-resampler ${PREFIX}/include
 
 echo "done."
 
-#echo ""
-#echo "================HERE=================="
-#echo ""
+src opus-1.1 tar.gz http://downloads.xiph.org/releases/opus/opus-1.1.tar.gz
+autoconfbuild --disable-doc --disable-extra-programs
+
+src opusfile-0.6 tar.gz https://ftp.mozilla.org/pub/mozilla.org/opus/opusfile-0.6.tar.gz
+autoconfbuild --disable-doc --disable-http #this is to prevent need for ssl
+
+src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.22.3.tar.bz2
+autoconfbuild --enable-static --disable-id3v2 --with-module-suffix=.dll --enable-gapless=no --enable-fifo=no --enable-ipv6=no --enable-network=no --disable-downsample --disable-16bit --disable-8bit --disable-32bit --disable-messages
+
+#control_generic.o:/home/winbuild/win-build-w32/mpg123-1.22.3/src/control_generic.c:395: more undefined references to `_imp__select@20' follow
+#collect2: error: ld returned 1 exit status
+#make[3]: *** [mpg123.exe] Error 1
+#make[3]: Leaving directory `/home/winbuild/win-build-w32/mpg123-1.22.3/src'
+
+#set -e temporary off
+
+make install
+
+#ls -1 /home/winbuild/win-stack-w32/lib/libmpg123*
+#/home/winbuild/win-stack-w32/lib/libmpg123.a
+#/home/winbuild/win-stack-w32/lib/libmpg123.dll.a
+#/home/winbuild/win-stack-w32/lib/libmpg123.la
+
+
+echo NOSTACK ${NOSTACK}
+echo COPY_HOME ${COPY_HOME}
+echo COPY_HOME_LOCATION ${COPY_HOME_LOCATION} 
+
+# windows 32 bit binaries will/should work also on 64 bit 
+echo XARCH ${XARCH}
+echo MAKEFLAGS ${MAKEFLAGS}
+echo STACKCFLAGS ${STACKCFLAGS}
+
+echo SRCDIR ${SRCDIR}
+echo TMPDIR ${TMPDIR}
+echo ROOT ${ROOT}
 
 
 ################################################################################
@@ -283,7 +335,6 @@ echo "done."
 #autoconfconf --enable-shared --disable-tests --disable-examples
 #make $MAKEFLAGS && make install
 
-
 ################################################################################
 fi  # $NOSTACK
 ################################################################################
@@ -307,8 +358,10 @@ APPSTRING=jack_playfile_$EXT
 DESTDIR=/tmp/$APPSTRING/
 
 mkdir -p $DESTDIR/bin
+mkdir -p $DESTDIR/doc
 
 cp jack_playfile.exe $DESTDIR/bin
+cp doc/jack_playfile.pdf $DESTDIR/doc
 
 cp /usr/i686-w64-mingw32/lib/libwinpthread-1.dll $DESTDIR/bin
 cp /usr/lib/gcc/i686-w64-mingw32/4.8/libgcc_s_sjlj-1.dll $DESTDIR/bin
@@ -320,23 +373,27 @@ cp /usr/lib/gcc/i686-w64-mingw32/4.8/libstdc++-6.dll $DESTDIR/bin
 
 cp ${PREFIX}/bin/* $DESTDIR/bin
 
-#ls -1 /home/winbuild/win-stack-w32/bin
-#flac.exe
-#libFLAC++-6.dll
+#ls -1 /home/winbuild/win-stack-w32/bin/
+#x flac.exe
 #libFLAC-8.dll
+#libmpg123-0.dll
 #libogg-0.dll
+#libopus-0.dll
+#libopusfile-0.dll
+#x libopusurl-0.dll
 #libsndfile-1.dll
 #libvorbis-0.dll
 #libvorbisenc-2.dll
 #libvorbisfile-3.dll
 #libzita-resampler.dll
-#metaflac.exe
+#x metaflac.exe
 #pthreadGC2.dll
 
 rm -f $DESTDIR/bin/flac.exe
+rm -f $DESTDIR/bin/libopusurl-0.dll
 rm -f $DESTDIR/bin/metaflac.exe
-rm -f $DESTDIR/bin/libFLAC++-6.dll
-rm -f $DESTDIR/bin/libvorbisfile-3.dll
+#rm -f $DESTDIR/bin/libFLAC++-6.dll
+#rm -f $DESTDIR/bin/libvorbisfile-3.dll
 
 chmod 700 $DESTDIR/bin/*
 
