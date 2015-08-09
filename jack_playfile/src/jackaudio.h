@@ -34,9 +34,11 @@ static jack_status_t status;
 
 //array of pointers to JACK input or output ports
 static jack_port_t **ioPortArray;
-static jack_client_t *client;
+//static jack_client_t *client;
 //http://jack-audio.10948.n7.nabble.com/jack-options-t-td3483.html
 static jack_options_t jack_opts = jack_options_t(JackNoStartServer | JackServerName);
+
+static jack_transport_state_t jack_transport_state_;
 
 static void jack_init();
 static void jack_post_init();
@@ -114,6 +116,24 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		fprintf(stderr,"/!\\ process(): JACK period size has changed during playback.\njack_playfile can't handle that :(\n");
 		shutdown_in_progress=1;
 		return 0;
+	}
+
+/*
+  int  jack_transport_reposition (jack_client_t *client, jack_position_t *pos);
+  int  jack_transport_locate (jack_client_t *client, jack_nframes_t frame);
+*/
+	if(use_jack_transport)
+	{
+		jack_transport_state_ = jack_transport_query(client, NULL);
+
+		if (jack_transport_state_ == JackTransportStarting || jack_transport_state_ == JackTransportRolling)
+		{
+			is_playing=1;
+		} 
+		else if (jack_transport_state_ == JackTransportStopped)
+		{
+			is_playing=0;
+		}
 	}
 
 	if(reset_ringbuffers_in_progress)

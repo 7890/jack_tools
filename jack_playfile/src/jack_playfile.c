@@ -409,6 +409,15 @@ while(true)
 				}
 			}
 
+			if(use_jack_transport)
+			{
+				fprintf(stderr,"J");
+			}
+			else
+			{
+				fprintf(stderr," ");
+			}
+
 			if(is_muted)
 			{
 				fprintf(stderr,"M");

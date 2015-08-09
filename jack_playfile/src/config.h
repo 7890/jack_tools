@@ -99,6 +99,10 @@ static int is_clock_displayed=1;
 //don't quit program when everything has played out
 static int pause_at_end=0;
 
+//loosley couple to jack transport
+//only roll/stop, receiving and sending. no relocates
+static int use_jack_transport=0;
+
 static const char *server_name = NULL; //default: 'default'
 static const char *client_name = NULL; //default: 'jack_playfile'
 
@@ -130,6 +134,9 @@ static int scale_exponent_seconds_max=4;
 static int process_enabled=0;
 static int shutdown_in_progress=0;
 static int shutdown_in_progress_signalled=0; //handled in loop in main()
+
+//JACK client
+static jack_client_t *client;
 
 //after connection to JACK, set to 0
 //if jack shutdown handler called, set to 1

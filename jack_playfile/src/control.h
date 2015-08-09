@@ -68,6 +68,7 @@ static int KEY_C=0;
 static int KEY_P=0;
 static int KEY_ENTER=0;
 static int KEY_0=0;
+static int KEY_J=0;
 
 static const char *clear_to_eol_seq=NULL;
 static const char *turn_on_cursor_seq=NULL;
@@ -109,6 +110,7 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  m:                 toggle mute on/off*\n");
 	fprintf(stderr,"  l:                 toggle loop on/off*\n");
 	fprintf(stderr,"  p:                 toggle pause at end on/off*\n");
+	fprintf(stderr,"  j:                 toggle JACK transport on/off*\n");
 	fprintf(stderr,"  c:                 toggle clock display on*/off\n");
 	fprintf(stderr,"  , comma:           toggle clock seconds* /frames\n");
 	fprintf(stderr,"  . period:          toggle clock absolute*/relative\n");
@@ -116,20 +118,21 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  q:                 quit\n\n");
 
 	fprintf(stderr,"prompt:\n\n");
-	fprintf(stderr,"|| paused   MLP  S rel 0.001       943.1  (00:15:43.070)   \n");
-	fprintf(stderr,"^           ^^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
-	fprintf(stderr,"1           234  5 6   7     8     9     8 10            11\n\n");
+	fprintf(stderr,"|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)   \n");
+	fprintf(stderr,"^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
+	fprintf(stderr,"1           2345  6 7   8     9     10    9 11            12\n\n");
 	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
-	fprintf(stderr,"  2): mute on/off 'M' or ' '\n");
-	fprintf(stderr,"  3): loop on/off 'L' or ' '\n");
-	fprintf(stderr,"  4): pause at end on/off 'P' or ' '\n");
-	fprintf(stderr,"  5): time and seek in seconds 'S' or frames 'F'\n");
-	fprintf(stderr,"  6): time indication 'rel' to frame_offset or 'abs'\n");
-	fprintf(stderr,"  7): seek step size in seconds or frames\n");
-	fprintf(stderr,"  8): time elapsed ' ' or remaining '-'\n");
-	fprintf(stderr,"  9): time in seconds or frames\n");
-	fprintf(stderr," 10): time in HMS.millis\n");
-	fprintf(stderr," 11): keyboard input indication (i.e. seek)\n\n");
+	fprintf(stderr,"  2): JACK transport on/off 'J' or ' '\n");
+	fprintf(stderr,"  3): mute on/off 'M' or ' '\n");
+	fprintf(stderr,"  4): loop on/off 'L' or ' '\n");
+	fprintf(stderr,"  5): pause at end on/off 'P' or ' '\n");
+	fprintf(stderr,"  6): time and seek in seconds 'S' or frames 'F'\n");
+	fprintf(stderr,"  7): time indication 'rel' to frame_offset or 'abs'\n");
+	fprintf(stderr,"  8): seek step size in seconds or frames\n");
+	fprintf(stderr,"  9): time elapsed ' ' or remaining '-'\n");
+	fprintf(stderr," 10): time in seconds or frames\n");
+	fprintf(stderr," 11): time in HMS.millis\n");
+	fprintf(stderr," 12): keyboard input indication (i.e. seek)\n\n");
 
 	//need command to print current props (file, offset etc)
 }//end print_keyboard_shortcuts()
@@ -165,6 +168,18 @@ static void handle_key_hits()
 		{
 			is_idling_at_end=0;
 			is_playing=!is_playing;
+
+			if(use_jack_transport)
+			{
+				if(is_playing)
+				{
+					jack_transport_start(client);
+				}
+				else
+				{
+					jack_transport_stop(client);
+				}
+			}
 		}
 	}
 	//'enter': play
@@ -176,8 +191,15 @@ static void handle_key_hits()
 		}
 		else
 		{
+			int tmp=0;
+
 			is_idling_at_end=0;
 			is_playing=1;
+
+			if(use_jack_transport)
+			{
+				jack_transport_start(client);
+			}
 		}
 	}
 	//'q': quit
@@ -238,6 +260,11 @@ static void handle_key_hits()
 		is_playing=0;
 		seek_frames_absolute(frame_offset);
 		is_playing=1;
+
+		if(use_jack_transport)
+		{
+			jack_transport_start(client);
+		}
 	}
 	//'|< && ||' (0):
 	else if(rawkey==KEY_0)
@@ -320,6 +347,12 @@ static void handle_key_hits()
 	{
 		is_clock_displayed=!is_clock_displayed;
 		fprintf(stderr,"clock %s", is_clock_displayed ? "on " : "off ");
+	}
+	//'j': toggle JACK transport on/off
+	else if(rawkey==KEY_J)
+	{
+		use_jack_transport=!use_jack_transport;
+		fprintf(stderr,"transport %s", use_jack_transport ? "on " : "off ");
 	}
 
 #ifndef WIN32
@@ -630,6 +663,7 @@ static void init_key_codes()
 	KEY_P=112;
 	KEY_ENTER=10;
 	KEY_0=48;
+	KEY_J=106;
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -651,6 +685,7 @@ static void init_key_codes()
 	KEY_P=80;
 	KEY_ENTER=13;
 	KEY_0=48;
+	KEY_J=74;
 #endif
 }//init_key_codes()
 

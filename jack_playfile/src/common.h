@@ -37,27 +37,28 @@ static void print_main_help (void)
 {
 	fprintf (stderr, "Usage: jack_playfile [Options] audiofile\n");
 	fprintf (stderr, "Options:\n");
-	fprintf (stderr, "  Display this text and quit          --help\n");
-	fprintf (stderr, "  Show program version and quit       --version\n");
-	fprintf (stderr, "  JACK client name    (jack_playfile) --name <string>\n");
-	fprintf (stderr, "  JACK server name          (default) --sname <string>\n");
-	fprintf (stderr, "  Don't connect JACK ports            --noconnect\n");
-	fprintf (stderr, "  Don't wait for JACK to re-connect   --noreconnect\n");
-	fprintf (stderr, "  Disable keyboard control            --nocontrol\n");
-	fprintf (stderr, "  Disable resampling                  --noresampling\n");
-	fprintf (stderr, "  Start paused                        --paused\n");
-	fprintf (stderr, "  Start muted                         --muted\n");
-	fprintf (stderr, "  Enable loop                         --loop\n");
-	fprintf (stderr, "  Pause at end (at start if --loop)   --pae\n");
-	fprintf (stderr, "  Show time as frames       (seconds) --frames\n");
-	fprintf (stderr, "  Show absolute time            (rel) --absolute\n");
-	fprintf (stderr, "  Show remaining time       (elapsed) --remaining\n");
-	fprintf (stderr, "  Disable clock display               --noclock\n");
-	fprintf (stderr, "  Frame offset:                   (0) --offset <integer>\n");
-	fprintf (stderr, "  Frame count:                  (all) --count <integer>\n\n");
+	fprintf (stderr, " --help              Display this text and quit\n");
+	fprintf (stderr, " --version           Show program version and quit \n");
+	fprintf (stderr, " --name <string>     JACK client name(jack_playfile) \n");
+	fprintf (stderr, " --sname <string>    JACK server name(default) \n");
+	fprintf (stderr, " --noconnect         Don't connect JACK ports\n");
+	fprintf (stderr, " --noreconnect       Don't wait for JACK to re-connect \n");
+	fprintf (stderr, " --nocontrol         Disable keyboard control\n");
+	fprintf (stderr, " --noresampling      Disable resampling\n");
+	fprintf (stderr, " --paused            Start paused\n");
+	fprintf (stderr, " --muted             Start muted \n");
+	fprintf (stderr, " --loop              Enable loop \n");
+	fprintf (stderr, " --pae               Pause at end (at start if --loop) \n");
+	fprintf (stderr, " --transport         Use JACK transport  (off) \n");
+	fprintf (stderr, " --frames            Show time as frames (seconds) \n");
+	fprintf (stderr, " --absolute          Show absolute time(rel) \n");
+	fprintf (stderr, " --remaining         Show remaining time (elapsed) \n");
+	fprintf (stderr, " --noclock           Disable clock display \n");
+	fprintf (stderr, " --offset <integer>  Frame offset:   (0) \n");
+	fprintf (stderr, " --count <integer>   Frame count: (all) \n\n");
 
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
-	fprintf (stderr, "See http://github.com/7890/jack_tools/\n\n");
+	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
 
 	fprintf (stderr, "jack_playfile is free software.\n");
 	fprintf (stderr, "Major audio libraries jack_playfile depends on:\n\n");
@@ -102,6 +103,7 @@ static struct option long_options[] =
 	{"remaining",	no_argument,  &is_time_elapsed,		0},
 	{"noclock",	no_argument,  &is_clock_displayed,	0},
 	{"pae",		no_argument,  &pause_at_end,	1},
+	{"transport",	no_argument,  &use_jack_transport,	1},
 //{"",  no_argument,  &connect_to_sisco, 0},
 	{0, 0, 0, 0}
 };
