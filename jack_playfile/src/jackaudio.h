@@ -83,7 +83,11 @@ static void jack_post_init()
 {
 	if(client!=NULL)
 	{
-		jack_server_down=0;
+		//more stable reconnect to JACK
+		while(jack_get_sample_rate(client)<1)
+		{
+			usleep(100);
+		}
 
 		jack_period_frames=jack_get_buffer_size(client);
 		jack_sample_rate=jack_get_sample_rate(client);
@@ -99,6 +103,8 @@ static void jack_post_init()
 		fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack_output_data_rate_bytes_per_second
 			,(jack_output_data_rate_bytes_per_second/1000000));
 		fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
+
+		jack_server_down=0;
 	}
 }//end jack_post_init()
 
