@@ -35,92 +35,98 @@ Best results are achieved when playing back 32-bit float RIFF wave files at JACK
 
 'jack_playfile' can read and play local files only. 
 No DSP other than optional resampling is applied to the audio signal.
-To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with 'jack_plafile'.
+To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with 'jack_playfile'.
 This plugin collection is a good starting point: https://github.com/x42/x42-plugins
 
 The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-'jack_playfile' version is 0.81
+'jack_playfile' version is 0.82
 
 OPTIONS
 -------
-*--help* (w/o argument)::
+*-h, --help* (w/o argument)::
 	Display help and quit.
 
-*--version* (w/o argument)::
+*-v, --version* (w/o argument)::
 	Display version and quit.
 
-*--name* (string)::
+*-n, --name* (string)::
 	JACK client name.
 	*Default:* "jack_playfile"
 
-*--sname* (string)::
+*-s, --sname* (string)::
 	JACK server name to start 'jack_playfile' in a specific JACK server.
 	*Default:* "default"
 
-*--noconnect* (w/o argument)::
+*-C, --noconnect* (w/o argument)::
 	Don't connect to JACK playback ports.
 	*Default:* 'jack_playfile' tries to connect all available channels to all available physical output/playback ports 1:1.
 
-*--noreconnect* (w/o argument)::
+*-E, --noreconnect* (w/o argument)::
 	Don't wait for JACK to reconnect as a client.
 	*Default:* If JACK goes down, 'jack_playfile' waits for the server to come back and then continues operation.
 	If 'jack_playfile' was playing when JACK went down, it will continue right at the position where it was before JACK went down.
 	If JACK settings were changed between a restart, 'jack_playfile' tries to adapt to the new settings as good as possible.
 
-*--nocontrol*:: (w/o argument)::
+*-D, --nocontrol*:: (w/o argument)::
 	Disable keyboard control.
 	*Default:* 'jack_playfile' accepts keyboard input while playing.
 	For a detailed overview on available control actions, see 'KEYBOARD SHORTCUTS' below or hit 'F1' or 'h' while 'jack_playfile' is started and control is enabled.
 
-*--noresampling* (w/o argument)::
+*-R, --noresampling* (w/o argument)::
 	Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
 	*Default:* The samples read from given file are resampled to match JACK sample rate.
 	This makes files play at the expected pitch and tempo.
 	Best results are achieved when the file sample rate matches JACK's.
 
-*--paused* (w/o argument)::
+*-p, --paused* (w/o argument)::
 	Start paused.
 	*Default:* Start playing after successful file open and connection to JACK.
 
-*--muted* (w/o argument)::
+*-m, --muted* (w/o argument)::
 	Start muted.
 	*Default:* Not muted, i.e. hear sound.
 
-*--loop* (w/o argument)::
+*-l, --loop* (w/o argument)::
 	Enable loop. If end of track is reached (given offset+count), start over at offset.
 	*Default:* Not enabled. What happens when end of track reached depends on other conditions.
 
-*--pae* (w/o argument)::
+*-e, --pae* (w/o argument)::
 	Pause at end: If end of track is reached (given offset+count), don't quit but pause playback instead.
 	If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
 	While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
 	*Default:* Off. If end of track reached and loop is not enabled, 'jack_playfile' is done and will quit.
 
-*--frames* (w/o argument)::
+*-j, --transport* (w/o argument)::
+	JACK transport: If enabled, 'jack_playfile' will follow JACK transport signals "Stopped" and "Rolling",
+	mapped to paused and playing. In the opposite direction, 'jack_playfile' sends transport signals to JACK when the play status changes, i.e. spacebar was hit to toggle play.
+	No positional information from JACK transport is processed or sent by 'jack_playfile' to JACK. The position of 'jack_playfile' is independent, i.e. it can loop while the JACK transport position increments linearly.
+	*Default:* Off.
+
+*-f, --frames* (w/o argument)::
 	Show time as frames. A number of (multichannel) frames in native file sample rate.
 	*Default:* Show time as seconds.
 
-*--absolute* (w/o argument)::
+*-a, --absolute* (w/o argument)::
 	Show absolute time. The frames and seconds indication relate to absolute position 0 of audio samples in file.
 	*Default:* Show relative time. Frames and seconds indication relate to given offset of audio samples in file (offset=relative position 0).
 
-*--remaining*:: (w/o argument)::
+*-r, --remaining*:: (w/o argument)::
 	Show remaining time. How many frames or seconds until the end of the track is reached (offset+count).
 	*Default:* Show elapsed time. How many frames or seconds away from start (offset).
 
-*--noclock* (w/o argument)::
+*-k, --noclock* (w/o argument)::
 	Disable clock display. This can save some resources.
 	*Default:* Enabled. The display is updated approximately with every JACK cycle.
 
-*--offset* (integer)::
+*-o, --offset* (integer)::
 	Set frame offset: A number of (multichannel) frames to seek before start reading from file. The frame offset relates to native file sample rate (not JACKs).
 	The offset is relative frame/time position 0 and will be used for seeking to start and looping.
 	*Default:* 0 (At first audio sample in file).
 
-*--count* (integer)::
+*-c, --count* (integer)::
 	Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACKs).
 	*Default:* All available frames, full length of track (respecting given offset).
 
@@ -148,6 +154,7 @@ KEYBOARD SHORTCUTS
 *m*::			Toggle mute on/off*
 *l*::			Toggle loop on/off*
 *p*::			Toggle pause at end on/off*
+*j*::			Toggle JACK transport on/off*
 *c*::			Toggle clock display on*/off
 *, comma*::		Toggle clock seconds*/frames
 *. period*::		Toggle clock absolute*/relative
@@ -167,7 +174,8 @@ TIMELINE
 
 The relation of absolute and relative start and end using offset and count, limited seek steps:
 
-                     current abs pos    
+  .
+                     current abs pos 
   abs start          v                                   abs end
   |------------------------------------------------------|
              rel start                  rel end
@@ -220,21 +228,22 @@ Note on ratios:
 
 Legend (example prompt):
 
-	|| paused   MLP  S rel 0.001       943.1  (00:15:43.070)   
-	^           ^^^  ^ ^   ^     ^     ^     ^ ^             ^ 
-	1           234  5 6   7     8     9     8 10            11
+        || paused   JMLP  S rel 0.001       943.1  (00:15:43.070)   
+        ^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^ 
+        1           2345  6 7   8     9     10    9 11            12
 
 	  1): status playing '>', paused '||' or seeking '...'
-	  2): mute on/off 'M' or ' '
-	  3): loop on/off 'L' or ' '
-	  4): pause at end on/off 'P' or ' '
-	  5): time and seek in seconds 'S' or frames 'F'
-	  6): time indication 'rel' to frame_offset or 'abs'
-	  7): seek step size in seconds or frames
-	  8): time elapsed ' ' or remaining '-'
-	  9): time in seconds or frames
-	 10): time in HMS.millis
-	 11): keyboard input indication (i.e. seek)
+          2): JACK transport on/off 'J' or ' '
+	  3): mute on/off 'M' or ' '
+	  4): loop on/off 'L' or ' '
+	  5): pause at end on/off 'P' or ' '
+	  6): time and seek in seconds 'S' or frames 'F'
+	  7): time indication 'rel' to frame_offset or 'abs'
+	  8): seek step size in seconds or frames
+	  9): time elapsed ' ' or remaining '-'
+	 10): time in seconds or frames
+	 11): time in HMS.millis
+	 12): keyboard input indication (i.e. seek)
 
 Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
 showing remaining absolute time, pause at end and loop:
@@ -367,7 +376,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sat Aug  8 18:56:49 CEST 2015
+Last Update: Sun Aug  9 15:06:37 CEST 2015
 
 COPYING
 -------
