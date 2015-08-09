@@ -35,48 +35,32 @@
 //================================================================
 static void print_main_help (void)
 {
-	fprintf (stderr, "Usage: jack_playfile [Options] audiofile\n");
-	fprintf (stderr, "Options:\n");
-	fprintf (stderr, " --help              Display this text and quit\n");
-	fprintf (stderr, " --version           Show program version and quit \n");
-	fprintf (stderr, " --name <string>     JACK client name  (\"jack_playfile\") \n");
-	fprintf (stderr, " --sname <string>    JACK server name  (\"default\") \n");
-	fprintf (stderr, " --noconnect         Don't connect JACK ports\n");
-	fprintf (stderr, " --noreconnect       Don't wait for JACK to re-connect\n");
-	fprintf (stderr, " --nocontrol         Disable keyboard control\n");
-	fprintf (stderr, " --noresampling      Disable resampling\n");
-	fprintf (stderr, " --paused            Start paused\n");
-	fprintf (stderr, " --muted             Start muted \n");
-	fprintf (stderr, " --loop              Enable loop \n");
-	fprintf (stderr, " --pae               Pause at end or at start if --loop\n");
-	fprintf (stderr, " --transport         Use JACK transport  (off)\n");
-	fprintf (stderr, " --frames            Show time as frames  (vs. seconds) \n");
-	fprintf (stderr, " --absolute          Show absolute time  (vs. relative) \n");
-	fprintf (stderr, " --remaining         Show remaining time  (vs. elapsed) \n");
-	fprintf (stderr, " --noclock           Disable clock display\n");
-	fprintf (stderr, " --offset <integer>  Frame offset:  (0)\n");
-	fprintf (stderr, " --count <integer>   Frame count:  (all) \n\n");
+	fprintf (stderr, "Usage: jack_playfile [OPTION] FILE\n\n");
+
+	fprintf (stderr, "  -h, --help              Display this text and quit\n");
+	fprintf (stderr, "  -v, --version           Show program version and quit \n");
+	fprintf (stderr, "  -n, --name <string>     JACK client name  (\"jack_playfile\") \n");
+	fprintf (stderr, "  -s, --sname <string>    JACK server name  (\"default\") \n");
+	fprintf (stderr, "  -C, --noconnect         Don't connect JACK ports\n");
+	fprintf (stderr, "  -E, --noreconnect       Don't wait for JACK to re-connect\n");
+	fprintf (stderr, "  -D, --nocontrol         Disable keyboard control\n");
+	fprintf (stderr, "  -R, --noresampling      Disable resampling\n");
+	fprintf (stderr, "  -p, --paused            Start paused\n");
+	fprintf (stderr, "  -m, --muted             Start muted \n");
+	fprintf (stderr, "  -l, --loop              Enable loop \n");
+	fprintf (stderr, "  -e, --pae               Pause at end or at start if --loop\n");
+	fprintf (stderr, "  -j, --transport         Use JACK transport  (off)\n");
+	fprintf (stderr, "  -f, --frames            Show time as frames  (vs. seconds) \n");
+	fprintf (stderr, "  -a, --absolute          Show absolute time  (vs. relative) \n");
+	fprintf (stderr, "  -r, --remaining         Show remaining time  (vs. elapsed) \n");
+	fprintf (stderr, "  -k, --noclock           Disable clock display\n");
+	fprintf (stderr, "  -o, --offset <integer>  Frame offset:  (0)\n");
+	fprintf (stderr, "  -c, --count <integer>   Frame count:  (all) \n\n");
+
+//	fprintf (stderr, "  -L, --libs              Show library dependencies\n\n");
 
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
 	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
-/*
-//move to separate method to make tail not covering options
-
-	fprintf (stderr, "jack_playfile is free software.\n");
-	fprintf (stderr, "Major audio libraries jack_playfile depends on:\n\n");
-
-	fprintf (stderr, "JACK audio connection kit - http://jackaudio.org/\n");
-	fprintf (stderr, "libsndfile - http://www.mega-nerd.com/libsndfile/\n");
-	fprintf (stderr, "libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/\n");
-	fprintf (stderr, "libopus, libopusfile - http://www.opus-codec.org/\n");
-	fprintf (stderr, "libvorbisfile - http://xiph.org/vorbis/\n");
-	fprintf (stderr, "libmpg123 - http://www.mpg123.de/ (optional due to patent foo)\n\n");
-
-	fprintf (stderr, "libraries abstracted by libsndfile:\n\n");
-	fprintf (stderr, "libFLAC - http://xiph.org/flac/\n");
-	fprintf (stderr, "libvorbis, libvorbisenc - http://xiph.org/vorbis/\n");
-	fprintf (stderr, "libogg - http://xiph.org/ogg/\n\n");
-*/
 
 	exit (0);
 }
@@ -86,27 +70,29 @@ static void print_main_help (void)
 //================================================================
 static struct option long_options[] =
 {
-	{"help",	no_argument,		0, 'a'},
-	{"version",	no_argument,		0, 'b'},
-	{"name",	required_argument,	0, 'c'},
-	{"sname",	required_argument,	0, 'd'},
+	{"help",	no_argument,		0, 'h'},
+	{"version",	no_argument,		0, 'v'},
+	{"name",	required_argument,	0, 'n'},
+	{"sname",	required_argument,	0, 's'},
 
-	{"offset",	required_argument,	0, 'e'},
-	{"count",	required_argument,	0, 'f'},
+	{"offset",	required_argument,	0, 'o'},
+	{"count",	required_argument,	0, 'c'},
 
-	{"nocontrol",	no_argument,  &keyboard_control_enabled,0},
-	{"noresampling",no_argument,  &use_resampling,		0},
-	{"noconnect",	no_argument,  &autoconnect_jack_ports,	0},
-	{"noreconnect",	no_argument,  &try_jack_reconnect,	0},
-	{"paused",	no_argument,  &is_playing,		0},
-	{"muted",	no_argument,  &is_muted,		1},
-	{"loop",	no_argument,  &loop_enabled,		1},
-	{"frames",	no_argument,  &is_time_seconds,		0},
-	{"absolute",	no_argument,  &is_time_absolute,	1},
-	{"remaining",	no_argument,  &is_time_elapsed,		0},
-	{"noclock",	no_argument,  &is_clock_displayed,	0},
-	{"pae",		no_argument,  &pause_at_end,	1},
-	{"transport",	no_argument,  &use_jack_transport,	1},
+	{"nocontrol",	no_argument,  0,	'D'},
+	{"noresampling",no_argument,  0,	'R'},
+	{"noconnect",	no_argument,  0,	'C'},
+	{"noreconnect",	no_argument,  0,	'E'},
+	{"paused",	no_argument,  0,	'p'},
+	{"muted",	no_argument,  0,	'm'},
+	{"loop",	no_argument,  0,	'l'},
+	{"frames",	no_argument,  0,	'f'},
+	{"absolute",	no_argument,  0,	'a'},
+	{"remaining",	no_argument,  0,	'r'},
+	{"noclock",	no_argument,  0,	'k'},
+	{"pae",		no_argument,  0,	'e'},
+	{"transport",	no_argument,  0,	'j'},
+
+	{"libs",	no_argument,  0,	'L'},
 //{"",  no_argument,  &connect_to_sisco, 0},
 	{0, 0, 0, 0}
 };

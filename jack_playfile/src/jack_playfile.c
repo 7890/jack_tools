@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hvn:s:o:c:DRCEpmlfarkejL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -75,31 +75,88 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			case 'a':
+			case 'h':
 				print_header();
 				print_main_help();
 				break;
 
-			case 'b':
+			case 'v':
 				print_version();
 				exit(0);
 				//break;
 
-			case 'c':
+			case 'n':
 				client_name=optarg;
 				break;
 
-			case 'd':
+			case 's':
 				server_name=optarg;
 				break;
 
-			case 'e':
+			case 'o':
 				frame_offset=strtoull(optarg, NULL, 10);
 				break;
 
-			case 'f':
+			case 'c':
 				frame_count=strtoull(optarg, NULL, 10);
 				break;
+
+			case 'D':
+				keyboard_control_enabled=0;
+				break;
+
+			case 'R':
+				use_resampling=0;
+				break;
+
+			case 'C':
+				autoconnect_jack_ports=0;
+				break;
+
+			case 'E':
+				try_jack_reconnect=0;
+				break;
+
+			case 'p':
+				is_playing=0;
+				break;
+
+			case 'm':
+				is_muted=1;
+				break;
+
+			case 'l':
+				loop_enabled=1;
+				break;
+
+			case 'f':
+				is_time_seconds=0;
+				break;
+
+			case 'a':
+				is_time_absolute=1;
+				break;
+
+			case 'r':
+				is_time_elapsed=0;
+				break;
+
+			case 'k':
+				is_clock_displayed=0;
+				break;
+
+			case 'e':
+				pause_at_end=1;
+				break;
+
+			case 'j':
+				use_jack_transport=1;
+				break;
+
+			case 'L': //libs
+				fprintf(stderr,"here\n");
+				exit(0);
+				//break;
 
 			case '?': //invalid commands
 				//getopt_long already printed an error message
@@ -297,9 +354,9 @@ while(true)
 				exit(1);
 			}
 #ifdef WIN32
-		Sleep(1000);
+			Sleep(1000);
 #else
-		usleep(1000000);
+			usleep(1000000);
 #endif
 		}
 	}//end while client==NULL
