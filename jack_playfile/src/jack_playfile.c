@@ -46,6 +46,8 @@ static uint64_t disk_read_cycle_count=0;
 static uint64_t frames_to_seek=0;
 static uint64_t frames_to_seek_type=SEEK_CUR; //or SEEK_SET
 
+static void open_init_file(const char *f);
+
 //=============================================================================
 int main(int argc, char *argv[])
 {
@@ -178,119 +180,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	filename=argv[optind];
-
-	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
-
-	sin_open(filename,&sf_info_generic);
-
-	struct stat st;
-	stat(filename, &st);
-	file_size_bytes = st.st_size;
-
-	fprintf(stderr,"file:        %s\n",filename);
-	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
-
-	is_flac_=is_flac(&sf_info_generic);
-
-	//flac and opus have different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
-	if((is_opus || is_flac(&sf_info_generic)))
-	{
-		fprintf(stderr,"/!\\ reducing frame count by 1\n");
-		sf_info_generic.frames=(sf_info_generic.frames-1);//not nice
-	}
-
-	if(sf_info_generic.frames<1)
-	{
-		fprintf(stderr,"/!\\ file has zero frames, nothing to play!\n");
-		exit(1);
-	}
-
-	//for now: just create as many JACK client output ports as the file has channels
-	output_port_count=sf_info_generic.channels;
-
-	if(output_port_count<=0)
-	{
-		fprintf(stderr,"/!\\ file has zero channels, nothing to play!\n");
-		exit(1);
-	}
-
-	bytes_per_sample_native=file_info(sf_info_generic,1);
-
-	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
-	{
-		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
-		file_data_rate_bytes_per_second=(float)file_size_bytes
-			/get_seconds(&sf_info_generic);
-
-		fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
-			,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
-	}
-	else
-	{
-		file_data_rate_bytes_per_second=sf_info_generic.samplerate * output_port_count * bytes_per_sample_native;
-		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
-	}
-
-	if( (file_data_rate_bytes_per_second/1000000) > 20 )
-	{
-		fprintf(stderr,"/!\\ this is a relatively high data rate\n");
-	}
-
-	//offset can't be negative or greater total frames in file
-	if(frame_offset<0 || frame_offset>sf_info_generic.frames)
-	{
-		frame_offset=0;
-		fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
-	}
-
-	//if requested count negative, zero or greater total frames in file
-	if(frame_count<=0 || frame_count>sf_info_generic.frames)
-	{
-		//set possible max respecting frame_offset
-		frame_count=sf_info_generic.frames-frame_offset;
-		fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
-		if(frame_count==sf_info_generic.frames)
-		{
-			fprintf(stderr," (all available frames)");
-		}
-		fprintf(stderr,"\n");
-	}
-
-	//offset + count can't be greater than frames in file
-	if( (frame_offset+frame_count) > sf_info_generic.frames)
-	{
-		//set possible max respecting frame_offset
-		frame_count=MIN((sf_info_generic.frames-frame_offset),frame_count);
-
-		fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
-	}
-
-	fprintf(stderr,"playing frames from/to/length: %"PRId64" %"PRId64" %"PRId64"\n"
-		,frame_offset
-		,MIN(sf_info_generic.frames,frame_offset+frame_count)
-		,frame_count);
-
-	//if for some reason from==to (count==0)
-	if(frame_count==0)
-	{
-		fprintf(stderr,"/!\\ zero frames, nothing to do\n");
-		exit(1);
-	}
-
-	//initial seek
-	if(frame_offset>0)
-	{
-		seek_frames_in_progress=1;
-	}
-
-	//~1%
-//	seek_frames_per_hit=ceil(frame_count / 100);
-
-	set_frames_from_exponent();
-	set_seconds_from_exponent();
-
-//	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
+	open_init_file(argv[optind]);
 
 	jack_init();
 
@@ -526,6 +416,124 @@ _start_all_over:
 }//end while true (outer, JACK down/reconnect)
 	exit(0);
 }//end main
+
+//=============================================================================
+static void open_init_file(const char *f)
+{
+	filename=f;
+
+	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
+
+	sin_open(filename,&sf_info_generic);
+
+	struct stat st;
+	stat(filename, &st);
+	file_size_bytes = st.st_size;
+
+	fprintf(stderr,"file:        %s\n",filename);
+	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
+
+	is_flac_=is_flac(&sf_info_generic);
+
+	//flac and opus have different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
+	if((is_opus || is_flac(&sf_info_generic)))
+	{
+		fprintf(stderr,"/!\\ reducing frame count by 1\n");
+		sf_info_generic.frames=(sf_info_generic.frames-1);//not nice
+	}
+
+	if(sf_info_generic.frames<1)
+	{
+		fprintf(stderr,"/!\\ file has zero frames, nothing to play!\n");
+		exit(1);
+	}
+
+	//for now: just create as many JACK client output ports as the file has channels
+	output_port_count=sf_info_generic.channels;
+
+	if(output_port_count<=0)
+	{
+		fprintf(stderr,"/!\\ file has zero channels, nothing to play!\n");
+		exit(1);
+	}
+
+	bytes_per_sample_native=file_info(sf_info_generic,1);
+
+	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
+	{
+		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
+		file_data_rate_bytes_per_second=(float)file_size_bytes
+			/get_seconds(&sf_info_generic);
+
+		fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
+			,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+	}
+	else
+	{
+		file_data_rate_bytes_per_second=sf_info_generic.samplerate * output_port_count * bytes_per_sample_native;
+		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+	}
+
+	if( (file_data_rate_bytes_per_second/1000000) > 20 )
+	{
+		fprintf(stderr,"/!\\ this is a relatively high data rate\n");
+	}
+
+	//offset can't be negative or greater total frames in file
+	if(frame_offset<0 || frame_offset>sf_info_generic.frames)
+	{
+		frame_offset=0;
+		fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
+	}
+
+	//if requested count negative, zero or greater total frames in file
+	if(frame_count<=0 || frame_count>sf_info_generic.frames)
+	{
+		//set possible max respecting frame_offset
+		frame_count=sf_info_generic.frames-frame_offset;
+		fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
+		if(frame_count==sf_info_generic.frames)
+		{
+			fprintf(stderr," (all available frames)");
+		}
+		fprintf(stderr,"\n");
+	}
+
+	//offset + count can't be greater than frames in file
+	if( (frame_offset+frame_count) > sf_info_generic.frames)
+	{
+		//set possible max respecting frame_offset
+		frame_count=MIN((sf_info_generic.frames-frame_offset),frame_count);
+
+		fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
+	}
+
+	fprintf(stderr,"playing frames from/to/length: %"PRId64" %"PRId64" %"PRId64"\n"
+		,frame_offset
+		,MIN(sf_info_generic.frames,frame_offset+frame_count)
+		,frame_count);
+
+	//if for some reason from==to (count==0)
+	if(frame_count==0)
+	{
+		fprintf(stderr,"/!\\ zero frames, nothing to do\n");
+		exit(1);
+	}
+
+	//initial seek
+	if(frame_offset>0)
+	{
+		seek_frames_in_progress=1;
+	}
+
+	//~1%
+//	seek_frames_per_hit=ceil(frame_count / 100);
+
+	set_frames_from_exponent();
+	set_seconds_from_exponent();
+
+//	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
+}//end open_init_file()
 
 //=============================================================================
 static int disk_read_frames()
