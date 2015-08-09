@@ -39,26 +39,28 @@ static void print_main_help (void)
 	fprintf (stderr, "Options:\n");
 	fprintf (stderr, " --help              Display this text and quit\n");
 	fprintf (stderr, " --version           Show program version and quit \n");
-	fprintf (stderr, " --name <string>     JACK client name(jack_playfile) \n");
-	fprintf (stderr, " --sname <string>    JACK server name(default) \n");
+	fprintf (stderr, " --name <string>     JACK client name  (\"jack_playfile\") \n");
+	fprintf (stderr, " --sname <string>    JACK server name  (\"default\") \n");
 	fprintf (stderr, " --noconnect         Don't connect JACK ports\n");
-	fprintf (stderr, " --noreconnect       Don't wait for JACK to re-connect \n");
+	fprintf (stderr, " --noreconnect       Don't wait for JACK to re-connect\n");
 	fprintf (stderr, " --nocontrol         Disable keyboard control\n");
 	fprintf (stderr, " --noresampling      Disable resampling\n");
 	fprintf (stderr, " --paused            Start paused\n");
 	fprintf (stderr, " --muted             Start muted \n");
 	fprintf (stderr, " --loop              Enable loop \n");
-	fprintf (stderr, " --pae               Pause at end (at start if --loop) \n");
-	fprintf (stderr, " --transport         Use JACK transport  (off) \n");
-	fprintf (stderr, " --frames            Show time as frames (seconds) \n");
-	fprintf (stderr, " --absolute          Show absolute time(rel) \n");
-	fprintf (stderr, " --remaining         Show remaining time (elapsed) \n");
-	fprintf (stderr, " --noclock           Disable clock display \n");
-	fprintf (stderr, " --offset <integer>  Frame offset:   (0) \n");
-	fprintf (stderr, " --count <integer>   Frame count: (all) \n\n");
+	fprintf (stderr, " --pae               Pause at end or at start if --loop\n");
+	fprintf (stderr, " --transport         Use JACK transport  (off)\n");
+	fprintf (stderr, " --frames            Show time as frames  (vs. seconds) \n");
+	fprintf (stderr, " --absolute          Show absolute time  (vs. relative) \n");
+	fprintf (stderr, " --remaining         Show remaining time  (vs. elapsed) \n");
+	fprintf (stderr, " --noclock           Disable clock display\n");
+	fprintf (stderr, " --offset <integer>  Frame offset:  (0)\n");
+	fprintf (stderr, " --count <integer>   Frame count:  (all) \n\n");
 
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
 	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
+/*
+//move to separate method to make tail not covering options
 
 	fprintf (stderr, "jack_playfile is free software.\n");
 	fprintf (stderr, "Major audio libraries jack_playfile depends on:\n\n");
@@ -74,6 +76,7 @@ static void print_main_help (void)
 	fprintf (stderr, "libFLAC - http://xiph.org/flac/\n");
 	fprintf (stderr, "libvorbis, libvorbisenc - http://xiph.org/vorbis/\n");
 	fprintf (stderr, "libogg - http://xiph.org/ogg/\n\n");
+*/
 
 	exit (0);
 }
