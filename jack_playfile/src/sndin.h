@@ -363,6 +363,7 @@ static void sin_close()
 		if(soundfile_123!=NULL)
 		{
 			mpg123_close(soundfile_123);
+			soundfile_123=NULL;
 		}
 	}
 	else if(is_opus)
@@ -370,6 +371,7 @@ static void sin_close()
 		if(soundfile_opus!=NULL)
 		{
 			op_free(soundfile_opus);
+			soundfile_opus=NULL;
 		}
 	}
 	else if(is_ogg_)
@@ -377,6 +379,7 @@ static void sin_close()
 		if(ogg_file_!=NULL)
 		{
 			ov_clear(&soundfile_vorbis);
+			ogg_file_=NULL;
 		}
 	}
 	else //sndfile
@@ -384,6 +387,7 @@ static void sin_close()
 		if(soundfile!=NULL)
 		{
 			sf_close(soundfile);
+			soundfile=NULL;
 		}
 	}
 	closing_file_in_progress=0;
