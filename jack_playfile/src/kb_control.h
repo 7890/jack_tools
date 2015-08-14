@@ -76,6 +76,9 @@ static int KEY_P=0;
 static int KEY_ENTER=0;
 static int KEY_0=0;
 static int KEY_J=0;
+//static int KEY_PAGE_UP=0; same keycode as page down!?
+static int KEY_LT=0; //<
+static int KEY_GT=0; //>
 
 static const char *clear_to_eol_seq=NULL;
 static const char *turn_on_cursor_seq=NULL;
@@ -106,14 +109,16 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  h, f1:             help (this screen)\n");
 	fprintf(stderr,"  space:             toggle play/pause\n");
 	fprintf(stderr,"  enter:             play\n");
-	fprintf(stderr,"  < arrow left:      seek one step backward\n");
-	fprintf(stderr,"  > arrow right:     seek one step forward\n");
-	fprintf(stderr,"  ^ arrow up:        increment seek step size\n");
-	fprintf(stderr,"  v arrow down:      decrement seek step size\n");
+	fprintf(stderr,"  (<) arrow left:      seek one step backward\n");
+	fprintf(stderr,"  (>) arrow right:     seek one step forward\n");
+	fprintf(stderr,"  (^) arrow up:        increment seek step size\n");
+	fprintf(stderr,"  (v) arrow down:      decrement seek step size\n");
 	fprintf(stderr,"  home               seek to start\n");
 	fprintf(stderr,"  0:                 seek to start and pause\n");
 	fprintf(stderr,"  backspace:         seek to start and play\n");
 	fprintf(stderr,"  end:               seek to end\n");
+	fprintf(stderr,"  < less than:       load previous file\n");
+	fprintf(stderr,"  > greater than:    load next file\n");
 	fprintf(stderr,"  m:                 toggle mute on/off*\n");
 	fprintf(stderr,"  l:                 toggle loop on/off*\n");
 	fprintf(stderr,"  p:                 toggle pause at end on/off*\n");
@@ -300,6 +305,18 @@ static void handle_key_hits()
 	{
 		ctrl_toggle_jack_transport();
 		fprintf(stderr,"transport %s", jack->use_transport ? "on " : "off ");
+	}
+	//'<' load prev file
+	else if(rawkey==KEY_LT)
+	{
+		ctrl_load_prev_file();
+		fprintf(stderr,"prev file");
+	}
+	//'>' load next file
+	else if(rawkey==KEY_GT)
+	{
+		ctrl_load_next_file();
+		fprintf(stderr,"next file");
 	}
 
 #ifndef WIN32
@@ -611,6 +628,8 @@ static void init_key_codes()
 	KEY_ENTER=10;
 	KEY_0=48;
 	KEY_J=106;
+	KEY_LT=60;
+	KEY_GT=62;
 #else
 	KEY_SPACE=32;
 	KEY_Q=81;
@@ -633,6 +652,8 @@ static void init_key_codes()
 	KEY_ENTER=13;
 	KEY_0=48;
 	KEY_J=74;
+	KEY_LT=60;////////
+	KEY_GT=62;/////////
 #endif
 }//init_key_codes()
 

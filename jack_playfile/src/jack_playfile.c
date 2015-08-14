@@ -51,6 +51,15 @@ static uint64_t frames_to_seek_type=SEEK_CUR; //or SEEK_SET
 //use to signal next file, resulting in partial init (not a full JACK client shutdown/register)
 static int prepare_for_next_file=0;
 
+//when requesting prev file, limit to first found valid file index
+static int first_valid_file_optind=0;
+
+//how many (potentially loadable) files on command line
+static int number_of_files_in_argc=0;
+
+//signal to decrement index for next file
+static int prev_file_requested=0;
+
 //=============================================================================
 int main(int argc, char *argv[])
 {
@@ -83,7 +92,7 @@ int main(int argc, char *argv[])
 			}
 
 			case 'h':
-				print_header();
+				//print_header();
 				print_main_help();
 				break;
 
@@ -177,8 +186,8 @@ int main(int argc, char *argv[])
 
 			case '?': //invalid commands
 				//getopt_long already printed an error message
-				print_header();
-				fprintf(stderr, "Wrong arguments, see --help.\n\n");
+				//print_header();
+				fprintf(stderr, "Wrong arguments, see --help.\n");
 				exit(1);
 				break;
 
@@ -190,10 +199,13 @@ int main(int argc, char *argv[])
 	//remaining non optional parameters must be at least one file
 	if(argc-optind<1)
 	{
-		print_header();
-		fprintf(stderr, "Wrong arguments, see --help.\n\n");
+		//print_header();
+		fprintf(stderr, "Wrong arguments, see --help.\n");
 		exit(1);
 	}
+
+	first_valid_file_optind=optind;
+	number_of_files_in_argc=argc-first_valid_file_optind;
 
 	//jack_playfile /tmp/a.x /tmp/*.wav
 	//try open file(s) until success
@@ -201,14 +213,19 @@ int main(int argc, char *argv[])
 	{
 		fprintf(stderr,"\n\n");
 		optind++;
+		first_valid_file_optind=optind;
+		number_of_files_in_argc=argc-first_valid_file_optind;
 	}
 	//no more arguments are left and no file could be opened
 	if(argc-optind<1)
 	{
 		exit(1);
 	}
-	optind++;
 
+	first_valid_file_optind=optind;
+	number_of_files_in_argc=argc-first_valid_file_optind;
+
+//	fprintf(stderr,"# first valid index: %d files on command line: %d \n",first_valid_file_optind,number_of_files_in_argc);
 
 //if no explicit channel count is known (chcount 0), the first file in a possible row of files
 //sets the chcount for all following files
@@ -426,18 +443,19 @@ _start_all_over:
 		sin_close();
 		fprintf(stderr,"\n\n");
 		//if more file args, try open until success
+
+		//increment or decrement optindex (i.e. prev file requested=decrement)
+		set_optind();
+
 		while(argc-optind>0 && !open_init_file(argv[optind]))
 		{
 			fprintf(stderr,"\n\n");
-			optind++;
+			//optind++;
+			set_optind();
 		}
 		if(argc-optind<1)
 		{
 			shutdown_in_progress=1;
-		}
-		else
-		{
-			optind++;
 		}
 	}
 
@@ -445,6 +463,21 @@ _start_all_over:
 }//end while true (outer, JACK down/reconnect)
 	exit(0);
 }//end main
+
+//=============================================================================
+static void set_optind()
+{
+	if(prev_file_requested)
+	{
+		optind--;
+		optind=MAX(optind,first_valid_file_optind);
+		prev_file_requested=0;
+	}
+	else
+	{
+		optind++;
+	}
+}
 
 //=============================================================================
 static int open_init_file(const char *f)
@@ -475,7 +508,10 @@ static int open_init_file(const char *f)
 	stat(filename, &st);
 	file_size_bytes = st.st_size;
 
-	fprintf(stderr,"file:        %s\n",filename);
+	fprintf(stderr,"file:        %s  (#%d/%d)\n",filename
+		,1+(optind-first_valid_file_optind)
+		,number_of_files_in_argc);
+
 	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
 
 	is_flac_=is_flac(&sf_info_generic);
@@ -1173,6 +1209,23 @@ static void ctrl_jack_transport_on()
 static void ctrl_jack_transport_off()
 {
 	jack->use_transport=0;
+}
+
+//=============================================================================
+static void ctrl_load_prev_file()
+{
+	prev_file_requested=1;
+	loop_enabled=0; //prepare seek
+	pause_at_end=0;
+	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
+}
+
+//=============================================================================
+static void ctrl_load_next_file()
+{
+	loop_enabled=0; //prepare seek
+	pause_at_end=0;
+	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
 //=============================================================================

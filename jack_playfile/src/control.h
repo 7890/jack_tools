@@ -66,6 +66,8 @@ static void ctrl_toggle_pause_at_end();
 static void ctrl_toggle_jack_transport();
 static void ctrl_jack_transport_on();
 static void ctrl_jack_transport_off();
+static void ctrl_load_prev_file();
+static void ctrl_load_next_file();
 
 static void set_seconds_from_exponent();
 static void set_frames_from_exponent();
