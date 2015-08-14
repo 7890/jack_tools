@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 //
 //  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
-//    
+//
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
 //  the Free Software Foundation; either version 3 of the License, or
@@ -24,20 +24,14 @@
 #ifndef JACK_PLAYFILE_H_INC
 #define JACK_PLAYFILE_H_INC
 
-static const float version=0.82;
-
 //================================================================
 int main(int argc, char *argv[]);
+static int open_init_file(const char *f);
 
 static int disk_read_frames();
 static void *disk_thread_func(void *arg);
 static void setup_disk_thread();
 static void req_buffer_from_disk_thread();
-
-static void set_seconds_from_exponent();
-static void set_frames_from_exponent();
-static void increment_seek_step_size();
-static void decrement_seek_step_size();
 
 static void seek_frames_absolute(int64_t frames_abs);
 static void seek_frames(int64_t frames_rel);

@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 //
 //  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
-//    
+//
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
 //  the Free Software Foundation; either version 3 of the License, or
@@ -39,6 +39,10 @@ static jack_ringbuffer_t *rb_deinterleaved=NULL;
 
 //read from rb_deinterleaved, write to jack output buffers in JACK process()
 
+//don't operate on ringbuffers while reseting
+//simple "lock"
+static int reset_ringbuffers_in_progress=0;
+
 static void setup_ringbuffers();
 static void free_ringbuffers();
 static void reset_ringbuffers();
@@ -46,11 +50,25 @@ static void reset_ringbuffers();
 //=============================================================================
 static void setup_ringbuffers()
 {
-	///
+//	fprintf(stderr,"setup_ringbuffers()\n");
+
+	if(rb_interleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_interleaved);
+	}
+	if(rb_resampled_interleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_resampled_interleaved);
+	}
+	if(rb_deinterleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_deinterleaved);
+	}
+
 	int size_multiplier=50;
-	int rb_interleaved_size_bytes		=size_multiplier * sndfile_request_frames    * output_port_count * bytes_per_sample;
-	int rb_resampled_interleaved_size_bytes	=size_multiplier * jack_period_frames        * output_port_count * bytes_per_sample;
-	int rb_deinterleaved_size_bytes		=size_multiplier * jack_period_frames        * output_port_count * bytes_per_sample;
+	int rb_interleaved_size_bytes		=size_multiplier * sndfile_request_frames	* channel_count_use_from_file * bytes_per_sample;
+	int rb_resampled_interleaved_size_bytes	=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
+	int rb_deinterleaved_size_bytes		=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
 
 	rb_interleaved=jack_ringbuffer_create (rb_interleaved_size_bytes);
 	rb_resampled_interleaved=jack_ringbuffer_create (rb_resampled_interleaved_size_bytes);
@@ -59,12 +77,11 @@ static void setup_ringbuffers()
 /*
 	fprintf(stderr,"frames: request %d rb_interleaved %d rb_resampled_interleaved %d rb_deinterleaved %d\n"
 		,sndfile_request_frames
-		,rb_interleaved_size_bytes/output_port_count/bytes_per_sample
-		,rb_resampled_interleaved_size_bytes/output_port_count/bytes_per_sample
-		,rb_deinterleaved_size_bytes/output_port_count/bytes_per_sample
+		,rb_interleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
+		,rb_resampled_interleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
+		,rb_deinterleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
 	);
 */
-
 }
 
 //=============================================================================

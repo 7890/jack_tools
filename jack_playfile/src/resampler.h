@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 //
 //  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
-//    
+//
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
 //  the Free Software Foundation; either version 3 of the License, or
@@ -100,10 +100,10 @@ static void setup_resampler()
 			*/
 
 			//setup returns zero on success, non-zero otherwise. 
-			if (R.setup (sf_info_generic.samplerate, jack_sample_rate, sf_info_generic.channels, RESAMPLER_FILTERSIZE))
+			if (R.setup (sf_info_generic.samplerate, jack->sample_rate, channel_count_use_from_file, RESAMPLER_FILTERSIZE))
 			{
 				fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
-					,jack_sample_rate,sf_info_generic.samplerate);
+					,jack->sample_rate,sf_info_generic.samplerate);
 				use_resampling=0;
 			}
 			else
@@ -131,7 +131,7 @@ static void setup_resampler()
 					,R.inpsize()
 					,R.inpdist()
 					,sf_info_generic.samplerate
-					,jack_sample_rate
+					,jack->sample_rate
 					,out_to_in_sr_ratio);
 */
 
@@ -161,12 +161,12 @@ static void resample()
 
 	//normal operation
 	if(jack_ringbuffer_read_space(rb_interleaved) 
-		>= sndfile_request_frames * output_port_count * bytes_per_sample)
+		>= sndfile_request_frames * channel_count_use_from_file * bytes_per_sample)
 	{
 //		fprintf(stderr,"resample(): normal operation\n");
 
-		float *interleaved_frame_buffer=new float [sndfile_request_frames * output_port_count];
-		float *buffer_resampling_out=new float [jack_period_frames * output_port_count];
+		float *interleaved_frame_buffer=new float [sndfile_request_frames * channel_count_use_from_file];
+		float *buffer_resampling_out=new float [jack->period_frames * channel_count_use_from_file];
 
 		//condition to jump into while loop
 		R.out_count=1;
@@ -177,13 +177,13 @@ static void resample()
 			//read from rb_interleaved, just peek / don't move read pointer yet
 			jack_ringbuffer_peek(rb_interleaved
 				,(char*)interleaved_frame_buffer
-				,sndfile_request_frames * output_port_count * bytes_per_sample);
+				,sndfile_request_frames * channel_count_use_from_file * bytes_per_sample);
 			
 			//configure for next resampler process cycle
 			R.inp_data=interleaved_frame_buffer;
 			R.inp_count=sndfile_request_frames;
 			R.out_data=buffer_resampling_out;
-			R.out_count=jack_period_frames;
+			R.out_count=jack->period_frames;
 
 //			fprintf(stderr,"--- resample(): before inpcount %d outcount %d\n",R.inp_count,R.out_count);
 			R.process();
@@ -198,7 +198,7 @@ static void resample()
 
 			//advance - remaining inp_count!
 			jack_ringbuffer_read_advance(rb_interleaved
-				,(sndfile_request_frames-R.inp_count) * output_port_count * bytes_per_sample);
+				,(sndfile_request_frames-R.inp_count) * channel_count_use_from_file * bytes_per_sample);
 
 			total_input_frames_resampled+=(sndfile_request_frames-R.inp_count);
 
@@ -208,7 +208,7 @@ static void resample()
 		//finally write resampler output to rb_resampled_interleaved
 		jack_ringbuffer_write(rb_resampled_interleaved
 			,(const char*)buffer_resampling_out
-			,jack_period_frames * output_port_count * bytes_per_sample);
+			,jack->period_frames * channel_count_use_from_file * bytes_per_sample);
 
 		delete[] interleaved_frame_buffer;
 		delete[] buffer_resampling_out;
@@ -217,20 +217,20 @@ static void resample()
 	//finished with partial or no data left, feed zeroes at end
 	else if(all_frames_read && jack_ringbuffer_read_space(rb_interleaved)>=0)
 	{
-		int frames_left=jack_ringbuffer_read_space(rb_interleaved)/output_port_count/bytes_per_sample;
+		int frames_left=jack_ringbuffer_read_space(rb_interleaved)/channel_count_use_from_file/bytes_per_sample;
 //		fprintf(stderr,"resample(): partial data in rb_interleaved (frames): %d\n",frames_left);
 
 		//adding zero pad to get full output of resampler
 ////////////////////
 		int final_frames=frames_left + get_resampler_pad_size_end();
 
-		float *interleaved_frame_buffer=new float [ final_frames  * output_port_count];
-		float *buffer_resampling_out=new float [ ( (int)(out_to_in_sr_ratio * final_frames) ) * output_port_count ];
+		float *interleaved_frame_buffer=new float [ final_frames  * channel_count_use_from_file];
+		float *buffer_resampling_out=new float [ ( (int)(out_to_in_sr_ratio * final_frames) ) * channel_count_use_from_file ];
 
 		//read from rb_interleaved
 		jack_ringbuffer_read(rb_interleaved
 			,(char*)interleaved_frame_buffer
-			,frames_left * output_port_count * bytes_per_sample);
+			,frames_left * channel_count_use_from_file * bytes_per_sample);
 			
 		//configure resampler for next process cycle
 		R.inp_data=interleaved_frame_buffer;
@@ -249,19 +249,19 @@ static void resample()
 		if(add_markers)
 		{
 			//index of last sample of first channel
-			int last_sample_index=( (int)(out_to_in_sr_ratio * final_frames) ) * output_port_count - output_port_count;
+			int last_sample_index=( (int)(out_to_in_sr_ratio * final_frames) ) * channel_count_use_from_file - channel_count_use_from_file;
 
 			//mark last samples of all channels
-			for(int i=0;i<output_port_count;i++)
+			for(int i=0;i<channel_count_use_from_file;i++)
 			{
-				buffer_resampling_out[last_sample_index+i]  =marker_last_sample_out_of_resampler;
+				buffer_resampling_out[last_sample_index+i]  =debug_marker->last_sample_out_of_resampler;
 			}
 		}
 
 		//finally write resampler output to rb_resampled_interleaved
 		jack_ringbuffer_write(rb_resampled_interleaved
 			,(const char*)buffer_resampling_out
-			,(int)(out_to_in_sr_ratio * final_frames) * output_port_count * bytes_per_sample);
+			,(int)(out_to_in_sr_ratio * final_frames) * channel_count_use_from_file * bytes_per_sample);
 
 		resampling_finished=1;
 	}

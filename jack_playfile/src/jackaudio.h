@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 //
 //  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
-//    
+//
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
 //  the Free Software Foundation; either version 3 of the License, or
@@ -29,16 +29,8 @@
 
 typedef jack_default_audio_sample_t sample_t;
 
-static const char **ports;
-static jack_status_t status;
-
-//array of pointers to JACK input or output ports
-static jack_port_t **ioPortArray;
-//static jack_client_t *client;
-//http://jack-audio.10948.n7.nabble.com/jack-options-t-td3483.html
-static jack_options_t jack_opts = jack_options_t(JackNoStartServer | JackServerName);
-
-static jack_transport_state_t jack_transport_state_;
+static void init_jack_struct();
+static void init_debug_marker_struct();
 
 static void jack_init();
 static void jack_post_init();
@@ -49,7 +41,51 @@ static void jack_activate_client();
 static void jack_connect_output_ports();
 static void jack_fill_output_buffers_zero();
 static void jack_register_callbacks();
+static void jack_close_down();
 static void jack_shutdown_handler (void *arg);
+
+static const char **ports;
+
+//=============================================================================
+static void init_jack_struct()
+{
+	jack=new JackServer;
+
+	jack->server_name = NULL; //default: 'default'
+	jack->client_name = NULL; //default: 'jack_playfile'
+
+	jack->process_enabled=0;
+
+	jack->sample_rate=0;
+	jack->period_frames=0;
+	jack->cycles_per_second=0;
+	jack->output_data_rate_bytes_per_second=0;
+	jack->server_down=1;
+	jack->process_cycle_count=0;
+	jack->process_cycle_underruns=0;
+	jack->total_frames_pushed_to_jack=0;
+	jack->options = jack_options_t(JackNoStartServer | JackServerName);
+	//jack->status=;
+	//jack->transport_state=;
+	//jack->ioPortArray=;
+	jack->client=NULL;
+
+	jack->try_reconnect=1;
+	jack->autoconnect_ports=1;
+	jack->use_transport=0;
+}//end init_jack_struct()
+
+//=============================================================================
+static void init_debug_marker_struct()
+{
+	debug_marker=new DebugMarker;
+
+	debug_marker->first_sample_normal_jack_period=0.2;
+	debug_marker->last_sample_out_of_resampler=-0.5;
+	debug_marker->first_sample_last_jack_period=0.9;
+	debug_marker->pad_samples_last_jack_period=-0.2;
+	debug_marker->last_sample_last_jack_period=-0.9;
+}
 
 //=============================================================================
 static void jack_init()
@@ -61,63 +97,136 @@ static void jack_init()
 		exit(1);
 	}
 
-	if(server_name==NULL || strlen(server_name)<1)
+//	init_jack_struct(); in main() -> don't overwrite settings here
+	init_debug_marker_struct();
+
+	if(jack->server_name==NULL || strlen(jack->server_name)<1)
 	{
-		server_name="default";
+		jack->server_name="default";
 	}
 
-	if(client_name==NULL)
+	if(jack->client_name==NULL)
 	{
-		client_name="jack_playfile";
+		jack->client_name="jack_playfile";
 	}
 
 	//create an array of output ports
 	//calloc() zero-initializes the buffer, while malloc() leaves the memory uninitialized
-	ioPortArray = (jack_port_t**) calloc(
+	jack->ioPortArray = (jack_port_t**) calloc(
 		output_port_count * sizeof(jack_port_t*), sizeof(jack_port_t*));
 
 }//end init_jack()
 
 //=============================================================================
+static void wait_connect_jack()
+{
+	fprintf (stderr, "\r%s\rwaiting for connection to JACK server...",clear_to_eol_seq);
+
+	//http://stackoverflow.com/questions/4832603/how-could-i-temporary-redirect-stdout-to-a-file-in-a-c-program
+	int bak_stderr, bak_stdout, new_;
+
+	while(jack->client==NULL)
+	{
+		//hide possible error output from jack temporarily
+		fflush(stderr);
+		bak_stderr = dup(fileno(stderr));
+
+#ifndef WIN32
+		new_ = open("/dev/null", O_WRONLY);
+
+		dup2(new_, fileno(stderr));
+		close(new_);
+
+#else
+		new_ = open("nul", O_WRONLY);
+		dup2(new_, fileno(stderr));
+		close(new_);
+
+		fflush(stdout);
+		bak_stdout = dup(fileno(stdout));
+
+		new_ = open("nul", O_WRONLY);
+		dup2(new_, fileno(stdout));
+		close(new_);
+#endif
+
+		//open a client connection to the JACK server
+		jack_open_client();
+
+		//show stderr again
+		fflush(stderr);
+		dup2(bak_stderr, fileno(stderr));
+		close(bak_stderr);
+
+#ifdef WIN32
+		//show stdout again
+		fflush(stdout);
+		dup2(bak_stdout, fileno(stdout));
+		close(bak_stdout);
+#endif
+
+		if (jack->client == NULL) 
+		{
+//			fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", jack->status);
+
+			if(!jack->try_reconnect)
+			{
+				fprintf (stderr, " failed.\n");
+				exit(1);
+			}
+#ifdef WIN32
+			Sleep(1000);
+#else
+			usleep(1000000);
+#endif
+		}
+	}//end while client==NULL
+
+	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
+
+}//end wait_connect_jack()
+
+
+//=============================================================================
 static void jack_post_init()
 {
-	if(client!=NULL)
+	if(jack->client!=NULL)
 	{
 		//more stable reconnect to JACK
-		while(jack_get_sample_rate(client)<1)
+		while(jack_get_sample_rate(jack->client)<1)
 		{
 			usleep(100);
 		}
 
-		jack_period_frames=jack_get_buffer_size(client);
-		jack_sample_rate=jack_get_sample_rate(client);
+		jack->period_frames=jack_get_buffer_size(jack->client);
+		jack->sample_rate=jack_get_sample_rate(jack->client);
 
-		jack_cycles_per_second=(float)jack_sample_rate / jack_period_frames;
+		jack->cycles_per_second=(float)jack->sample_rate / jack->period_frames;
 
-		jack_output_data_rate_bytes_per_second=jack_sample_rate * output_port_count * bytes_per_sample;
-		out_to_in_byte_ratio=jack_output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
+		jack->output_data_rate_bytes_per_second=jack->sample_rate * output_port_count * bytes_per_sample;
+		out_to_in_byte_ratio=jack->output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
 
-		fprintf(stderr,"JACK sample rate: %d\n",jack_sample_rate);
-		fprintf(stderr,"JACK period size: %d frames\n",jack_period_frames);
-		fprintf(stderr,"JACK cycles per second: %.2f\n",jack_cycles_per_second);
-		fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack_output_data_rate_bytes_per_second
-			,(jack_output_data_rate_bytes_per_second/1000000));
+		fprintf(stderr,"JACK sample rate: %d\n",jack->sample_rate);
+		fprintf(stderr,"JACK period size: %d frames\n",jack->period_frames);
+		fprintf(stderr,"JACK cycles per second: %.2f\n",jack->cycles_per_second);
+		fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack->output_data_rate_bytes_per_second
+			,(jack->output_data_rate_bytes_per_second/1000000));
 		fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
 
-		jack_server_down=0;
+		jack->server_down=0;
 	}
 }//end jack_post_init()
 
 //=============================================================================
 static int jack_process(jack_nframes_t nframes, void *arg) 
 {
-	if(shutdown_in_progress || !process_enabled)
+	if(shutdown_in_progress || !jack->process_enabled)
 	{
 //		fprintf(stderr,"process(): process not enabled or shutdown in progress\n");
 		return 0;
 	}
 
-	if(nframes!=jack_period_frames)
+	if(nframes!=jack->period_frames)
 	{
 		fprintf(stderr,"/!\\ process(): JACK period size has changed during playback.\njack_playfile can't handle that :(\n");
 		shutdown_in_progress=1;
@@ -128,15 +237,15 @@ static int jack_process(jack_nframes_t nframes, void *arg)
   int  jack_transport_reposition (jack_client_t *client, jack_position_t *pos);
   int  jack_transport_locate (jack_client_t *client, jack_nframes_t frame);
 */
-	if(use_jack_transport)
+	if(jack->use_transport)
 	{
-		jack_transport_state_ = jack_transport_query(client, NULL);
+		jack->transport_state = jack_transport_query(jack->client, NULL);
 
-		if (jack_transport_state_ == JackTransportStarting || jack_transport_state_ == JackTransportRolling)
+		if (jack->transport_state == JackTransportStarting || jack->transport_state == JackTransportRolling)
 		{
 			is_playing=1;
 		} 
-		else if (jack_transport_state_ == JackTransportStopped)
+		else if (jack->transport_state == JackTransportStopped)
 		{
 			is_playing=0;
 		}
@@ -144,7 +253,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 
 	if(reset_ringbuffers_in_progress)
 	{
-//		fprintf(stderr,"?");
+		fprintf(stderr,"\n?");
 		jack_fill_output_buffers_zero();
 		return 0;
 	}
@@ -159,9 +268,13 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 
 	if(seek_frames_in_progress)
 	{
+//		if(all_frames_read)
+//		{
+//			seek_frames_in_progress=0;
+//		}
 		//test if already enough data available to play
 		if(jack_ringbuffer_read_space(rb_deinterleaved) 
-			>= jack_period_frames * output_port_count * bytes_per_sample)
+			>= jack->period_frames * channel_count_use_from_file * bytes_per_sample)
 		{
 			seek_frames_in_progress=0;
 		}
@@ -174,7 +287,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	resample();
 	deinterleave();
 
-	if(!is_playing || (seek_frames_in_progress && !loop_enabled))// && !all_frames_read))
+	if(!is_playing || (seek_frames_in_progress && !loop_enabled))
 	{
 //		fprintf(stderr,".");
 		jack_fill_output_buffers_zero();
@@ -196,28 +309,37 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	}
 
 	//count at start of enabled, non-zero (seek) cycles (1st cycle = #1)
-	process_cycle_count++;
+	jack->process_cycle_count++;
 
 	//normal operation
 	if(jack_ringbuffer_read_space(rb_deinterleaved) 
-		>= jack_period_frames * output_port_count * bytes_per_sample)
+		>= jack->period_frames * channel_count_use_from_file * bytes_per_sample)
 	{
-//		fprintf(stderr,"process(): normal output to JACK buffers in cycle %" PRId64 "\n",process_cycle_count);
+//		fprintf(stderr,"process(): normal output to JACK buffers in cycle %" PRId64 "\n",jack->process_cycle_count);
 		for(int i=0; i<output_port_count; i++)
 		{
 			sample_t *o1;			
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
-			//put samples from ringbuffer to JACK output buffer
-			jack_ringbuffer_read(rb_deinterleaved
-				,(char*)o1
-				,jack_period_frames * bytes_per_sample);
+			o1=(sample_t*)jack_port_get_buffer(jack->ioPortArray[i],jack->period_frames);
+
+			if(i<channel_count_use_from_file)
+			{
+				//put samples from ringbuffer to JACK output buffer
+				jack_ringbuffer_read(rb_deinterleaved
+					,(char*)o1
+					,jack->period_frames * bytes_per_sample);
+			}
+			else //fill remaining channels to match requested channel_count
+			{
+				//set all samples zero
+		                memset(o1, 0, jack->period_frames*bytes_per_sample);
+			}
 
 			if(add_markers)
 			{
-				o1[0]=marker_first_sample_normal_jack_period;
+				o1[0]=debug_marker->first_sample_normal_jack_period;
 			}
 		}
-		total_frames_pushed_to_jack+=jack_period_frames;
+		jack->total_frames_pushed_to_jack+=jack->period_frames;
 
 		print_stats();
 	}
@@ -225,31 +347,39 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	//partial data left
 	else if(all_frames_read && jack_ringbuffer_read_space(rb_deinterleaved)>0)
 	{
-		int remaining_frames=jack_ringbuffer_read_space(rb_deinterleaved)/output_port_count/bytes_per_sample;
+		int remaining_frames=jack_ringbuffer_read_space(rb_deinterleaved)/channel_count_use_from_file/bytes_per_sample;
 //		fprintf(stderr,"process(): partial data, remaining frames in db_deinterleaved:  %d\n", remaining_frames);
 
 		//use what's available
 		for(int i=0; i<output_port_count; i++)
 		{
 			sample_t *o1;			
-			o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+			o1=(sample_t*)jack_port_get_buffer(jack->ioPortArray[i],jack->period_frames);
 
-			//put samples from ringbuffer to JACK output buffer
-			jack_ringbuffer_read(rb_deinterleaved
-				,(char*)o1
-				,remaining_frames * bytes_per_sample);
+			if(i<channel_count_use_from_file)
+			{
+				//put samples from ringbuffer to JACK output buffer
+				jack_ringbuffer_read(rb_deinterleaved
+					,(char*)o1
+					,remaining_frames * bytes_per_sample);
+			}
+			else //fill remaining channels to match requested channel_count
+			{
+				//set all samples zero
+		                memset(o1, 0, jack->period_frames*bytes_per_sample);
+			}
 
 			if(add_markers)
 			{
-				o1[0]=marker_first_sample_last_jack_period;
+				o1[0]=debug_marker->first_sample_last_jack_period;
 			}
 
 			//pad the rest to have a full JACK period
-			for(int i=0;i<jack_period_frames-remaining_frames;i++)
+			for(int i=0;i<jack->period_frames-remaining_frames;i++)
 			{
 				if(add_markers)
 				{
-					o1[remaining_frames+i]=marker_pad_samples_last_jack_period;
+					o1[remaining_frames+i]=debug_marker->pad_samples_last_jack_period;
 				}
 				else
 				{
@@ -259,12 +389,12 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 
 			if(add_markers)
 			{
-				o1[jack_period_frames-1]=marker_last_sample_last_jack_period;
+				o1[jack->period_frames-1]=debug_marker->last_sample_last_jack_period;
 			}
 		}
 
 		//don't count pad frames
-		total_frames_pushed_to_jack+=remaining_frames;
+		jack->total_frames_pushed_to_jack+=remaining_frames;
 
 //		fprintf(stderr,"process(): rb_deinterleaved can read after last samples (expected 0) %d\n"
 //			,jack_ringbuffer_read_space(rb_deinterleaved));
@@ -275,7 +405,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	else
 	{
 		//this should not happen
-		process_cycle_underruns++;
+		jack->process_cycle_underruns++;
 //		fprintf(stderr,"\nprocess(): /!\\ ======== underrun\n");
 
 		jack_fill_output_buffers_zero();
@@ -290,7 +420,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 //=============================================================================
 static void jack_open_client()
 {
-	client = jack_client_open (client_name, jack_opts, &status, server_name);
+	jack->client = jack_client_open (jack->client_name, jack->options, &jack->status, jack->server_name);
 }
 
 //=============================================================================
@@ -309,8 +439,8 @@ static void jack_register_output_ports()
 		}
 
 		//register the output port
-		ioPortArray[port] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-		if (ioPortArray[port] == NULL) 
+		jack->ioPortArray[port] = jack_port_register(jack->client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+		if (jack->ioPortArray[port] == NULL) 
 		{
 			fprintf(stderr, "/!\\ could not create output port %d\n", (port+1));
 			free_ringbuffers();
@@ -322,10 +452,8 @@ static void jack_register_output_ports()
 //=============================================================================
 static void jack_activate_client()
 {
-
-
 	//now activate client in JACK, starting with process() cycles
-	if (jack_activate (client)) 
+	if (jack_activate (jack->client)) 
 	{
 		fprintf (stderr, "/!\\ cannot activate client\n\n");
 		free_ringbuffers();
@@ -346,7 +474,7 @@ static void jack_connect_output_ports()
 	//prevent to get physical midi ports
 	const char* pat="audio";
 
-	ports = jack_get_ports (client, NULL, pat,
+	ports = jack_get_ports (jack->client, NULL, pat,
 				JackPortIsPhysical|JackPortIsTerminal|JackPortIsInput);
 	if (ports == NULL) 
 	{
@@ -363,21 +491,19 @@ static void jack_connect_output_ports()
 		const char *left_out= "Simple Scope (3 channel) GTK:in1";
 		const char *right_out="Simple Scope (3 channel) GTK:in2";
 
-		jack_connect (client, jack_port_name(ioPortArray[0]) , left_out);
-		jack_connect (client, jack_port_name(ioPortArray[1]) , right_out);
-		//override
-		//autoconnect_jack_ports=0;
+		jack_connect (jack->client, jack_port_name(jack->ioPortArray[0]) , left_out);
+		jack_connect (jack->client, jack_port_name(jack->ioPortArray[1]) , right_out);
 	}
 
-	if(autoconnect_jack_ports)
+	if(jack->autoconnect_ports)
 	{
 		int k=0;
 		int i=0;
 		for(i;i<output_port_count;i++)
 		{
 			if (ports[i]!=NULL 
-				&& ioPortArray[k]!=NULL 
-				&& jack_port_name(ioPortArray[k])!=NULL)
+				&& jack->ioPortArray[k]!=NULL 
+				&& jack_port_name(jack->ioPortArray[k])!=NULL)
 			{
 				if((int)(ports[i][0])<32)
 				{
@@ -385,23 +511,23 @@ static void jack_connect_output_ports()
 					break;
 				}
 
-				if(!jack_connect (client, jack_port_name(ioPortArray[k]) , ports[i]))
+				if(!jack_connect (jack->client, jack_port_name(jack->ioPortArray[k]) , ports[i]))
 				{
 					//used variabled can't be NULL here
 					fprintf (stderr, "autoconnect: %s -> %s\n",
-						jack_port_name(ioPortArray[k]),ports[i]);
+						jack_port_name(jack->ioPortArray[k]),ports[i]);
 					k++;
 				}
 				else
 				{
 					fprintf (stderr, "autoconnect: failed: %s -> %s\n",
-						jack_port_name(ioPortArray[k]),ports[i]);
+						jack_port_name(jack->ioPortArray[k]),ports[i]);
 				}
 			}
 		}
 	}
 
-	free (ports);
+	free(ports);
 }//end connect_jack_ports()
 
 //=============================================================================
@@ -412,21 +538,43 @@ static void jack_fill_output_buffers_zero()
 	{
 		sample_t *o1;
 		//get output buffer from JACK for that channel
-		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],jack_period_frames);
+		o1=(sample_t*)jack_port_get_buffer(jack->ioPortArray[i],jack->period_frames);
 		//set all samples zero
-		memset(o1, 0, jack_period_frames*bytes_per_sample);
+		memset(o1, 0, jack->period_frames*bytes_per_sample);
 	}
 }
 
 //=============================================================================
 static void jack_register_callbacks()
 {
-	jack_set_process_callback (client, jack_process, NULL);
+	jack_set_process_callback (jack->client, jack_process, NULL);
 
 	//register hook to know when JACK shuts down or the connection 
 	//was lost (i.e. client zombified)
-	jack_on_shutdown(client, jack_shutdown_handler, 0);
+	jack_on_shutdown(jack->client, jack_shutdown_handler, 0);
 }
+
+//=============================================================================
+static void jack_close_down()
+{
+	if(jack->client!=NULL)
+	{
+		jack_deactivate(jack->client);
+//		fprintf(stderr,"JACK client deactivated. ");
+
+		int index=0;
+		while(jack->ioPortArray[index]!=NULL && index<output_port_count)
+		{
+			jack_port_unregister(jack->client,jack->ioPortArray[index]);
+			index++;
+		}
+
+//		fprintf(stderr,"JACK ports unregistered\n");
+
+		jack_client_close(jack->client);
+//		fprintf(stderr,"JACK client closed\n");
+	}
+}//end jack_close_down()
 
 //=============================================================================
 static void jack_shutdown_handler (void *arg)
@@ -434,7 +582,7 @@ static void jack_shutdown_handler (void *arg)
 //	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 	fprintf(stderr, "\n/!\\ JACK server down!\n");
 
-	jack_server_down=1;
+	jack->server_down=1;
 }
 
 #endif

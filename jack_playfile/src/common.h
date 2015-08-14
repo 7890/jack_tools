@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 //
 //  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
-//    
+//
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
 //  the Free Software Foundation; either version 3 of the License, or
@@ -28,42 +28,17 @@
 #include "config.h"
 #include "sndin.h"
 #include "control.h"
+#include "kb_control.h"
 #include "resampler.h"
 #include "jackaudio.h"
 #include "jack_playfile.h"
 
-//================================================================
-static void print_main_help (void)
-{
-	fprintf (stderr, "Usage: jack_playfile [OPTION] FILE\n\n");
+static const float version=0.83;
 
-	fprintf (stderr, "  -h, --help              Display this text and quit\n");
-	fprintf (stderr, "  -v, --version           Show program version and quit \n");
-	fprintf (stderr, "  -n, --name <string>     JACK client name  (\"jack_playfile\") \n");
-	fprintf (stderr, "  -s, --sname <string>    JACK server name  (\"default\") \n");
-	fprintf (stderr, "  -C, --noconnect         Don't connect JACK ports\n");
-	fprintf (stderr, "  -E, --noreconnect       Don't wait for JACK to re-connect\n");
-	fprintf (stderr, "  -D, --nocontrol         Disable keyboard control\n");
-	fprintf (stderr, "  -R, --noresampling      Disable resampling\n");
-	fprintf (stderr, "  -p, --paused            Start paused\n");
-	fprintf (stderr, "  -m, --muted             Start muted \n");
-	fprintf (stderr, "  -l, --loop              Enable loop \n");
-	fprintf (stderr, "  -e, --pae               Pause at end or at start if --loop\n");
-	fprintf (stderr, "  -j, --transport         Use JACK transport  (off)\n");
-	fprintf (stderr, "  -f, --frames            Show time as frames  (vs. seconds) \n");
-	fprintf (stderr, "  -a, --absolute          Show absolute time  (vs. relative) \n");
-	fprintf (stderr, "  -r, --remaining         Show remaining time  (vs. elapsed) \n");
-	fprintf (stderr, "  -k, --noclock           Disable clock display\n");
-	fprintf (stderr, "  -o, --offset <integer>  Frame offset:  (0)\n");
-	fprintf (stderr, "  -c, --count <integer>   Frame count:  (all) \n\n");
-
-//	fprintf (stderr, "  -L, --libs              Show library dependencies\n\n");
-
-	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
-	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
-
-	exit (0);
-}
+static void print_main_help();
+static void print_header();
+static void print_version();
+static void print_libs();
 
 //data structure for command line options parsing
 //http://www.gnu.org/software/libc/manual/html_node/Using-Getopt.html
@@ -78,9 +53,12 @@ static struct option long_options[] =
 	{"offset",	required_argument,	0, 'o'},
 	{"count",	required_argument,	0, 'c'},
 
+	{"choffset",	required_argument,	0, 'O'},
+	{"chcount",	required_argument,	0, 'C'},
+
 	{"nocontrol",	no_argument,  0,	'D'},
 	{"noresampling",no_argument,  0,	'R'},
-	{"noconnect",	no_argument,  0,	'C'},
+	{"noconnect",	no_argument,  0,	'N'},
 	{"noreconnect",	no_argument,  0,	'E'},
 	{"paused",	no_argument,  0,	'p'},
 	{"muted",	no_argument,  0,	'm'},
@@ -97,6 +75,40 @@ static struct option long_options[] =
 	{0, 0, 0, 0}
 };
 
+//================================================================
+static void print_main_help()
+{
+	fprintf (stderr, "Usage: jack_playfile [OPTION] FILE [FILE ...]\n\n");
+
+	fprintf (stderr, "  -h, --help                Display this text and quit\n");
+	fprintf (stderr, "  -v, --version             Show program version and quit \n");
+	fprintf (stderr, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
+	fprintf (stderr, "  -s, --sname <string>      JACK server name  (\"default\") \n");
+	fprintf (stderr, "  -N, --noconnect           Don't connect JACK ports\n");
+	fprintf (stderr, "  -E, --noreconnect         Don't wait for JACK to re-connect\n");
+	fprintf (stderr, "  -D, --nocontrol           Disable keyboard control\n");
+	fprintf (stderr, "  -R, --noresampling        Disable resampling\n");
+	fprintf (stderr, "  -p, --paused              Start paused\n");
+	fprintf (stderr, "  -m, --muted               Start muted \n");
+	fprintf (stderr, "  -l, --loop                Enable loop \n");
+	fprintf (stderr, "  -e, --pae                 Pause at end or at start if --loop\n");
+	fprintf (stderr, "  -j, --transport           Use JACK transport  (off)\n");
+	fprintf (stderr, "  -f, --frames              Show time as frames  (vs. seconds) \n");
+	fprintf (stderr, "  -a, --absolute            Show absolute time  (vs. relative) \n");
+	fprintf (stderr, "  -r, --remaining           Show remaining time  (vs. elapsed) \n");
+	fprintf (stderr, "  -k, --noclock             Disable clock display\n");
+	fprintf (stderr, "  -o, --offset <integer>    Frame offset:  (0)\n");
+	fprintf (stderr, "  -c, --count <integer>     Frame count:  (all)\n");
+	fprintf (stderr, "  -O, --choffset <integer>  Channel offset:  (0)\n");
+	fprintf (stderr, "  -C, --chcount <integer>   Channel count:  (all) \n\n");
+	fprintf (stderr, "  -L, --libs                Show license and library info\n\n");
+
+	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
+	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
+
+	exit (0);
+}
+
 //=========================================================
 static void print_header()
 {
@@ -108,6 +120,32 @@ static void print_header()
 static void print_version()
 {
 	fprintf (stderr, "%.2f\n",version);
+}
+
+//================================================================
+static void print_libs()
+{
+	print_header();
+
+	fprintf (stderr, "\nThis program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.\n\n");
+	fprintf (stderr, "This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.\n\n");
+	fprintf (stderr, "You should have received a copy of the GNU General Public License along with this program. If not, see <http://www.gnu.org/licenses/>.\n\n");
+
+	fprintf (stderr, "Major audio libraries jack_playfile depends on:\n\n");
+
+	fprintf (stderr, "JACK audio connection kit - http://jackaudio.org/\n");
+	fprintf (stderr, "libsndfile - http://www.mega-nerd.com/libsndfile/\n");
+	fprintf (stderr, "libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/\n");
+	fprintf (stderr, "libopus, libopusfile - http://www.opus-codec.org/\n");
+	fprintf (stderr, "libvorbisfile - http://xiph.org/vorbis/\n");
+	fprintf (stderr, "libmpg123 - http://www.mpg123.org/\n\n");
+
+	fprintf (stderr, "libraries abstracted by libsndfile:\n");
+	fprintf (stderr, "libFLAC - http://xiph.org/flac/\n");
+	fprintf (stderr, "libvorbis, libvorbisenc - http://xiph.org/vorbis/\n");
+	fprintf (stderr, "libogg - http://xiph.org/ogg/\n\n");
+
+	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
 }
 
 #endif
