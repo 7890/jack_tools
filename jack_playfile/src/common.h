@@ -78,7 +78,8 @@ static struct option long_options[] =
 //================================================================
 static void print_main_help()
 {
-	fprintf (stderr, "Usage: jack_playfile [OPTION] FILE [FILE ...]\n\n");
+	fprintf (stderr, "\nUsage: jack_playfile [OPTION]... FILE...\n");
+	fprintf (stderr, "Play FILEs through JACK.\n\n");
 
 	fprintf (stderr, "  -h, --help                Display this text and quit\n");
 	fprintf (stderr, "  -v, --version             Show program version and quit \n");
