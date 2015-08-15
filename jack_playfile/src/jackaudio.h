@@ -46,6 +46,13 @@ static void jack_shutdown_handler (void *arg);
 
 static const char **ports;
 
+//when cycle must be zeroed out (i.e. while seeking), "pseudo"-fade-out last value
+//fade-in non-zeroed out cycles following zeroed-out cycles
+static int fade_length=16;
+
+//will be reset on cycles where sample data is available
+static int last_cycle_was_zeroed_out=0;
+
 //=============================================================================
 static void init_jack_struct()
 {
@@ -253,7 +260,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 
 	if(reset_ringbuffers_in_progress)
 	{
-		fprintf(stderr,"\n?");
+//		fprintf(stderr,"\n?\n");
 		jack_fill_output_buffers_zero();
 		return 0;
 	}
@@ -334,12 +341,24 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		                memset(o1, 0, jack->period_frames*bytes_per_sample);
 			}
 
+			if(last_cycle_was_zeroed_out)
+			{
+				for(int k=0; k<fade_length; k++)
+				{
+//					fprintf(stderr,"\n%.5f\n",o1[k]);
+					o1[k]*=((float)1)/(fade_length-k);
+//					fprintf(stderr,"\n%.5f\n",o1[k]);
+				}
+			}
+
 			if(add_markers)
 			{
 				o1[0]=debug_marker->first_sample_normal_jack_period;
 			}
 		}
 		jack->total_frames_pushed_to_jack+=jack->period_frames;
+
+		last_cycle_was_zeroed_out=0;
 
 		print_stats();
 	}
@@ -369,6 +388,16 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		                memset(o1, 0, jack->period_frames*bytes_per_sample);
 			}
 
+			if(last_cycle_was_zeroed_out)
+			{
+				for(int k=0; k<fade_length; k++)
+				{
+//					fprintf(stderr,"\n%.5f\n",o1[k]);
+					o1[k]*=((float)1)/(fade_length-k);
+//					fprintf(stderr,"\n%.5f\n",o1[k]);
+				}
+			}
+
 			if(add_markers)
 			{
 				o1[0]=debug_marker->first_sample_last_jack_period;
@@ -395,6 +424,8 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 
 		//don't count pad frames
 		jack->total_frames_pushed_to_jack+=remaining_frames;
+
+		last_cycle_was_zeroed_out=0;
 
 //		fprintf(stderr,"process(): rb_deinterleaved can read after last samples (expected 0) %d\n"
 //			,jack_ringbuffer_read_space(rb_deinterleaved));
@@ -533,16 +564,52 @@ static void jack_connect_output_ports()
 //=============================================================================
 static void jack_fill_output_buffers_zero()
 {
+	/*
+	when getting a buffer from JACK, it will be left untouched since it was last filled in client process().
+	if the previous buffer was non-empty, the transition from the last sample to zero can be too harsh.
+
+	idea how to pseudo-fade to zero:
+	using the last sample of the previous buffer, then fading that linearly to zero.
+	this is not a problem if the previous buffer already was a silent one, fade out will still result in 0.
+
+	     .
+	   _/|\
+	     | \
+	_____|__\__
+
+	1/fade_length:
+
+	1/0 -> hm.
+	1/1 -> 1
+	1/2 -> 0.5
+	1/3 -> 0.333..
+	etc
+	*/
+
+
 	//fill buffers with silence (last cycle before shutdown (?))
 	for(int i=0; i<output_port_count; i++)
 	{
 		sample_t *o1;
 		//get output buffer from JACK for that channel
 		o1=(sample_t*)jack_port_get_buffer(jack->ioPortArray[i],jack->period_frames);
+
+		float last_sample=o1[jack->period_frames-1];
+
 		//set all samples zero
 		memset(o1, 0, jack->period_frames*bytes_per_sample);
+
+		for(int k=0; k<fade_length; k++)
+		{
+//			fprintf(stderr,"\n%.5f\n",last_sample);
+			o1[k]=last_sample*((float)1/(k+1));
+//			fprintf(stderr,"\n%.5f\n",o1[k]);
+		}
 	}
-}
+
+	last_cycle_was_zeroed_out=1;
+
+}//end jack_fill_output_buffers_zero()
 
 //=============================================================================
 static void jack_register_callbacks()
