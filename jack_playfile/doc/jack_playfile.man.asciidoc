@@ -8,7 +8,7 @@ jack_playfile - play audio files with JACK
 
 SYNOPSIS
 --------
-'jack_playfile' [OPTIONS] file
+'jack_playfile' [OPTION]... FILE...
 
 DESCRIPTION
 -----------
@@ -33,7 +33,7 @@ Please note:
 
 Best results are achieved when playing back 32-bit float RIFF wave files at JACK sample rate (without resampling).
 
-'jack_playfile' can read and play local files only. 
+'jack_playfile' can read and play local audio files only. There is currently no support for playlists.
 No DSP other than optional resampling is applied to the audio signal.
 To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with 'jack_playfile'.
 This plugin collection is a good starting point: https://github.com/x42/x42-plugins
@@ -42,7 +42,11 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 
 *THIS PROGRAM COMES WITHOUT ANY WARRANTY*
 
-'jack_playfile' version is 0.82
+/!\ 'jack_playfile' is still work in progress. It can happen that output is of 
+unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
+If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
+
+'jack_playfile' version is 0.83
 
 OPTIONS
 -------
@@ -60,7 +64,7 @@ OPTIONS
 	JACK server name to start 'jack_playfile' in a specific JACK server.
 	*Default:* "default"
 
-*-C, --noconnect* (w/o argument)::
+*-N, --noconnect* (w/o argument)::
 	Don't connect to JACK playback ports.
 	*Default:* 'jack_playfile' tries to connect all available channels to all available physical output/playback ports 1:1.
 
@@ -91,13 +95,13 @@ OPTIONS
 
 *-l, --loop* (w/o argument)::
 	Enable loop. If end of track is reached (given offset+count), start over at offset.
-	*Default:* Not enabled. What happens when end of track reached depends on other conditions.
+	*Default:* disabled. What happens when the end of a track is reached depends on other conditions.
 
 *-e, --pae* (w/o argument)::
 	Pause at end: If end of track is reached (given offset+count), don't quit but pause playback instead.
 	If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
 	While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
-	*Default:* Off. If end of track reached and loop is not enabled, 'jack_playfile' is done and will quit.
+	*Default:* Off. If the end of a track is reached and loop is not enabled, 'jack_playfile' is done and will quit.
 
 *-j, --transport* (w/o argument)::
 	JACK transport: If enabled, 'jack_playfile' will follow JACK transport signals "Stopped" and "Rolling",
@@ -107,6 +111,7 @@ OPTIONS
 
 *-f, --frames* (w/o argument)::
 	Show time as frames. A number of (multichannel) frames in native file sample rate.
+	Note: The sample rate for Opus and MP3 files is always 48000. This is a consequence of how 'jack_playfile' treats these formats, not a limitation of the formats.
 	*Default:* Show time as seconds.
 
 *-a, --absolute* (w/o argument)::
@@ -122,35 +127,74 @@ OPTIONS
 	*Default:* Enabled. The display is updated approximately with every JACK cycle.
 
 *-o, --offset* (integer)::
-	Set frame offset: A number of (multichannel) frames to seek before start reading from file. The frame offset relates to native file sample rate (not JACKs).
+	Set frame offset: The first n (multichannel) frames (given number) in the file will be ignored.
+	The frame offset relates to native file sample rate (not JACK's).
 	The offset is relative frame/time position 0 and will be used for seeking to start and looping.
+	Offsets beyond the end of available frames in the file will be set to 0.
 	*Default:* 0 (At first audio sample in file).
 
 *-c, --count* (integer)::
-	Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACKs).
+	Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACK's).
+	Counts resulting in positions beyond the end of available frames in the file will be set to default.
 	*Default:* All available frames, full length of track (respecting given offset).
+
+*-O, --choffset* (integer)::
+	Set channel offset: The first n channels (given number) in the file will be ignored.
+	Offsets beyond the total file channel count result in 'jack_playfile' skipping the file, i.e. nothing will be set to a sane value and nothing will be played.
+	*Default:* 0 (At first channel in file).
+
+*-C, --chcount* (integer)::
+	Channel count: How many channels to read from file, counting from offset (--choffset).
+	The channel count defines how many output ports 'jack_playfile' will expose to JACK.
+	If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --chcount.
+	This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
+	A fixed channel count i.e. --chcount 4 will ensure that even if the first file initializes 'jack_playfile' with only one JACK output channel (mono file),
+	a following 4-channel file can still play all its 4 channels through the available JACK output ports.
+	*Default:* All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports 'jack_playfile' will have.
+
+*-L, --libs* (w/o argument)::
+	Show license and library information (see 'LIBRARIES AND DEPENDENCIES')
 
 Count and offset relate to the sample rate and duration (frame count) indicated when 'jack_playfile' starts up.
 For the audio formats Opus and MP3, frame offsets and counts always relate to a fixed sample rate of 48k.
+
+To play multiple files, each file can be appended to the command line, i.e.:
+
+	$ jack_playfile a.wav b.ogg c.flac
+
+Please note that files containing spaces or special characters should be enclosed in '"' 
+and if '"' is part of the filename, it needs escaping like '\"'.
+
+Of course all the shell filename expansion mechanisms can be used, so that
+
+	$ jack_playfile *.wav 0??.ogg
+
+will play all files matching the patterns.
+
+If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+Using keyboard control < and > will browse through the list of files. If a file can't be played, the next 
+file will be tried until there is a valid file or no more files left to try.
 
 KEYBOARD SHORTCUTS
 ------------------
 
 - Start refers to the relative start given with --offset which is 0 by default. Relative start is always 0.
-- End refers to relative end made which is always equal to --count.
+- End refers to relative end which is always equal to --count.
 - Default Values are marked with "*"
 
 *h, f1*::		Help (this screen)
 *space*::		Toggle play/pause
 *enter*::		Play
-*< arrow left*::	Seek one step backward
-*> arrow right*::	Seek one step forward
-*^ arrow up*::		Increment seek step size
-*v arrow down*::	Decrement seek step size
+*(<) arrow left*::	Seek one step backward
+*(>) arrow right*::	Seek one step forward
+*(^) arrow up*::	Increment seek step size
+*(v) arrow down*::	Decrement seek step size
 *home*::		Seek to start
 *0*::			Seek to start and pause
 *backspace*::		Seek to start and play
-*end*::			Seek to end
+*end*:: 		Seek to end
+*< less than*::		Load previous file
+*> greater than*::	Load next file
 *m*::			Toggle mute on/off*
 *l*::			Toggle loop on/off*
 *p*::			Toggle pause at end on/off*
@@ -161,11 +205,11 @@ KEYBOARD SHORTCUTS
 *- dash*::		Toggle clock elapsed*/remaining
 *q*::			Quit
 
-If clock set to seconds, changing the seek step size is using the following grid:
+If the clock is set to seconds, changing the seek step size will use the following grid:
 
 - 0.001, 0.010, 0.100, 1, 10*, 60, 600, 3600 (seconds)
 
-If clock set to frames, changing the seek step size is using the following grid:
+If the clock is set to frames, changing the seek step size will use the following grid:
 
 - 1*, 10, 100, 1000, 10k, 100k, 1000k, 10M, 100M (frames)
 
@@ -174,7 +218,6 @@ TIMELINE
 
 The relation of absolute and relative start and end using offset and count, limited seek steps:
 
-  .
                      current abs pos 
   abs start          v                                   abs end
   |------------------------------------------------------|
@@ -192,13 +235,13 @@ The relation of absolute and relative start and end using offset and count, limi
 EXAMPLES
 --------
 
-Play RIFF wave file:
+- Play RIFF wave file:
 
-*$ jack_playfile audio.wav*
+	$ jack_playfile audio.wav
 
 Example output of 'jack_playfile':
 
-	file:        audio.wav
+	file:        audio.wav  (#1/1)
 	size:        57274264 bytes (57.27 MB)
 	format:      Microsoft WAV format (little endian)
 		     Signed 16 bit data (0x00010002)
@@ -207,7 +250,8 @@ Example output of 'jack_playfile':
 	channels:    2
 	data rate:   176400.0 bytes/s (0.18 MB/s)
 	frame_count set to 14318555 (all available frames)
-	playing frames from/to/length: 0 14318555 14318555
+	playing frames offset, count, end: 0 14318555 14318555
+	playing channels offset, count, end, file: 0 2 2
 	JACK sample rate: 48000
 	JACK period size: 128 frames
 	JACK cycles per second: 375.00
@@ -245,10 +289,14 @@ Legend (example prompt):
 	 11): time in HMS.millis
 	 12): keyboard input indication (i.e. seek)
 
-Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
+- Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
 showing remaining absolute time, pause at end and loop:
 
-*$ jack_playfile --offset 480000 --count 48000 --remaining --absolute --pae --loop audio.opus*
+	$ jack_playfile -o 480000 -c 48000 -r -a --pae -l audio.opus
+
+- Play a short snippet of all wave files in a directory, using only first channel
+
+	$ jack_playfile --offset 5000 --count 10000 --chcount 1 samples/*.wav
 
 ERROR MESSAGES
 --------------
@@ -272,8 +320,9 @@ There is an excellent graphical JACK control program called 'qjackctl', http://q
 
 In a nutshell:
 
-	#starting JACK in realtime mode from a terminal with ALSA backend 
-	#(i.e. onboard audio), using first available audio card
+- Starting JACK in realtime mode from a terminal with ALSA backend 
+(i.e. onboard audio), using first available audio card
+
 	$ jackd -R -dalsa -r48000 -p512 -n3 -dhw:0
 
 This can fail for several reasons:
@@ -286,10 +335,12 @@ This can fail for several reasons:
 
 If 'jackd' is installed, it's possible to start JACK with a dummy backend where no physical audio devices are involved:
 
-	#starting JACK with dummy backend, server name "virtual"
+- Starting JACK with dummy backend, server name "virtual"
+
 	$ jackd --name virtual -ddummy -r4800 -p128
 
-	#telling jack_playfile to use JACK server "virtual"
+- Telling jack_playfile to use JACK server "virtual"
+
 	$ jack_playfile --sname virtual audio.ogg
 
 If you have trouble starting 'jackd' on your host, please consult JACK FAQ at http://jackaudio.org/faq/ and join IRC #jack on freenode. There is a mailinglist too.
@@ -299,7 +350,7 @@ If you have trouble starting 'jackd' on your host, please consult JACK FAQ at ht
 PROGRAM STATUSES
 ----------------
 
-- Initializing
+- Initializing (JACK, first/next/prev file)
 
 - Paused (||)
 
@@ -330,7 +381,9 @@ PROGRAM LIFE CYCLE
 
 7) Eventually resume operation if JACK available
 
-8) Release resources and quit nicely if all done or quit was requested
+8) Eventually play next or previous file in args list
+
+9) Release resources and quit nicely if all done or quit was requested
 
 During all operation 'jack_playfile' tries to prevent to cause JACK X-runs or 'jack_playfile' internal buffer underflows.
 It's very likely that underruns happen inside 'jack_playfile' though (not enough data available to play in buffer), 
@@ -376,7 +429,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sun Aug  9 15:06:37 CEST 2015
+Last Update: Sat Aug 15 17:30:25 CEST 2015
 
 COPYING
 -------
