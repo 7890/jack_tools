@@ -24,6 +24,10 @@
 #ifndef COMMON_H_INC
 #define COMMON_H_INC
 
+#ifdef STATIC_BUILD
+	#include "manpage.h"
+#endif
+
 //combine some files, order matters..
 #include "config.h"
 #include "sndin.h"
@@ -36,6 +40,7 @@
 static const float version=0.83;
 
 static void print_main_help();
+static void print_manpage();
 static void print_header();
 static void print_version();
 static void print_libs();
@@ -46,6 +51,7 @@ static void print_libs();
 static struct option long_options[] =
 {
 	{"help",	no_argument,		0, 'h'},
+	{"man",		no_argument,		0, 'H'},
 	{"version",	no_argument,		0, 'v'},
 	{"name",	required_argument,	0, 'n'},
 	{"sname",	required_argument,	0, 's'},
@@ -71,6 +77,7 @@ static struct option long_options[] =
 	{"transport",	no_argument,  0,	'j'},
 
 	{"libs",	no_argument,  0,	'L'},
+
 //{"",  no_argument,  &connect_to_sisco, 0},
 	{0, 0, 0, 0}
 };
@@ -105,9 +112,23 @@ static void print_main_help()
 	fprintf (stderr, "  -L, --libs                Show license and library info\n\n");
 
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
-	fprintf (stderr, "More infos in manpage. http://github.com/7890/jack_tools/\n\n");
+	fprintf (stderr, "More infos in manual page. http://github.com/7890/jack_tools/\n\n");
 
-	exit (0);
+#ifdef STATIC_BUILD
+	fprintf (stderr, "This is a static build of jack_playfile.\n");
+	fprintf (stderr, "Display a built-in manual page: jack_playfile --man\n\n");
+#endif
+
+	exit(0);
+}
+
+//=========================================================
+static void print_manpage()
+{
+#ifdef STATIC_BUILD
+	fprintf(stderr,"\n\n%s\n\n",jack_playfile_man_dump);
+#endif
+	exit(0);
 }
 
 //=========================================================
