@@ -54,7 +54,7 @@ jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SR
 	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -ldl -lmpg123
 
 
-jack_playfile_static: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/kb_control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/manpage.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
+jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/kb_control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/manpage.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 #	@echo $(STATIC_LIBS)
 
 	#create built-in man page
@@ -91,6 +91,30 @@ manpage:
 	@echo "done."
 	@echo ""
 
+build_info:
+	(echo -n "git master    " \
+	&& git show-ref master | head -1 \
+	&& echo -n "cc            " \
+	&& $(CC) --version | head -1 \
+	&& echo -n "libsndfile    " \
+	&& pkg-config --modversion sndfile \
+	&& echo -n "libopus       " \
+	&& pkg-config --modversion opus \
+	&& echo -n "libopusfile   " \
+	&& pkg-config --modversion opusfile \
+	&& echo -n "libvorbisfile " \
+	&& pkg-config --modversion vorbisfile \
+	&& echo -n "libogg        " \
+	&& pkg-config --modversion ogg \
+	&& echo -n "libflac       " \
+	&& pkg-config --modversion flac \
+	&& echo -n "libmpg123     " \
+	&& pkg-config --modversion libmpg123 \
+	&& echo -n "buildhost     " \
+	&& uname -a) > build_info_dump \
+	&& xxd -i build_info_dump | sed 's/};/,0x00};\/\//g' | sed 's/;$$/+1;/g' \
+	> $(BUILD)/build_info.data.h \
+	&& rm -f build_info_dump
 
 install: jack_playfile
 	install -m755 jack_playfile $(DESTDIR)$(INSTALLDIR)/

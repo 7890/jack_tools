@@ -115,7 +115,7 @@ static void print_main_help()
 	fprintf (stderr, "More infos in manual page. http://github.com/7890/jack_tools/\n\n");
 
 #ifdef STATIC_BUILD
-	fprintf (stderr, "This is a static build of jack_playfile.\n");
+	fprintf (stderr, "This is a static build of jack_playfile.\n\n");
 	fprintf (stderr, "Display a built-in manual page: jack_playfile --man\n\n");
 #endif
 
@@ -126,7 +126,7 @@ static void print_main_help()
 static void print_manpage()
 {
 #ifdef STATIC_BUILD
-	fprintf(stderr,"\n\n%s\n\n",jack_playfile_man_dump);
+	fprintf(stderr,"%s",jack_playfile_man_dump);
 #endif
 	exit(0);
 }
@@ -142,6 +142,10 @@ static void print_header()
 static void print_version()
 {
 	fprintf (stderr, "%.2f\n",version);
+#ifdef STATIC_BUILD
+	fprintf (stderr, "\nThis is a static build of jack_playfile.\n");
+	fprintf(stderr,"%s\n",build_info_dump);
+#endif
 }
 
 //================================================================
