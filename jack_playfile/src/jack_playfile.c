@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hvn:s:o:c:O:C:DRNEpmlfarkejL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHvn:s:o:c:O:C:DRNEpmlfarkejL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -92,14 +92,16 @@ int main(int argc, char *argv[])
 			}
 
 			case 'h':
-				//print_header();
 				print_main_help();
+				break;
+
+			case 'H':
+				print_manpage();
 				break;
 
 			case 'v':
 				print_version();
 				exit(0);
-				//break;
 
 			case 'n':
 				jack->client_name=optarg;
@@ -182,11 +184,9 @@ int main(int argc, char *argv[])
 			case 'L':
 				print_libs();
 				exit(0);
-				//break;
 
 			case '?': //invalid commands
 				//getopt_long already printed an error message
-				//print_header();
 				fprintf(stderr, "Wrong arguments, see --help.\n");
 				exit(1);
 				break;
@@ -227,8 +227,8 @@ int main(int argc, char *argv[])
 
 //	fprintf(stderr,"# first valid index: %d files on command line: %d \n",first_valid_file_optind,number_of_files_in_argc);
 
-//if no explicit channel count is known (chcount 0), the first file in a possible row of files
-//sets the chcount for all following files
+	//if no explicit channel count is known (chcount 0), the first file in a possible row of files
+	//sets the chcount for all following files
 	if(channel_count==0)
 	{
 		channel_count=channel_count_use_from_file;
@@ -1091,6 +1091,8 @@ static void ctrl_quit()
 	optind=100000; //dont use next file arg if any
 	loop_enabled=0; //prepare seek
 	pause_at_end=0;
+	is_idling_at_end=0;
+	is_playing=1;
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
@@ -1217,6 +1219,8 @@ static void ctrl_load_prev_file()
 	prev_file_requested=1;
 	loop_enabled=0; //prepare seek
 	pause_at_end=0;
+	is_idling_at_end=0;
+	is_playing=1;///
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
@@ -1225,6 +1229,8 @@ static void ctrl_load_next_file()
 {
 	loop_enabled=0; //prepare seek
 	pause_at_end=0;
+	is_idling_at_end=0;
+	is_playing=1;///
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
