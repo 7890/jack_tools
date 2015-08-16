@@ -149,5 +149,8 @@ static int output_port_count=0;
 //JACK output to file input byte ratio
 static float out_to_in_byte_ratio=0;
 
+//if set to 1, print more information while startup
+static float is_verbose=0;
+
 #endif
 //EOF

@@ -213,12 +213,15 @@ static void jack_post_init()
 		jack->output_data_rate_bytes_per_second=jack->sample_rate * output_port_count * bytes_per_sample;
 		out_to_in_byte_ratio=jack->output_data_rate_bytes_per_second/file_data_rate_bytes_per_second;
 
-		fprintf(stderr,"JACK sample rate: %d\n",jack->sample_rate);
-		fprintf(stderr,"JACK period size: %d frames\n",jack->period_frames);
-		fprintf(stderr,"JACK cycles per second: %.2f\n",jack->cycles_per_second);
-		fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack->output_data_rate_bytes_per_second
-			,(jack->output_data_rate_bytes_per_second/1000000));
-		fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
+		if(is_verbose)
+		{
+			fprintf(stderr,"JACK sample rate: %d\n",jack->sample_rate);
+			fprintf(stderr,"JACK period size: %d frames\n",jack->period_frames);
+			fprintf(stderr,"JACK cycles per second: %.2f\n",jack->cycles_per_second);
+			fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack->output_data_rate_bytes_per_second
+				,(jack->output_data_rate_bytes_per_second/1000000));
+			fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
+		}
 
 		jack->server_down=0;
 	}
@@ -544,9 +547,12 @@ static void jack_connect_output_ports()
 
 				if(!jack_connect (jack->client, jack_port_name(jack->ioPortArray[k]) , ports[i]))
 				{
-					//used variabled can't be NULL here
-					fprintf (stderr, "autoconnect: %s -> %s\n",
-						jack_port_name(jack->ioPortArray[k]),ports[i]);
+					if(is_verbose)
+					{
+						//used variabled can't be NULL here
+						fprintf (stderr, "autoconnect: %s -> %s\n",
+							jack_port_name(jack->ioPortArray[k]),ports[i]);
+					}
 					k++;
 				}
 				else
@@ -556,7 +562,7 @@ static void jack_connect_output_ports()
 				}
 			}
 		}
-	}
+	}//end if(jack->autoconnect_ports)
 
 	free(ports);
 }//end connect_jack_ports()

@@ -37,7 +37,7 @@
 #include "jackaudio.h"
 #include "jack_playfile.h"
 
-static const float version=0.83;
+static const float version=0.84;
 
 static void print_main_help();
 static void print_manpage();
@@ -52,7 +52,7 @@ static struct option long_options[] =
 {
 	{"help",	no_argument,		0, 'h'},
 	{"man",		no_argument,		0, 'H'},
-	{"version",	no_argument,		0, 'v'},
+	{"version",	no_argument,		0, 'V'},
 	{"name",	required_argument,	0, 'n'},
 	{"sname",	required_argument,	0, 's'},
 
@@ -76,6 +76,7 @@ static struct option long_options[] =
 	{"pae",		no_argument,  0,	'e'},
 	{"transport",	no_argument,  0,	'j'},
 
+	{"verbose",	no_argument,  0,	'v'},
 	{"libs",	no_argument,  0,	'L'},
 
 //{"",  no_argument,  &connect_to_sisco, 0},
@@ -89,7 +90,7 @@ static void print_main_help()
 	fprintf (stderr, "Play FILEs through JACK.\n\n");
 
 	fprintf (stderr, "  -h, --help                Display this text and quit\n");
-	fprintf (stderr, "  -v, --version             Show program version and quit \n");
+	fprintf (stderr, "  -V, --version             Show program version and quit\n");
 	fprintf (stderr, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stderr, "  -s, --sname <string>      JACK server name  (\"default\") \n");
 	fprintf (stderr, "  -N, --noconnect           Don't connect JACK ports\n");
@@ -109,6 +110,7 @@ static void print_main_help()
 	fprintf (stderr, "  -c, --count <integer>     Frame count:  (all)\n");
 	fprintf (stderr, "  -O, --choffset <integer>  Channel offset:  (0)\n");
 	fprintf (stderr, "  -C, --chcount <integer>   Channel count:  (all) \n\n");
+	fprintf (stderr, "  -v, --verbose             Show more info about file, JACK\n");
 	fprintf (stderr, "  -L, --libs                Show license and library info\n\n");
 
 	fprintf (stderr, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");

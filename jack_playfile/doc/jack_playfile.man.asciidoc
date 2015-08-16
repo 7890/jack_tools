@@ -16,7 +16,7 @@ DESCRIPTION
 
 Main features:
 
-- Plays most RIFF, AIFF PCM wave files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
+- Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
 - High quality resampling to match JACK sample rate (can be turned off)
 - Keyboard control while playing (can be turned off)
 - Fast and frame accurate seeking
@@ -46,14 +46,14 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
 
-'jack_playfile' version is 0.83
+'jack_playfile' version is 0.84
 
 OPTIONS
 -------
 *-h, --help* (w/o argument)::
 	Display help and quit.
 
-*-v, --version* (w/o argument)::
+*-V, --version* (w/o argument)::
 	Display version and quit.
 
 *-n, --name* (string)::
@@ -152,6 +152,9 @@ OPTIONS
 	a following 4-channel file can still play all its 4 channels through the available JACK output ports.
 	*Default:* All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports 'jack_playfile' will have.
 
+*-v, --verbose* (w/o argument)::
+	Display more information about loaded audio files and JACK properties.
+
 *-L, --libs* (w/o argument)::
 	Show license and library information (see 'LIBRARIES AND DEPENDENCIES')
 
@@ -239,7 +242,7 @@ EXAMPLES
 
 	$ jack_playfile audio.wav
 
-Example output of 'jack_playfile':
+Example output of 'jack_playfile' using option -v:
 
 	file:        audio.wav  (#1/1)
 	size:        57274264 bytes (57.27 MB)
@@ -429,7 +432,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sat Aug 15 17:30:25 CEST 2015
+Last Update: Sun Aug 16 23:06:47 CEST 2015
 
 COPYING
 -------

@@ -135,7 +135,10 @@ static void setup_resampler()
 					,out_to_in_sr_ratio);
 */
 
-				fprintf(stderr,"resampler out_to_in ratio: %f\n",out_to_in_sr_ratio);
+				if(is_verbose)
+				{
+					fprintf(stderr,"resampler out_to_in ratio: %f\n",out_to_in_sr_ratio);
+				}
 
 			}//end resampler setup
  		}//end if use_resampling

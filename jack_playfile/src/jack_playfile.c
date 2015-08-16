@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hHvn:s:o:c:O:C:DRNEpmlfarkejL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRNEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
 				print_manpage();
 				break;
 
-			case 'v':
+			case 'V':
 				print_version();
 				exit(0);
 
@@ -179,6 +179,10 @@ int main(int argc, char *argv[])
 
 			case 'j':
 				jack->use_transport=1;
+				break;
+
+			case 'v':
+				is_verbose=1;
 				break;
 
 			case 'L':
@@ -512,15 +516,18 @@ static int open_init_file(const char *f)
 		,1+(optind-first_valid_file_optind)
 		,number_of_files_in_argc);
 
-	fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
+	if(is_verbose)
+	{
+		fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
+	}
 
 	is_flac_=is_flac(&sf_info_generic);
 
 	//flac and opus have different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
 	if(is_opus || is_flac_)
 	{
-		fprintf(stderr,"/!\\ reducing frame count by 1\n");
-		sf_info_generic.frames=(sf_info_generic.frames-1);//not nice
+//		fprintf(stderr,"/!\\ reducing frame count by 1\n");
+		sf_info_generic.frames=(sf_info_generic.frames-1);///not nice
 	}
 
 	if(sf_info_generic.frames<1)
@@ -565,7 +572,7 @@ static int open_init_file(const char *f)
 		return 0;
 	}
 
-	bytes_per_sample_native=file_info(sf_info_generic,1);
+	bytes_per_sample_native=file_info(sf_info_generic,is_verbose);
 
 	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
 	{
@@ -573,14 +580,20 @@ static int open_init_file(const char *f)
 		file_data_rate_bytes_per_second=(float)file_size_bytes
 			/get_seconds(&sf_info_generic);
 
-		fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
-			,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		if(is_verbose)
+		{
+			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
+				,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		}
 	}
 	else
 	{
 		file_data_rate_bytes_per_second=sf_info_generic.samplerate * sf_info_generic.channels * bytes_per_sample_native;
 
-		fprintf(stderr,"data rate:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		if(is_verbose)
+		{
+			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		}
 	}
 
 	if( (file_data_rate_bytes_per_second/1000000) > 20 )
@@ -592,7 +605,10 @@ static int open_init_file(const char *f)
 	if(frame_offset<0 || frame_offset>sf_info_generic.frames)
 	{
 		frame_offset=0;
-		fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
+		if(is_verbose)
+		{
+			fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
+		}
 	}
 
 	//if requested count negative, zero or greater total frames in file
@@ -600,12 +616,15 @@ static int open_init_file(const char *f)
 	{
 		//set possible max respecting frame_offset
 		frame_count=sf_info_generic.frames-frame_offset;
-		fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
-		if(frame_count==sf_info_generic.frames)
+		if(is_verbose)
 		{
-			fprintf(stderr," (all available frames)");
+			fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
+			if(frame_count==sf_info_generic.frames)
+			{
+				fprintf(stderr," (all available frames)");
+			}
+			fprintf(stderr,"\n");
 		}
-		fprintf(stderr,"\n");
 	}
 
 	//offset + count can't be greater than frames in file
@@ -614,13 +633,19 @@ static int open_init_file(const char *f)
 		//set possible max respecting frame_offset
 		frame_count=MIN((sf_info_generic.frames-frame_offset),frame_count);
 
-		fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
+		if(is_verbose)
+		{
+			fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
+		}
 	}
 
-	fprintf(stderr,"playing frames offset, count, end: %"PRId64" %"PRId64" %"PRId64"\n"
-		,frame_offset
-		,frame_count
-		,MIN(sf_info_generic.frames,frame_offset+frame_count));
+	if(is_verbose)
+	{
+		fprintf(stderr,"playing frames offset, count, end: %"PRId64" %"PRId64" %"PRId64"\n"
+			,frame_offset
+			,frame_count
+			,MIN(sf_info_generic.frames,frame_offset+frame_count));
+	}
 
 	//if for some reason from==to (count==0)
 	if(frame_count==0)
@@ -629,10 +654,13 @@ static int open_init_file(const char *f)
 		return 0;
 	}
 
-	fprintf(stderr,"playing channels offset, count, end, file: %d %d %d\n"
-		,channel_offset
-		,channel_count_use_from_file
-		,channel_offset+channel_count_use_from_file);
+	if(is_verbose)
+	{
+		fprintf(stderr,"playing channels offset, count, end, file: %d %d %d\n"
+			,channel_offset
+			,channel_count_use_from_file
+			,channel_offset+channel_count_use_from_file);
+	}
 
 	//initial seek
 	if(frame_offset>0)
