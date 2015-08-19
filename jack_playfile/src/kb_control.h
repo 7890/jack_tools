@@ -76,7 +76,6 @@ static int KEY_P=0;
 static int KEY_ENTER=0;
 static int KEY_0=0;
 static int KEY_J=0;
-//static int KEY_PAGE_UP=0; same keycode as page down!?
 static int KEY_LT=0; //<
 static int KEY_GT=0; //>
 
@@ -106,28 +105,33 @@ static void print_keyboard_shortcuts()
 //	fprintf(stderr,"\r%s\rkeyboard shortcuts:\n",clear_to_eol_seq);
 	fprintf(stderr,"keyboard shortcuts:\n\n");
 
-	fprintf(stderr,"  h, f1:             help (this screen)\n");
-	fprintf(stderr,"  space:             toggle play/pause\n");
-	fprintf(stderr,"  enter:             play\n");
-	fprintf(stderr,"  (<) arrow left:      seek one step backward\n");
-	fprintf(stderr,"  (>) arrow right:     seek one step forward\n");
-	fprintf(stderr,"  (^) arrow up:        increment seek step size\n");
-	fprintf(stderr,"  (v) arrow down:      decrement seek step size\n");
+	fprintf(stderr,"  h, f1              help (this screen)\n");
+	fprintf(stderr,"  space              toggle play/pause\n");
+	fprintf(stderr,"  enter              play\n");
+	fprintf(stderr,"  arrow left         seek one step backward\n");
+	fprintf(stderr,"  arrow right        seek one step forward\n");
+	fprintf(stderr,"  arrow up           increment seek step size\n");
+	fprintf(stderr,"  arrow down         decrement seek step size\n");
 	fprintf(stderr,"  home               seek to start\n");
-	fprintf(stderr,"  0:                 seek to start and pause\n");
-	fprintf(stderr,"  backspace:         seek to start and play\n");
-	fprintf(stderr,"  end:               seek to end\n");
-	fprintf(stderr,"  < less than:       load previous file\n");
-	fprintf(stderr,"  > greater than:    load next file\n");
-	fprintf(stderr,"  m:                 toggle mute on/off*\n");
-	fprintf(stderr,"  l:                 toggle loop on/off*\n");
-	fprintf(stderr,"  p:                 toggle pause at end on/off*\n");
-	fprintf(stderr,"  j:                 toggle JACK transport on/off*\n");
-	fprintf(stderr,"  c:                 toggle clock display on*/off\n");
-	fprintf(stderr,"  , comma:           toggle clock seconds* /frames\n");
-	fprintf(stderr,"  . period:          toggle clock absolute*/relative\n");
-	fprintf(stderr,"  - dash:            toggle clock elapsed* /remaining\n");
-	fprintf(stderr,"  q:                 quit\n\n");
+	fprintf(stderr,"  0                  seek to start and pause\n");
+	fprintf(stderr,"  backspace          seek to start and play\n");
+	fprintf(stderr,"  end                seek to end\n");
+#ifndef WIN32
+	fprintf(stderr,"  < less than        load previous file\n");
+	fprintf(stderr,"  > greater than     load next file\n");
+#else
+	fprintf(stderr,"  page up            load previous file\n");
+	fprintf(stderr,"  page down          load next file\n");
+#endif
+	fprintf(stderr,"  m                  toggle mute on/off*\n");
+	fprintf(stderr,"  l                  toggle loop on/off*\n");
+	fprintf(stderr,"  p                  toggle pause at end on/off*\n");
+	fprintf(stderr,"  j                  toggle JACK transport on/off*\n");
+	fprintf(stderr,"  c                  toggle clock display on*/off\n");
+	fprintf(stderr,"  , comma            toggle clock seconds* /frames\n");
+	fprintf(stderr,"  . period           toggle clock absolute*/relative\n");
+	fprintf(stderr,"  - dash             toggle clock elapsed* /remaining\n");
+	fprintf(stderr,"  q                  quit\n\n");
 
 	fprintf(stderr,"prompt:\n\n");
 	fprintf(stderr,"|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)   \n");
@@ -652,8 +656,10 @@ static void init_key_codes()
 	KEY_ENTER=13;
 	KEY_0=48;
 	KEY_J=74;
-	KEY_LT=60;////////
-	KEY_GT=62;/////////
+	KEY_LT=33;//hack
+	KEY_GT=34;//hack
+//	KEY_PAGE_UP=33;
+//	KEY_PAGE_DOWN=34;
 #endif
 }//init_key_codes()
 
