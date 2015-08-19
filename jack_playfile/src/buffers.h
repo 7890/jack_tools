@@ -88,9 +88,20 @@ static void setup_ringbuffers()
 static void free_ringbuffers()
 {
 //	fprintf(stderr,"free ringbuffers\n");
-	jack_ringbuffer_free(rb_interleaved);
-	jack_ringbuffer_free(rb_resampled_interleaved);
-	jack_ringbuffer_free(rb_deinterleaved);
+	if(rb_interleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_interleaved);
+	}
+
+	if(rb_resampled_interleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_resampled_interleaved);
+	}
+
+	if(rb_deinterleaved!=NULL)
+	{
+		jack_ringbuffer_free(rb_deinterleaved);
+	}
 }
 
 //=============================================================================
@@ -98,9 +109,20 @@ static void reset_ringbuffers()
 {
 	reset_ringbuffers_in_progress=1;
 //	fprintf(stderr,"reset ringbuffers\n");
-	jack_ringbuffer_reset(rb_deinterleaved);
-	jack_ringbuffer_reset(rb_resampled_interleaved);
-	jack_ringbuffer_reset(rb_interleaved);
+	if(rb_deinterleaved!=NULL)
+	{
+		jack_ringbuffer_reset(rb_deinterleaved);
+	}
+
+	if(rb_resampled_interleaved!=NULL)
+	{
+		jack_ringbuffer_reset(rb_resampled_interleaved);
+	}
+
+	if(rb_interleaved!=NULL)
+	{
+		jack_ringbuffer_reset(rb_interleaved);
+	}
 	reset_ringbuffers_in_progress=0;
 }
 
