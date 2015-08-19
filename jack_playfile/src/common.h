@@ -62,10 +62,13 @@ static struct option long_options[] =
 	{"choffset",	required_argument,	0, 'O'},
 	{"chcount",	required_argument,	0, 'C'},
 
+	{"samplerate",	required_argument,	0, 'S'},
+
 	{"nocontrol",	no_argument,  0,	'D'},
 	{"noresampling",no_argument,  0,	'R'},
 	{"noconnect",	no_argument,  0,	'N'},
 	{"noreconnect",	no_argument,  0,	'E'},
+
 	{"paused",	no_argument,  0,	'p'},
 	{"muted",	no_argument,  0,	'm'},
 	{"loop",	no_argument,  0,	'l'},
@@ -75,6 +78,8 @@ static struct option long_options[] =
 	{"noclock",	no_argument,  0,	'k'},
 	{"pae",		no_argument,  0,	'e'},
 	{"transport",	no_argument,  0,	'j'},
+
+
 
 	{"verbose",	no_argument,  0,	'v'},
 	{"libs",	no_argument,  0,	'L'},
@@ -97,6 +102,7 @@ static void print_main_help()
 	fprintf (stderr, "  -E, --noreconnect         Don't wait for JACK to re-connect\n");
 	fprintf (stderr, "  -D, --nocontrol           Disable keyboard control\n");
 	fprintf (stderr, "  -R, --noresampling        Disable resampling\n");
+	fprintf (stderr, "  -S, --samplerate          Override file sample rate (affects pitch & tempo)\n");
 	fprintf (stderr, "  -p, --paused              Start paused\n");
 	fprintf (stderr, "  -m, --muted               Start muted \n");
 	fprintf (stderr, "  -l, --loop                Enable loop \n");

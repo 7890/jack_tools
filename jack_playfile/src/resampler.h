@@ -81,7 +81,7 @@ static int get_resampler_pad_size_end()
 }
 
 //=============================================================================
-static void setup_resampler()
+static int setup_resampler()
 {
 	//test if resampling needed
 	if(out_to_in_sr_ratio!=1)//sf_info_generic.samplerate!=jack_sample_rate)
@@ -105,6 +105,7 @@ static void setup_resampler()
 				fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
 					,jack->sample_rate,sf_info_generic.samplerate);
 				use_resampling=0;
+				return 0;
 			}
 			else
 			{
@@ -147,6 +148,9 @@ static void setup_resampler()
 			fprintf(stderr,"will play file without resampling.\n");
 		}
 	}//end unequal in/out sr
+
+	return 1;
+
 }//end setup_resampler()
 
 //=============================================================================

@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRNEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:NEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -135,6 +135,10 @@ int main(int argc, char *argv[])
 
 			case 'R':
 				use_resampling=0;
+				break;
+
+			case 'S':
+				custom_file_sample_rate=atoi(optarg);
 				break;
 
 			case 'N':
@@ -257,7 +261,35 @@ while(true)
 	jack_post_init();
 
 	//sampling rate ratio output (JACK) to input (file)
+	if(custom_file_sample_rate>0 && use_resampling)
+	{
+		if(is_verbose)
+		{
+			fprintf(stderr,"using custom file sample rate: %d\n", custom_file_sample_rate);
+		}
+
+		float speed=(double)custom_file_sample_rate/sf_info_generic.samplerate;
+		fprintf(stderr,"speed: %.3f     %s\n"
+			,speed
+			,format_duration_str( get_seconds(&sf_info_generic) / speed )
+			);
+		//from now on, the file (info) will look like it would be originally using the custom sample rate
+		sf_info_generic.samplerate=custom_file_sample_rate;
+	}
+
 	out_to_in_sr_ratio=(double)jack->sample_rate/sf_info_generic.samplerate;
+
+	fprintf(stderr,"play range:      %s\n"
+		,format_duration_str( (double)frame_count/sf_info_generic.samplerate)
+	);
+
+	if(!setup_resampler())
+	{
+		fprintf(stderr,"hint: custom file sample rates where\n\trate %%modulo 50 = 0\nshould work in most cases.");
+		shutdown_in_progress=1;
+		keyboard_control_enabled=0;//prevent reset of terminal
+		goto _main_loop;
+	}
 
 	if(use_resampling)
 	{
@@ -270,16 +302,18 @@ while(true)
 		sndfile_request_frames=jack->period_frames;
 	}
 
-	setup_ringbuffers();
+	//set seek step size here to consider possibly overridden file sample rate
+	//(10 seconds should seek 10 seconds in overridden sr domain)
+	set_frames_from_exponent();
+	set_seconds_from_exponent();
 
-	setup_resampler();
+	setup_ringbuffers();
 
 	setup_disk_thread();
 
 	//request first chunk from file
 	req_buffer_from_disk_thread();
 	usleep((double)100000/jack->cycles_per_second);
-
 
 	//only do this part of initialization if not already done
 	if(!prepare_for_next_file)
@@ -512,9 +546,10 @@ static int open_init_file(const char *f)
 	stat(filename, &st);
 	file_size_bytes = st.st_size;
 
-	fprintf(stderr,"file:        %s  (#%d/%d)\n",filename
+	fprintf(stderr,"file #%4d/%4d: %s\n"
 		,1+(optind-first_valid_file_optind)
-		,number_of_files_in_argc);
+		,number_of_files_in_argc
+		,filename);
 
 	if(is_verbose)
 	{
@@ -573,6 +608,11 @@ static int open_init_file(const char *f)
 	}
 
 	bytes_per_sample_native=file_info(sf_info_generic,is_verbose);
+
+	if(!is_verbose)
+	{
+		fprintf(stderr,"total duration:  %s\n", generate_duration_str(&sf_info_generic));
+	}
 
 	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
 	{
@@ -678,8 +718,8 @@ static int open_init_file(const char *f)
 	//~1%
 //	seek_frames_per_hit=ceil(frame_count / 100);
 
-	set_frames_from_exponent();
-	set_seconds_from_exponent();
+//	set_frames_from_exponent();
+//	set_seconds_from_exponent();
 
 //	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
 
@@ -691,6 +731,8 @@ static int open_init_file(const char *f)
 static int disk_read_frames()
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
+
+_do_again:
 
 	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
@@ -766,11 +808,15 @@ static int disk_read_frames()
 #endif
 				total_frames_read_from_file=0;
 				all_frames_read=0;///
-				seek_frames_in_progress=1;
-				sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET); //clever to seek here?
-				seek_frames_in_progress=0;
+				//seek_frames_in_progress=1;
+				//clever to seek here?
+				sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
+				//seek_frames_in_progress=0;
 				is_idling_at_end=0;
-				return 1;///
+				//return 1;///
+				//don't wait for next cycle to call us, immedialy do it now
+				//call it spaghetti
+				goto _do_again;
 			}
 		}//end if(total_frames_read_from_file>=frame_count)
 		return frames_read_from_file;

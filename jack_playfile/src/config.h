@@ -107,6 +107,9 @@ static int channel_count=0;
 //if set to 0, will not resample, even if file has different SR from JACK
 static int use_resampling=1;
 
+//override file sample rate to change pitch and tempo
+static int custom_file_sample_rate=0;
+
 //if set to 0: prepare everything for playing but wait for user to toggle to play
 static int is_playing=1;
 
