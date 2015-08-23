@@ -732,8 +732,6 @@ static int disk_read_frames()
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
 
-_do_again:
-
 	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
 
@@ -748,10 +746,10 @@ _do_again:
 
 	sf_count_t frames_read_from_file=0;
 
+	jack_ringbuffer_t *rb_to_use;
+
 	if(!is_idling_at_end)
 	{
-		jack_ringbuffer_t *rb_to_use;
-
 		if(out_to_in_sr_ratio==1.0 || !use_resampling)
 		{
 			//directly write to rb_resampled_interleaved (skipping rb_interleaved)
@@ -804,19 +802,22 @@ _do_again:
 			if(loop_enabled)
 			{
 #ifndef WIN32
-				fprintf(stderr,"loop ");
+				if(keyboard_control_enabled)
+				{
+					fprintf(stderr,"loop ");
+				}
 #endif
 				total_frames_read_from_file=0;
 				all_frames_read=0;///
-				//seek_frames_in_progress=1;
-				//clever to seek here?
+
+				seek_frames_in_progress=1;
+				///clever to seek here?
 				sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
-				//seek_frames_in_progress=0;
+				seek_frames_in_progress=0;
+
 				is_idling_at_end=0;
-				//return 1;///
-				//don't wait for next cycle to call us, immedialy do it now
-				//call it spaghetti
-				goto _do_again;
+				resampling_finished=0;
+				return 1;
 			}
 		}//end if(total_frames_read_from_file>=frame_count)
 		return frames_read_from_file;
@@ -876,14 +877,21 @@ static void *disk_thread_func(void *arg)
 				if(loop_enabled)
 				{
 #ifndef WIN32
-					fprintf(stderr,"loop ");
+					if(keyboard_control_enabled)
+					{
+						fprintf(stderr,"loop ");
+					}
 #endif
 					total_frames_read_from_file=0;
 					all_frames_read=0;
 					seek_frames_in_progress=1;
+					///
 					sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
 					seek_frames_in_progress=0;
 					is_idling_at_end=0;
+					resampling_finished=0;
+
+					continue;
 				}
 			}
 
@@ -1397,7 +1405,6 @@ static void print_stats()
 	{
 		return;
 	}
-
 	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %lu resampled %lu deinterleaved %lu resampling finished %d all frames read %d disk thread finished %d all frames read %d\n"
 		,jack->process_cycle_count
 		,disk_read_cycle_count
@@ -1418,6 +1425,12 @@ static void print_stats()
 
 		,all_frames_read
 	);
+/*
+	fprintf(stderr,"proc underruns %"PRId64" interleaved %"PRId64"\n"
+		,jack->process_cycle_underruns
+		,jack_ringbuffer_read_space(rb_interleaved)             /channel_count_use_from_file/bytes_per_sample
+	);
+*/
 }//end print_stats()
 
 //=============================================================================

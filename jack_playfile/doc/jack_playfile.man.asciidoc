@@ -85,6 +85,15 @@ OPTIONS
 	This makes files play at the expected pitch and tempo.
 	Best results are achieved when the file sample rate matches JACK's.
 
+*-S, --samplerate* (integer)::
+	Override file sample rate. This affects how the resampler is setup.
+	The resampler ratio is defined with two sample rates, one of which is the JACK sample rate.
+	Overriding the sample rate that the meta data of the file is indicating results in a different (non-original) playback speed and pitch.
+	For instance, if a file has an SR of 48kHz, overriding with -S 24000 would play the file at half the original speed, i.e. the playback time is double the original length.
+	Not every given SR for overriding the file sample rate is possible. Odd values etc. will not work.
+	The zita-resampler documentation says: The Resampler class performs resampling at a fixed ratio F_out / F_in which is required to be greater than 1/16 and be reducible to the form b / a with a, b integer and b less than 1000. This includes all the 'standard' ratios, e.g. 96000 / 44100 = 320 / 147. These restrictions allow for a more efficient implementation.
+	*Default:* Use original file sample rate.
+
 *-p, --paused* (w/o argument)::
 	Start paused.
 	*Default:* Start playing after successful file open and connection to JACK.
@@ -432,7 +441,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sun Aug 16 23:06:47 CEST 2015
+Last Update: Sun Aug 23 19:19:36 CEST 2015
 
 COPYING
 -------
