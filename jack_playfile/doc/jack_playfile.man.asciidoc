@@ -21,6 +21,7 @@ Main features:
 - Keyboard control while playing (can be turned off)
 - Fast and frame accurate seeking
 - Supports multichannel files
+- Can play files at alternative speed/pitch
 - Adapts to a broad range of file formats and JACK settings
 - Versatile command line options and live control
 - Survives JACK restart (resume playing at the same position)
@@ -31,9 +32,9 @@ Please note:
 - FLAC files are limited to 8 channels per stream by spec.
 - MP3 supports a maximum of two channels (no "MP3 Surround" support).
 
-Best results are achieved when playing back 32-bit float RIFF wave files at JACK sample rate (without resampling).
+Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).
 
-'jack_playfile' can read and play local audio files only. There is currently no support for playlists.
+'jack_playfile' can read and play local audio files only. There is currently no support for playlists or handling of song meta data.
 No DSP other than optional resampling is applied to the audio signal.
 To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with 'jack_playfile'.
 This plugin collection is a good starting point: https://github.com/x42/x42-plugins
@@ -46,7 +47,7 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
 
-'jack_playfile' version is 0.84
+This document refers to 'jack_playfile' version 0.84.
 
 OPTIONS
 -------
@@ -107,7 +108,7 @@ OPTIONS
 	*Default:* disabled. What happens when the end of a track is reached depends on other conditions.
 
 *-e, --pae* (w/o argument)::
-	Pause at end: If end of track is reached (given offset+count), don't quit but pause playback instead.
+	Pause at end: If end of track is reached (given offset+count), 'jack_playfile' won't quit but pause playback instead.
 	If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
 	While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
 	*Default:* Off. If the end of a track is reached and loop is not enabled, 'jack_playfile' is done and will quit.
@@ -197,10 +198,10 @@ KEYBOARD SHORTCUTS
 *h, f1*::		Help (this screen)
 *space*::		Toggle play/pause
 *enter*::		Play
-*(<) arrow left*::	Seek one step backward
-*(>) arrow right*::	Seek one step forward
-*(^) arrow up*::	Increment seek step size
-*(v) arrow down*::	Decrement seek step size
+*arrow left*::		Seek one step backward
+*arrow right*::		Seek one step forward
+*arrow up*::		Increment seek step size
+*arrow down*::		Decrement seek step size
 *home*::		Seek to start
 *0*::			Seek to start and pause
 *backspace*::		Seek to start and play
@@ -362,6 +363,8 @@ If you have trouble starting 'jackd' on your host, please consult JACK FAQ at ht
 PROGRAM STATUSES
 ----------------
 
+(Simplified)
+
 - Initializing (JACK, first/next/prev file)
 
 - Paused (||)
@@ -375,7 +378,7 @@ PROGRAM STATUSES
 PROGRAM LIFE CYCLE
 ------------------
 
-'jack_playfile' procedure:
+'jack_playfile' procedure (simplified):
 
 0) Initializing, starting up with given parameters
 
@@ -397,6 +400,20 @@ PROGRAM LIFE CYCLE
 
 9) Release resources and quit nicely if all done or quit was requested
 
+The diagram below is not "pure" in any way. It should show some statuses and possible program flows.
+Unexpected errors that could happen anywhere aren't graphed.
+(This diagram isn't visible in ASCII text based representations of this document).
+
+["graphviz", "images/jack_playfile_program_flow_rough.png", "dot"]
+---------------------------------------------------------------------
+include::images/jack_playfile_program_flow_rough.dot[]
+---------------------------------------------------------------------
+
+/////////
+- *to work on the .dot file: xdot jack_playfile_statuses.dot
+- *then edit jack_playfile_statuses.dot in text editor. saving file will update view in xdot
+/////////
+
 During all operation 'jack_playfile' tries to prevent to cause JACK X-runs or 'jack_playfile' internal buffer underflows.
 It's very likely that underruns happen inside 'jack_playfile' though (not enough data available to play in buffer), 
 i.e. while seeking, during startup or shutdown.
@@ -412,8 +429,8 @@ Major audio libraries 'jack_playfile' depends on:
 - libsndfile - http://www.mega-nerd.com/libsndfile/ - This is the main library to read audio files.
 - libzita-resampler - http://kokkinizita.linuxaudio.org/linuxaudio/ - High quality resampler.
 - libopus, libopusfile - http://www.opus-codec.org/ - RFC 6716, incorporates SILK & CELT codecs.
-- libvorbisfile - http://xiph.org/vorbis/ - Fast seeking in Ogg Vorbis files
-- libmpg123 - http://www.mpg123.org/ - (optional due to patent foo)
+- libvorbisfile - http://xiph.org/vorbis/ - Fast seeking in Ogg Vorbis files.
+- libmpg123 - http://www.mpg123.org/ - Reading MPEG audio layer 3 files.
 
 Libraries abstracted by libsndfile:
 
@@ -441,7 +458,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Sun Aug 23 19:19:36 CEST 2015
+Last Update: Mon Aug 24 17:36:08 CEST 2015
 
 COPYING
 -------

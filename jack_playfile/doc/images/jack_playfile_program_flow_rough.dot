@@ -1,0 +1,46 @@
+#["graphviz", "jack_playfile_statuses.png", "dot"]
+#---------------------------------------------------------------------
+digraph jack_playfile_statuses {
+#rankdir=LR;
+#size="8,5"
+node [shape = doublecircle]; Start End;
+node [shape = circle];
+
+Start 			-> "Parsing\n arguments"	[ label = "execute\n jack_playfile\n with argv" ]
+
+"Parsing\n arguments" 	-> "Initializing\n file" 	[ label = "syntax OK" ]
+
+"Parsing\n arguments" 	-> "Print help,\n version,\n libs,\n manpage" [ label = "syntax OK\n -h, -V, -L, --man" ]
+
+"Parsing\n arguments" 	-> End 				[ label = "invalid call,\n terminate" ]
+
+"Print help,\n version,\n libs,\n manpage" -> End	[ label = "terminate" ]
+
+"Initializing\n file" 	-> "File\n read error" 		[ label = "can not read\n or no reader" ]
+
+"File\n read error" 	-> "Shutting down" 		[ label = "no more files" ]
+"File\n read error" 	-> "Initializing\n file" 	[ label = "try next file\n in argv" ]
+
+"Initializing\n file" 	-> "JACK not\n installed" 	[ label = "first valid\n file opened" ]
+"JACK not\n installed" 	-> "Shutting down" 		[ label = "prerequisite\n not met" ]
+
+"Initializing\n file" 	-> "Initializing\n JACK client" [ label = "first valid\n file opened" ]
+"Initializing\n JACK client" -> "JACK not\n started" 	[ label = "cannot\n connect" ]
+
+"Initializing\n file" 	-> "Initializing\n resampler\n and buffers" [ label = "file # >1\n opened" ]
+
+"JACK not\n started" 	-> "Shutting down" 		[ label = "--noreconnect" ]
+"JACK not\n started" 	-> "Initializing\n JACK client" [ label = "wait and\n retry connecting\n to JACK" ]
+
+"Initializing\n resampler\n and buffers" -> "Transport\n statuses" [ label = "seek to --offset\n start playing\n (if not --paused)" ]
+
+"Transport\n statuses" 	-> "JACK not\n started" 	[ label = "JACK server down" ]
+"Transport\n statuses" 	-> "Initializing\n file" 	[ label = "next / prev. file\n in argv" ]
+
+"Transport\n statuses" 	-> "Transport\n statuses" 	[ label = "perform playback\n based on settings,\n process control input,\n switch status" ]
+
+"Initializing\n JACK client" -> "Initializing\n resampler\n and buffers" [ label = "client\n activated" ];
+
+"Shutting down" -> End 					[ label = "terminate" ]
+}
+#---------------------------------------------------------------------

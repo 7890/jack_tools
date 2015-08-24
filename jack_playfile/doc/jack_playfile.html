@@ -1,0 +1,1682 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+    "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+<meta http-equiv="Content-Type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="generator" content="AsciiDoc 8.6.9" />
+<title>jack_playfile(1)</title>
+<style type="text/css">
+/* Shared CSS for AsciiDoc xhtml11 and html5 backends */
+
+/* Default font. */
+body {
+  font-family: Georgia,serif;
+}
+
+/* Title font. */
+h1, h2, h3, h4, h5, h6,
+div.title, caption.title,
+thead, p.table.header,
+#toctitle,
+#author, #revnumber, #revdate, #revremark,
+#footer {
+  font-family: Arial,Helvetica,sans-serif;
+}
+
+body {
+  margin: 1em 5% 1em 5%;
+}
+
+a {
+  color: blue;
+  text-decoration: underline;
+}
+a:visited {
+  color: fuchsia;
+}
+
+em {
+  font-style: italic;
+  color: navy;
+}
+
+strong {
+  font-weight: bold;
+  color: #083194;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: #527bbd;
+  margin-top: 1.2em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+h1, h2, h3 {
+  border-bottom: 2px solid silver;
+}
+h2 {
+  padding-top: 0.5em;
+}
+h3 {
+  float: left;
+}
+h3 + * {
+  clear: left;
+}
+h5 {
+  font-size: 1.0em;
+}
+
+div.sectionbody {
+  margin-left: 0;
+}
+
+hr {
+  border: 1px solid silver;
+}
+
+p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+ul, ol, li > p {
+  margin-top: 0;
+}
+ul > li     { color: #aaa; }
+ul > li > * { color: black; }
+
+.monospaced, code, pre {
+  font-family: "Courier New", Courier, monospace;
+  font-size: inherit;
+  color: navy;
+  padding: 0;
+  margin: 0;
+}
+pre {
+  white-space: pre-wrap;
+}
+
+#author {
+  color: #527bbd;
+  font-weight: bold;
+  font-size: 1.1em;
+}
+#email {
+}
+#revnumber, #revdate, #revremark {
+}
+
+#footer {
+  font-size: small;
+  border-top: 2px solid silver;
+  padding-top: 0.5em;
+  margin-top: 4.0em;
+}
+#footer-text {
+  float: left;
+  padding-bottom: 0.5em;
+}
+#footer-badges {
+  float: right;
+  padding-bottom: 0.5em;
+}
+
+#preamble {
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+}
+div.imageblock, div.exampleblock, div.verseblock,
+div.quoteblock, div.literalblock, div.listingblock, div.sidebarblock,
+div.admonitionblock {
+  margin-top: 1.0em;
+  margin-bottom: 1.5em;
+}
+div.admonitionblock {
+  margin-top: 2.0em;
+  margin-bottom: 2.0em;
+  margin-right: 10%;
+  color: #606060;
+}
+
+div.content { /* Block element content. */
+  padding: 0;
+}
+
+/* Block element titles. */
+div.title, caption.title {
+  color: #527bbd;
+  font-weight: bold;
+  text-align: left;
+  margin-top: 1.0em;
+  margin-bottom: 0.5em;
+}
+div.title + * {
+  margin-top: 0;
+}
+
+td div.title:first-child {
+  margin-top: 0.0em;
+}
+div.content div.title:first-child {
+  margin-top: 0.0em;
+}
+div.content + div.title {
+  margin-top: 0.0em;
+}
+
+div.sidebarblock > div.content {
+  background: #ffffee;
+  border: 1px solid #dddddd;
+  border-left: 4px solid #f0f0f0;
+  padding: 0.5em;
+}
+
+div.listingblock > div.content {
+  border: 1px solid #dddddd;
+  border-left: 5px solid #f0f0f0;
+  background: #f8f8f8;
+  padding: 0.5em;
+}
+
+div.quoteblock, div.verseblock {
+  padding-left: 1.0em;
+  margin-left: 1.0em;
+  margin-right: 10%;
+  border-left: 5px solid #f0f0f0;
+  color: #888;
+}
+
+div.quoteblock > div.attribution {
+  padding-top: 0.5em;
+  text-align: right;
+}
+
+div.verseblock > pre.content {
+  font-family: inherit;
+  font-size: inherit;
+}
+div.verseblock > div.attribution {
+  padding-top: 0.75em;
+  text-align: left;
+}
+/* DEPRECATED: Pre version 8.2.7 verse style literal block. */
+div.verseblock + div.attribution {
+  text-align: left;
+}
+
+div.admonitionblock .icon {
+  vertical-align: top;
+  font-size: 1.1em;
+  font-weight: bold;
+  text-decoration: underline;
+  color: #527bbd;
+  padding-right: 0.5em;
+}
+div.admonitionblock td.content {
+  padding-left: 0.5em;
+  border-left: 3px solid #dddddd;
+}
+
+div.exampleblock > div.content {
+  border-left: 3px solid #dddddd;
+  padding-left: 0.5em;
+}
+
+div.imageblock div.content { padding-left: 0; }
+span.image img { border-style: none; vertical-align: text-bottom; }
+a.image:visited { color: white; }
+
+dl {
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+}
+dt {
+  margin-top: 0.5em;
+  margin-bottom: 0;
+  font-style: normal;
+  color: navy;
+}
+dd > *:first-child {
+  margin-top: 0.1em;
+}
+
+ul, ol {
+    list-style-position: outside;
+}
+ol.arabic {
+  list-style-type: decimal;
+}
+ol.loweralpha {
+  list-style-type: lower-alpha;
+}
+ol.upperalpha {
+  list-style-type: upper-alpha;
+}
+ol.lowerroman {
+  list-style-type: lower-roman;
+}
+ol.upperroman {
+  list-style-type: upper-roman;
+}
+
+div.compact ul, div.compact ol,
+div.compact p, div.compact p,
+div.compact div, div.compact div {
+  margin-top: 0.1em;
+  margin-bottom: 0.1em;
+}
+
+tfoot {
+  font-weight: bold;
+}
+td > div.verse {
+  white-space: pre;
+}
+
+div.hdlist {
+  margin-top: 0.8em;
+  margin-bottom: 0.8em;
+}
+div.hdlist tr {
+  padding-bottom: 15px;
+}
+dt.hdlist1.strong, td.hdlist1.strong {
+  font-weight: bold;
+}
+td.hdlist1 {
+  vertical-align: top;
+  font-style: normal;
+  padding-right: 0.8em;
+  color: navy;
+}
+td.hdlist2 {
+  vertical-align: top;
+}
+div.hdlist.compact tr {
+  margin: 0;
+  padding-bottom: 0;
+}
+
+.comment {
+  background: yellow;
+}
+
+.footnote, .footnoteref {
+  font-size: 0.8em;
+}
+
+span.footnote, span.footnoteref {
+  vertical-align: super;
+}
+
+#footnotes {
+  margin: 20px 0 20px 0;
+  padding: 7px 0 0 0;
+}
+
+#footnotes div.footnote {
+  margin: 0 0 5px 0;
+}
+
+#footnotes hr {
+  border: none;
+  border-top: 1px solid silver;
+  height: 1px;
+  text-align: left;
+  margin-left: 0;
+  width: 20%;
+  min-width: 100px;
+}
+
+div.colist td {
+  padding-right: 0.5em;
+  padding-bottom: 0.3em;
+  vertical-align: top;
+}
+div.colist td img {
+  margin-top: 0.3em;
+}
+
+@media print {
+  #footer-badges { display: none; }
+}
+
+#toc {
+  margin-bottom: 2.5em;
+}
+
+#toctitle {
+  color: #527bbd;
+  font-size: 1.1em;
+  font-weight: bold;
+  margin-top: 1.0em;
+  margin-bottom: 0.1em;
+}
+
+div.toclevel0, div.toclevel1, div.toclevel2, div.toclevel3, div.toclevel4 {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+div.toclevel2 {
+  margin-left: 2em;
+  font-size: 0.9em;
+}
+div.toclevel3 {
+  margin-left: 4em;
+  font-size: 0.9em;
+}
+div.toclevel4 {
+  margin-left: 6em;
+  font-size: 0.9em;
+}
+
+span.aqua { color: aqua; }
+span.black { color: black; }
+span.blue { color: blue; }
+span.fuchsia { color: fuchsia; }
+span.gray { color: gray; }
+span.green { color: green; }
+span.lime { color: lime; }
+span.maroon { color: maroon; }
+span.navy { color: navy; }
+span.olive { color: olive; }
+span.purple { color: purple; }
+span.red { color: red; }
+span.silver { color: silver; }
+span.teal { color: teal; }
+span.white { color: white; }
+span.yellow { color: yellow; }
+
+span.aqua-background { background: aqua; }
+span.black-background { background: black; }
+span.blue-background { background: blue; }
+span.fuchsia-background { background: fuchsia; }
+span.gray-background { background: gray; }
+span.green-background { background: green; }
+span.lime-background { background: lime; }
+span.maroon-background { background: maroon; }
+span.navy-background { background: navy; }
+span.olive-background { background: olive; }
+span.purple-background { background: purple; }
+span.red-background { background: red; }
+span.silver-background { background: silver; }
+span.teal-background { background: teal; }
+span.white-background { background: white; }
+span.yellow-background { background: yellow; }
+
+span.big { font-size: 2em; }
+span.small { font-size: 0.6em; }
+
+span.underline { text-decoration: underline; }
+span.overline { text-decoration: overline; }
+span.line-through { text-decoration: line-through; }
+
+div.unbreakable { page-break-inside: avoid; }
+
+
+/*
+ * xhtml11 specific
+ *
+ * */
+
+div.tableblock {
+  margin-top: 1.0em;
+  margin-bottom: 1.5em;
+}
+div.tableblock > table {
+  border: 3px solid #527bbd;
+}
+thead, p.table.header {
+  font-weight: bold;
+  color: #527bbd;
+}
+p.table {
+  margin-top: 0;
+}
+/* Because the table frame attribute is overriden by CSS in most browsers. */
+div.tableblock > table[frame="void"] {
+  border-style: none;
+}
+div.tableblock > table[frame="hsides"] {
+  border-left-style: none;
+  border-right-style: none;
+}
+div.tableblock > table[frame="vsides"] {
+  border-top-style: none;
+  border-bottom-style: none;
+}
+
+
+/*
+ * html5 specific
+ *
+ * */
+
+table.tableblock {
+  margin-top: 1.0em;
+  margin-bottom: 1.5em;
+}
+thead, p.tableblock.header {
+  font-weight: bold;
+  color: #527bbd;
+}
+p.tableblock {
+  margin-top: 0;
+}
+table.tableblock {
+  border-width: 3px;
+  border-spacing: 0px;
+  border-style: solid;
+  border-color: #527bbd;
+  border-collapse: collapse;
+}
+th.tableblock, td.tableblock {
+  border-width: 1px;
+  padding: 4px;
+  border-style: solid;
+  border-color: #527bbd;
+}
+
+table.tableblock.frame-topbot {
+  border-left-style: hidden;
+  border-right-style: hidden;
+}
+table.tableblock.frame-sides {
+  border-top-style: hidden;
+  border-bottom-style: hidden;
+}
+table.tableblock.frame-none {
+  border-style: hidden;
+}
+
+th.tableblock.halign-left, td.tableblock.halign-left {
+  text-align: left;
+}
+th.tableblock.halign-center, td.tableblock.halign-center {
+  text-align: center;
+}
+th.tableblock.halign-right, td.tableblock.halign-right {
+  text-align: right;
+}
+
+th.tableblock.valign-top, td.tableblock.valign-top {
+  vertical-align: top;
+}
+th.tableblock.valign-middle, td.tableblock.valign-middle {
+  vertical-align: middle;
+}
+th.tableblock.valign-bottom, td.tableblock.valign-bottom {
+  vertical-align: bottom;
+}
+
+
+/*
+ * manpage specific
+ *
+ * */
+
+body.manpage h1 {
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  border-top: 2px solid silver;
+  border-bottom: 2px solid silver;
+}
+body.manpage h2 {
+  border-style: none;
+}
+body.manpage div.sectionbody {
+  margin-left: 3em;
+}
+
+@media print {
+  body.manpage div#toc { display: none; }
+}
+
+
+</style>
+<script type="text/javascript">
+/*<![CDATA[*/
+var asciidoc = {  // Namespace.
+
+/////////////////////////////////////////////////////////////////////
+// Table Of Contents generator
+/////////////////////////////////////////////////////////////////////
+
+/* Author: Mihai Bazon, September 2002
+ * http://students.infoiasi.ro/~mishoo
+ *
+ * Table Of Content generator
+ * Version: 0.4
+ *
+ * Feel free to use this script under the terms of the GNU General Public
+ * License, as long as you do not remove or alter this notice.
+ */
+
+ /* modified by Troy D. Hanson, September 2006. License: GPL */
+ /* modified by Stuart Rackham, 2006, 2009. License: GPL */
+
+// toclevels = 1..4.
+toc: function (toclevels) {
+
+  function getText(el) {
+    var text = "";
+    for (var i = el.firstChild; i != null; i = i.nextSibling) {
+      if (i.nodeType == 3 /* Node.TEXT_NODE */) // IE doesn't speak constants.
+        text += i.data;
+      else if (i.firstChild != null)
+        text += getText(i);
+    }
+    return text;
+  }
+
+  function TocEntry(el, text, toclevel) {
+    this.element = el;
+    this.text = text;
+    this.toclevel = toclevel;
+  }
+
+  function tocEntries(el, toclevels) {
+    var result = new Array;
+    var re = new RegExp('[hH]([1-'+(toclevels+1)+'])');
+    // Function that scans the DOM tree for header elements (the DOM2
+    // nodeIterator API would be a better technique but not supported by all
+    // browsers).
+    var iterate = function (el) {
+      for (var i = el.firstChild; i != null; i = i.nextSibling) {
+        if (i.nodeType == 1 /* Node.ELEMENT_NODE */) {
+          var mo = re.exec(i.tagName);
+          if (mo && (i.getAttribute("class") || i.getAttribute("className")) != "float") {
+            result[result.length] = new TocEntry(i, getText(i), mo[1]-1);
+          }
+          iterate(i);
+        }
+      }
+    }
+    iterate(el);
+    return result;
+  }
+
+  var toc = document.getElementById("toc");
+  if (!toc) {
+    return;
+  }
+
+  // Delete existing TOC entries in case we're reloading the TOC.
+  var tocEntriesToRemove = [];
+  var i;
+  for (i = 0; i < toc.childNodes.length; i++) {
+    var entry = toc.childNodes[i];
+    if (entry.nodeName.toLowerCase() == 'div'
+     && entry.getAttribute("class")
+     && entry.getAttribute("class").match(/^toclevel/))
+      tocEntriesToRemove.push(entry);
+  }
+  for (i = 0; i < tocEntriesToRemove.length; i++) {
+    toc.removeChild(tocEntriesToRemove[i]);
+  }
+
+  // Rebuild TOC entries.
+  var entries = tocEntries(document.getElementById("content"), toclevels);
+  for (var i = 0; i < entries.length; ++i) {
+    var entry = entries[i];
+    if (entry.element.id == "")
+      entry.element.id = "_toc_" + i;
+    var a = document.createElement("a");
+    a.href = "#" + entry.element.id;
+    a.appendChild(document.createTextNode(entry.text));
+    var div = document.createElement("div");
+    div.appendChild(a);
+    div.className = "toclevel" + entry.toclevel;
+    toc.appendChild(div);
+  }
+  if (entries.length == 0)
+    toc.parentNode.removeChild(toc);
+},
+
+
+/////////////////////////////////////////////////////////////////////
+// Footnotes generator
+/////////////////////////////////////////////////////////////////////
+
+/* Based on footnote generation code from:
+ * http://www.brandspankingnew.net/archive/2005/07/format_footnote.html
+ */
+
+footnotes: function () {
+  // Delete existing footnote entries in case we're reloading the footnodes.
+  var i;
+  var noteholder = document.getElementById("footnotes");
+  if (!noteholder) {
+    return;
+  }
+  var entriesToRemove = [];
+  for (i = 0; i < noteholder.childNodes.length; i++) {
+    var entry = noteholder.childNodes[i];
+    if (entry.nodeName.toLowerCase() == 'div' && entry.getAttribute("class") == "footnote")
+      entriesToRemove.push(entry);
+  }
+  for (i = 0; i < entriesToRemove.length; i++) {
+    noteholder.removeChild(entriesToRemove[i]);
+  }
+
+  // Rebuild footnote entries.
+  var cont = document.getElementById("content");
+  var spans = cont.getElementsByTagName("span");
+  var refs = {};
+  var n = 0;
+  for (i=0; i<spans.length; i++) {
+    if (spans[i].className == "footnote") {
+      n++;
+      var note = spans[i].getAttribute("data-note");
+      if (!note) {
+        // Use [\s\S] in place of . so multi-line matches work.
+        // Because JavaScript has no s (dotall) regex flag.
+        note = spans[i].innerHTML.match(/\s*\[([\s\S]*)]\s*/)[1];
+        spans[i].innerHTML =
+          "[<a id='_footnoteref_" + n + "' href='#_footnote_" + n +
+          "' title='View footnote' class='footnote'>" + n + "</a>]";
+        spans[i].setAttribute("data-note", note);
+      }
+      noteholder.innerHTML +=
+        "<div class='footnote' id='_footnote_" + n + "'>" +
+        "<a href='#_footnoteref_" + n + "' title='Return to text'>" +
+        n + "</a>. " + note + "</div>";
+      var id =spans[i].getAttribute("id");
+      if (id != null) refs["#"+id] = n;
+    }
+  }
+  if (n == 0)
+    noteholder.parentNode.removeChild(noteholder);
+  else {
+    // Process footnoterefs.
+    for (i=0; i<spans.length; i++) {
+      if (spans[i].className == "footnoteref") {
+        var href = spans[i].getElementsByTagName("a")[0].getAttribute("href");
+        href = href.match(/#.*/)[0];  // Because IE return full URL.
+        n = refs[href];
+        spans[i].innerHTML =
+          "[<a href='#_footnote_" + n +
+          "' title='View footnote' class='footnote'>" + n + "</a>]";
+      }
+    }
+  }
+},
+
+install: function(toclevels) {
+  var timerId;
+
+  function reinstall() {
+    asciidoc.footnotes();
+    if (toclevels) {
+      asciidoc.toc(toclevels);
+    }
+  }
+
+  function reinstallAndRemoveTimer() {
+    clearInterval(timerId);
+    reinstall();
+  }
+
+  timerId = setInterval(reinstall, 500);
+  if (document.addEventListener)
+    document.addEventListener("DOMContentLoaded", reinstallAndRemoveTimer, false);
+  else
+    window.onload = reinstallAndRemoveTimer;
+}
+
+}
+asciidoc.install();
+/*]]>*/
+</script>
+</head>
+<body class="manpage">
+<div id="header">
+<h1>
+jack_playfile(1) Manual Page
+</h1>
+<h2>NAME</h2>
+<div class="sectionbody">
+<p>jack_playfile -
+   play audio files with JACK
+</p>
+</div>
+</div>
+<div id="content">
+<div class="sect1">
+<h2 id="_synopsis">SYNOPSIS</h2>
+<div class="sectionbody">
+<div class="paragraph"><p><em>jack_playfile</em> [OPTION]&#8230; FILE&#8230;</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_description">DESCRIPTION</h2>
+<div class="sectionbody">
+<div class="paragraph"><p><em>jack_playfile</em> is a simple audio file player for JACK.</p></div>
+<div class="paragraph"><p>Main features:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
+</p>
+</li>
+<li>
+<p>
+High quality resampling to match JACK sample rate (can be turned off)
+</p>
+</li>
+<li>
+<p>
+Keyboard control while playing (can be turned off)
+</p>
+</li>
+<li>
+<p>
+Fast and frame accurate seeking
+</p>
+</li>
+<li>
+<p>
+Supports multichannel files
+</p>
+</li>
+<li>
+<p>
+Can play files at alternative speed/pitch
+</p>
+</li>
+<li>
+<p>
+Adapts to a broad range of file formats and JACK settings
+</p>
+</li>
+<li>
+<p>
+Versatile command line options and live control
+</p>
+</li>
+<li>
+<p>
+Survives JACK restart (resume playing at the same position)
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>Please note:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Opus files are limited to 8 channels by libopusfile.
+</p>
+</li>
+<li>
+<p>
+FLAC files are limited to 8 channels per stream by spec.
+</p>
+</li>
+<li>
+<p>
+MP3 supports a maximum of two channels (no "MP3 Surround" support).
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</p></div>
+<div class="paragraph"><p><em>jack_playfile</em> can read and play local audio files only. There is currently no support for playlists or handling of song meta data.
+No DSP other than optional resampling is applied to the audio signal.
+To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with <em>jack_playfile</em>.
+This plugin collection is a good starting point: <a href="https://github.com/x42/x42-plugins">https://github.com/x42/x42-plugins</a></p></div>
+<div class="paragraph"><p>The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.</p></div>
+<div class="paragraph"><p><strong>THIS PROGRAM COMES WITHOUT ANY WARRANTY</strong></p></div>
+<div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
+unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
+If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.84.</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_options">OPTIONS</h2>
+<div class="sectionbody">
+<div class="dlist"><dl>
+<dt class="hdlist1">
+<strong>-h, --help</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Display help and quit.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-V, --version</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Display version and quit.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-n, --name</strong> (string)
+</dt>
+<dd>
+<p>
+        JACK client name.
+        <strong>Default:</strong> "jack_playfile"
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-s, --sname</strong> (string)
+</dt>
+<dd>
+<p>
+        JACK server name to start <em>jack_playfile</em> in a specific JACK server.
+        <strong>Default:</strong> "default"
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-N, --noconnect</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Don&#8217;t connect to JACK playback ports.
+        <strong>Default:</strong> <em>jack_playfile</em> tries to connect all available channels to all available physical output/playback ports 1:1.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-E, --noreconnect</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Don&#8217;t wait for JACK to reconnect as a client.
+        <strong>Default:</strong> If JACK goes down, <em>jack_playfile</em> waits for the server to come back and then continues operation.
+        If <em>jack_playfile</em> was playing when JACK went down, it will continue right at the position where it was before JACK went down.
+        If JACK settings were changed between a restart, <em>jack_playfile</em> tries to adapt to the new settings as good as possible.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-D, --nocontrol</strong>:: (w/o argument)
+</dt>
+<dd>
+<p>
+        Disable keyboard control.
+        <strong>Default:</strong> <em>jack_playfile</em> accepts keyboard input while playing.
+        For a detailed overview on available control actions, see <em>KEYBOARD SHORTCUTS</em> below or hit <em>F1</em> or <em>h</em> while <em>jack_playfile</em> is started and control is enabled.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-R, --noresampling</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
+        <strong>Default:</strong> The samples read from given file are resampled to match JACK sample rate.
+        This makes files play at the expected pitch and tempo.
+        Best results are achieved when the file sample rate matches JACK&#8217;s.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-S, --samplerate</strong> (integer)
+</dt>
+<dd>
+<p>
+        Override file sample rate. This affects how the resampler is setup.
+        The resampler ratio is defined with two sample rates, one of which is the JACK sample rate.
+        Overriding the sample rate that the meta data of the file is indicating results in a different (non-original) playback speed and pitch.
+        For instance, if a file has an SR of 48kHz, overriding with -S 24000 would play the file at half the original speed, i.e. the playback time is double the original length.
+        Not every given SR for overriding the file sample rate is possible. Odd values etc. will not work.
+        The zita-resampler documentation says: The Resampler class performs resampling at a fixed ratio F_out / F_in which is required to be greater than 1/16 and be reducible to the form b / a with a, b integer and b less than 1000. This includes all the <em>standard</em> ratios, e.g. 96000 / 44100 = 320 / 147. These restrictions allow for a more efficient implementation.
+        <strong>Default:</strong> Use original file sample rate.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-p, --paused</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Start paused.
+        <strong>Default:</strong> Start playing after successful file open and connection to JACK.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-m, --muted</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Start muted.
+        <strong>Default:</strong> Not muted, i.e. hear sound.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-l, --loop</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Enable loop. If end of track is reached (given offset+count), start over at offset.
+        <strong>Default:</strong> disabled. What happens when the end of a track is reached depends on other conditions.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-e, --pae</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Pause at end: If end of track is reached (given offset+count), <em>jack_playfile</em> won&#8217;t quit but pause playback instead.
+        If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
+        While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
+        <strong>Default:</strong> Off. If the end of a track is reached and loop is not enabled, <em>jack_playfile</em> is done and will quit.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-j, --transport</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        JACK transport: If enabled, <em>jack_playfile</em> will follow JACK transport signals "Stopped" and "Rolling",
+        mapped to paused and playing. In the opposite direction, <em>jack_playfile</em> sends transport signals to JACK when the play status changes, i.e. spacebar was hit to toggle play.
+        No positional information from JACK transport is processed or sent by <em>jack_playfile</em> to JACK. The position of <em>jack_playfile</em> is independent, i.e. it can loop while the JACK transport position increments linearly.
+        <strong>Default:</strong> Off.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-f, --frames</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Show time as frames. A number of (multichannel) frames in native file sample rate.
+        Note: The sample rate for Opus and MP3 files is always 48000. This is a consequence of how <em>jack_playfile</em> treats these formats, not a limitation of the formats.
+        <strong>Default:</strong> Show time as seconds.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-a, --absolute</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Show absolute time. The frames and seconds indication relate to absolute position 0 of audio samples in file.
+        <strong>Default:</strong> Show relative time. Frames and seconds indication relate to given offset of audio samples in file (offset=relative position 0).
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-r, --remaining</strong>:: (w/o argument)
+</dt>
+<dd>
+<p>
+        Show remaining time. How many frames or seconds until the end of the track is reached (offset+count).
+        <strong>Default:</strong> Show elapsed time. How many frames or seconds away from start (offset).
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-k, --noclock</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Disable clock display. This can save some resources.
+        <strong>Default:</strong> Enabled. The display is updated approximately with every JACK cycle.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-o, --offset</strong> (integer)
+</dt>
+<dd>
+<p>
+        Set frame offset: The first n (multichannel) frames (given number) in the file will be ignored.
+        The frame offset relates to native file sample rate (not JACK&#8217;s).
+        The offset is relative frame/time position 0 and will be used for seeking to start and looping.
+        Offsets beyond the end of available frames in the file will be set to 0.
+        <strong>Default:</strong> 0 (At first audio sample in file).
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-c, --count</strong> (integer)
+</dt>
+<dd>
+<p>
+        Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACK&#8217;s).
+        Counts resulting in positions beyond the end of available frames in the file will be set to default.
+        <strong>Default:</strong> All available frames, full length of track (respecting given offset).
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-O, --choffset</strong> (integer)
+</dt>
+<dd>
+<p>
+        Set channel offset: The first n channels (given number) in the file will be ignored.
+        Offsets beyond the total file channel count result in <em>jack_playfile</em> skipping the file, i.e. nothing will be set to a sane value and nothing will be played.
+        <strong>Default:</strong> 0 (At first channel in file).
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-C, --chcount</strong> (integer)
+</dt>
+<dd>
+<p>
+        Channel count: How many channels to read from file, counting from offset (--choffset).
+        The channel count defines how many output ports <em>jack_playfile</em> will expose to JACK.
+        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --chcount.
+        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
+        A fixed channel count i.e. --chcount 4 will ensure that even if the first file initializes <em>jack_playfile</em> with only one JACK output channel (mono file),
+        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
+        <strong>Default:</strong> All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports <em>jack_playfile</em> will have.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-v, --verbose</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Display more information about loaded audio files and JACK properties.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-L, --libs</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Show license and library information (see <em>LIBRARIES AND DEPENDENCIES</em>)
+</p>
+</dd>
+</dl></div>
+<div class="paragraph"><p>Count and offset relate to the sample rate and duration (frame count) indicated when <em>jack_playfile</em> starts up.
+For the audio formats Opus and MP3, frame offsets and counts always relate to a fixed sample rate of 48k.</p></div>
+<div class="paragraph"><p>To play multiple files, each file can be appended to the command line, i.e.:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile a.wav b.ogg c.flac</code></pre>
+</div></div>
+<div class="paragraph"><p>Please note that files containing spaces or special characters should be enclosed in <em>"</em>
+and if <em>"</em> is part of the filename, it needs escaping like <em>\"</em>.</p></div>
+<div class="paragraph"><p>Of course all the shell filename expansion mechanisms can be used, so that</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile *.wav 0??.ogg</code></pre>
+</div></div>
+<div class="paragraph"><p>will play all files matching the patterns.</p></div>
+<div class="paragraph"><p>If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
+file will be tried until there is a valid file or no more files left to try.</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_keyboard_shortcuts">KEYBOARD SHORTCUTS</h2>
+<div class="sectionbody">
+<div class="ulist"><ul>
+<li>
+<p>
+Start refers to the relative start given with --offset which is 0 by default. Relative start is always 0.
+</p>
+</li>
+<li>
+<p>
+End refers to relative end which is always equal to --count.
+</p>
+</li>
+<li>
+<p>
+Default Values are marked with "*"
+</p>
+<div class="dlist"><dl>
+<dt class="hdlist1">
+<strong>h, f1</strong>
+</dt>
+<dd>
+<p>
+Help (this screen)
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>space</strong>
+</dt>
+<dd>
+<p>
+Toggle play/pause
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>enter</strong>
+</dt>
+<dd>
+<p>
+Play
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>arrow left</strong>
+</dt>
+<dd>
+<p>
+Seek one step backward
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>arrow right</strong>
+</dt>
+<dd>
+<p>
+Seek one step forward
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>arrow up</strong>
+</dt>
+<dd>
+<p>
+Increment seek step size
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>arrow down</strong>
+</dt>
+<dd>
+<p>
+Decrement seek step size
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>home</strong>
+</dt>
+<dd>
+<p>
+Seek to start
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>0</strong>
+</dt>
+<dd>
+<p>
+Seek to start and pause
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>backspace</strong>
+</dt>
+<dd>
+<p>
+Seek to start and play
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>end</strong>
+</dt>
+<dd>
+<p>
+Seek to end
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>&lt; less than</strong>
+</dt>
+<dd>
+<p>
+Load previous file
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>&gt; greater than</strong>
+</dt>
+<dd>
+<p>
+Load next file
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>m</strong>
+</dt>
+<dd>
+<p>
+Toggle mute on/off*
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>l</strong>
+</dt>
+<dd>
+<p>
+Toggle loop on/off*
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>p</strong>
+</dt>
+<dd>
+<p>
+Toggle pause at end on/off*
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>j</strong>
+</dt>
+<dd>
+<p>
+Toggle JACK transport on/off*
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>c</strong>
+</dt>
+<dd>
+<p>
+Toggle clock display on*/off
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>, comma</strong>
+</dt>
+<dd>
+<p>
+Toggle clock seconds*/frames
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>. period</strong>
+</dt>
+<dd>
+<p>
+Toggle clock absolute*/relative
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>- dash</strong>
+</dt>
+<dd>
+<p>
+Toggle clock elapsed*/remaining
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>q</strong>
+</dt>
+<dd>
+<p>
+Quit
+</p>
+</dd>
+</dl></div>
+</li>
+</ul></div>
+<div class="paragraph"><p>If the clock is set to seconds, changing the seek step size will use the following grid:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+0.001, 0.010, 0.100, 1, 10*, 60, 600, 3600 (seconds)
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>If the clock is set to frames, changing the seek step size will use the following grid:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+1*, 10, 100, 1000, 10k, 100k, 1000k, 10M, 100M (frames)
+</p>
+</li>
+</ul></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_timeline">TIMELINE</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>The relation of absolute and relative start and end using offset and count, limited seek steps:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>                   current abs pos
+abs start          v                                   abs end
+|------------------------------------------------------|
+           rel start                  rel end
+           |--------------------------|
+           frame_offset               offset + frame_count
+           |       rel pos            |
+           |-------|------------------|
+           |                          |
+    .======x=======.=============.====x=======.
+           |       seek steps         |
+           limit                      limit</code></pre>
+</div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_examples">EXAMPLES</h2>
+<div class="sectionbody">
+<div class="ulist"><ul>
+<li>
+<p>
+Play RIFF wave file:
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile audio.wav</code></pre>
+</div></div>
+</li>
+</ul></div>
+<div class="paragraph"><p>Example output of <em>jack_playfile</em> using option -v:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>file:        audio.wav  (#1/1)
+size:        57274264 bytes (57.27 MB)
+format:      Microsoft WAV format (little endian)
+             Signed 16 bit data (0x00010002)
+duration:    00:05:24.684 (14318555 frames)
+sample rate: 44100
+channels:    2
+data rate:   176400.0 bytes/s (0.18 MB/s)
+frame_count set to 14318555 (all available frames)
+playing frames offset, count, end: 0 14318555 14318555
+playing channels offset, count, end, file: 0 2 2
+JACK sample rate: 48000
+JACK period size: 128 frames
+JACK cycles per second: 375.00
+JACK output data rate: 384000.0 bytes/s (0.38 MB/s)
+total byte out_to_in ratio: 2.176871
+resampler out_to_in ratio: 1.088435
+autoconnect: jack_playfile-01:output_1 -&gt; firewire_pcm:000a9200d6012385_MainOut 1L_out
+autoconnect: jack_playfile-01:output_2 -&gt; firewire_pcm:000a9200d6012385_MainOut 2R_out
+&gt;  playing       S rel    10          4.3  (00:00:04.321)</code></pre>
+</div></div>
+<div class="paragraph"><p>(the last line is being updated in an interval)</p></div>
+<div class="paragraph"><p>Note on ratios:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
+</p>
+</li>
+<li>
+<p>
+resampler out_to_in ratio: JACK sample rate divided by file sample rate.
+</p>
+</li>
+<li>
+<p>
+data_rate: Bytes to read from file per second to satisfy constant flow to JACK output. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>Legend (example prompt):</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)
+^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^
+1           2345  6 7   8     9     10    9 11            12</code></pre>
+</div></div>
+<div class="literalblock">
+<div class="content">
+<pre><code> 1): status playing '&gt;', paused '||' or seeking '...'
+ 2): JACK transport on/off 'J' or ' '
+ 3): mute on/off 'M' or ' '
+ 4): loop on/off 'L' or ' '
+ 5): pause at end on/off 'P' or ' '
+ 6): time and seek in seconds 'S' or frames 'F'
+ 7): time indication 'rel' to frame_offset or 'abs'
+ 8): seek step size in seconds or frames
+ 9): time elapsed ' ' or remaining '-'
+10): time in seconds or frames
+11): time in HMS.millis
+12): keyboard input indication (i.e. seek)</code></pre>
+</div></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
+showing remaining absolute time, pause at end and loop:
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile -o 480000 -c 48000 -r -a --pae -l audio.opus</code></pre>
+</div></div>
+</li>
+<li>
+<p>
+Play a short snippet of all wave files in a directory, using only first channel
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile --offset 5000 --count 10000 --chcount 1 samples/*.wav</code></pre>
+</div></div>
+</li>
+</ul></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_error_messages">ERROR MESSAGES</h2>
+<div class="sectionbody">
+<div class="paragraph"><p><em>jack_playfile</em> does not automatically start a JACK default server if there is none running.
+If <em>jack_playfile</em> is started with the option --noreconnect,  this will lead to the following message:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+jack_client_open() failed, status = 0x11
+Unable to connect to JACK server</code></pre>
+</div></div>
+<div class="paragraph"><p>Simply start JACK before using <em>jack_playfile</em>.
+If --noreconnect is not present, <em>jack_playfile</em> will wait until JACK is reachable:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>waiting for connection to JACK server...</code></pre>
+</div></div>
+<div class="paragraph"><p>To find out how to start JACK, see <em>jackd</em> manpage and tutorials on <a href="http://jackaudio.org">http://jackaudio.org</a>.
+There is an excellent graphical JACK control program called <em>qjackctl</em>, <a href="http://qjackctl.sourceforge.net/">http://qjackctl.sourceforge.net/</a>.</p></div>
+<div class="paragraph"><p>In a nutshell:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Starting JACK in realtime mode from a terminal with ALSA backend
+(i.e. onboard audio), using first available audio card
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jackd -R -dalsa -r48000 -p512 -n3 -dhw:0</code></pre>
+</div></div>
+</li>
+</ul></div>
+<div class="paragraph"><p>This can fail for several reasons:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+<em>jackd</em> is not installed &#8594; check repository for "jackd" or similar and install
+</p>
+</li>
+<li>
+<p>
+The default JACK server is already running &#8594; no need to start again
+</p>
+</li>
+<li>
+<p>
+The device at hw:0 is already in use by another audio server, i.e. <em>pulseaudio</em> &#8594; try to stop pulse or try another card (i.e. hw:1)
+</p>
+</li>
+<li>
+<p>
+You don&#8217;t have permissions to run <em>jackd</em> because of security limits (rtprio, memlock) &#8594; check /etc/security/limits.d/audio.conf, check that user is part of group "audio", eventually log out and login to make group changes take effect.
+</p>
+</li>
+<li>
+<p>
+Other reason
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>If <em>jackd</em> is installed, it&#8217;s possible to start JACK with a dummy backend where no physical audio devices are involved:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Starting JACK with dummy backend, server name "virtual"
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jackd --name virtual -ddummy -r4800 -p128</code></pre>
+</div></div>
+</li>
+<li>
+<p>
+Telling jack_playfile to use JACK server "virtual"
+</p>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile --sname virtual audio.ogg</code></pre>
+</div></div>
+</li>
+</ul></div>
+<div class="paragraph"><p>If you have trouble starting <em>jackd</em> on your host, please consult JACK FAQ at <a href="http://jackaudio.org/faq/">http://jackaudio.org/faq/</a> and join IRC #jack on freenode. There is a mailinglist too.</p></div>
+<div class="paragraph"><p><em>jack_playfile</em> returns 0 on regular program exit, or 1 if there was an error.</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_program_statuses">PROGRAM STATUSES</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>(Simplified)</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+Initializing (JACK, first/next/prev file)
+</p>
+</li>
+<li>
+<p>
+Paused (||)
+</p>
+</li>
+<li>
+<p>
+Playing (&gt;)
+</p>
+</li>
+<li>
+<p>
+Seeking (&#8230;)
+</p>
+</li>
+<li>
+<p>
+Shutting down
+</p>
+</li>
+</ul></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_program_life_cycle">PROGRAM LIFE CYCLE</h2>
+<div class="sectionbody">
+<div class="paragraph"><p><em>jack_playfile</em> procedure (simplified):</p></div>
+<div class="paragraph"><p>0) Initializing, starting up with given parameters</p></div>
+<div class="paragraph"><p>1) Trying to open given file with several decoders, quit on fail</p></div>
+<div class="paragraph"><p>2) Check if JACK libraries are available on host, quit on fail</p></div>
+<div class="paragraph"><p>3) Eventually wait for JACK server to become available</p></div>
+<div class="paragraph"><p>4) Register JACK client, register ports, optionally connect ports, quit on fail</p></div>
+<div class="paragraph"><p>5) Start operation based on playback settings (paused, muted etc.)</p></div>
+<div class="paragraph"><p>6) Eventually stop operation if JACK away</p></div>
+<div class="paragraph"><p>7) Eventually resume operation if JACK available</p></div>
+<div class="paragraph"><p>8) Eventually play next or previous file in args list</p></div>
+<div class="paragraph"><p>9) Release resources and quit nicely if all done or quit was requested</p></div>
+<div class="paragraph"><p>The diagram below is not "pure" in any way. It should show some statuses and possible program flows.
+Unexpected errors that could happen anywhere aren&#8217;t graphed.
+(This diagram isn&#8217;t visible in ASCII text based representations of this document).</p></div>
+<div class="imageblock graphviz">
+<div class="content">
+<img src="images/jack_playfile_program_flow_rough.png" alt="images/jack_playfile_program_flow_rough.png" />
+</div>
+</div>
+<div class="paragraph"><p>During all operation <em>jack_playfile</em> tries to prevent to cause JACK X-runs or <em>jack_playfile</em> internal buffer underflows.
+It&#8217;s very likely that underruns happen inside <em>jack_playfile</em> though (not enough data available to play in buffer),
+i.e. while seeking, during startup or shutdown.
+<em>jack_playfile</em> relies on constant fast file read access. Files can be copied to a RAM disk (i.e. /dev/shm/) before playing
+to prevent physical disk access on non-SSD disks.</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_libraries_and_dependencies">LIBRARIES AND DEPENDENCIES</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>Major audio libraries <em>jack_playfile</em> depends on:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+JACK audio connection kit - <a href="http://jackaudio.org/">http://jackaudio.org/</a> - <em>jack_playfile</em> works exclusively with JACK as audio backend. JACK is available for Linux, Windows and OSX.
+</p>
+</li>
+<li>
+<p>
+libsndfile - <a href="http://www.mega-nerd.com/libsndfile/">http://www.mega-nerd.com/libsndfile/</a> - This is the main library to read audio files.
+</p>
+</li>
+<li>
+<p>
+libzita-resampler - <a href="http://kokkinizita.linuxaudio.org/linuxaudio/">http://kokkinizita.linuxaudio.org/linuxaudio/</a> - High quality resampler.
+</p>
+</li>
+<li>
+<p>
+libopus, libopusfile - <a href="http://www.opus-codec.org/">http://www.opus-codec.org/</a> - RFC 6716, incorporates SILK &amp; CELT codecs.
+</p>
+</li>
+<li>
+<p>
+libvorbisfile - <a href="http://xiph.org/vorbis/">http://xiph.org/vorbis/</a> - Fast seeking in Ogg Vorbis files.
+</p>
+</li>
+<li>
+<p>
+libmpg123 - <a href="http://www.mpg123.org/">http://www.mpg123.org/</a> - Reading MPEG audio layer 3 files.
+</p>
+</li>
+</ul></div>
+<div class="paragraph"><p>Libraries abstracted by libsndfile:</p></div>
+<div class="ulist"><ul>
+<li>
+<p>
+libFLAC - <a href="http://xiph.org/flac/">http://xiph.org/flac/</a>
+</p>
+</li>
+<li>
+<p>
+libvorbis, libvorbisenc - <a href="http://xiph.org/vorbis/">http://xiph.org/vorbis/</a>
+</p>
+</li>
+<li>
+<p>
+libogg - <a href="http://xiph.org/ogg/">http://xiph.org/ogg/</a>
+</p>
+</li>
+</ul></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resources">RESOURCES</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>Github: <a href="https://github.com/7890/jack_tools">https://github.com/7890/jack_tools</a> in subdirectory jack_playfile</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_bugs">BUGS</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>Please report any bugs as issues to the github repository. Patches and pull requests are welcome.</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_see_also">SEE ALSO</h2>
+<div class="sectionbody">
+<div class="paragraph"><p><strong>jackd</strong>(1) <strong>jack_capture</strong>(1) <strong>sndfile-info</strong>(1) <strong>zresample</strong>(1) <strong>flac</strong>(1) <strong>oggenc</strong>(1) <strong>opusenc</strong>(1) <strong>mpg123</strong>(1) <strong>sox</strong>(1) <strong>patchage</strong>(1)</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_authors">AUTHORS</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>Thomas Brand &lt;<a href="mailto:tom@trellis.ch">tom@trellis.ch</a>&gt;</p></div>
+<div class="paragraph"><p>Last Update: Mon Aug 24 17:36:08 CEST 2015</p></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_copying">COPYING</h2>
+<div class="sectionbody">
+<div class="paragraph"><p>Copyright (C) 2015 Thomas Brand. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).</p></div>
+</div>
+</div>
+</div>
+<div id="footnotes"><hr /></div>
+<div id="footer">
+<div id="footer-text">
+Last updated 2015-08-24 17:36:16 CEST
+</div>
+</div>
+</body>
+</html>

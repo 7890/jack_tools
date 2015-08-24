@@ -77,13 +77,23 @@ manpage:
 	@echo "------------------------------"
 	@echo ""
 
-	a2x --doctype manpage --format manpage --keep-artifacts $(DOC)/jack_playfile.man.asciidoc
+	#man
+	a2x --doctype manpage --format manpage $(DOC)/jack_playfile.man.asciidoc
 	gzip -9 -f $(DOC)/jack_playfile.1
 
-	docbook2pdf --backend pdf --output $(DOC)/ --nochunks $(DOC)/jack_playfile.man.xml
+	#html
+	asciidoc $(DOC)/jack_playfile.man.asciidoc
+
+	#pdf, xml (docbook)
+	a2x --format pdf --keep-artifacts --dblatex-opts " -P doc.layout=\"coverpage mainmatter\" -P doc.publisher.show=0" $(DOC)/jack_playfile.man.asciidoc
+
+#	docbook2pdf --backend pdf --output $(DOC)/ --nochunks $(DOC)/jack_playfile.man.xml
 	mv $(DOC)/jack_playfile.man.pdf $(DOC)/jack_playfile.pdf
-	rm -f $(DOC)/jack_playfile.man.xml
-	rm -f $(DOC)/jack_playfile.man.html
+	mv $(DOC)/jack_playfile.man.xml $(DOC)/jack_playfile.xml
+	mv $(DOC)/jack_playfile.man.html $(DOC)/jack_playfile.html
+
+#	rm -f $(DOC)/jack_playfile.man.xml
+#	rm -f $(DOC)/jack_playfile.man.html
 
 #	man -l -Tps $(DOC)/jack_playfile.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_playfile.pdf
 

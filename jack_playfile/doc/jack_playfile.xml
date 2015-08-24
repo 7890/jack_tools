@@ -1,0 +1,968 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+<?asciidoc-toc?>
+<?asciidoc-numbered?>
+<refentry lang="en">
+<refentryinfo>
+    <title>jack_playfile(1)</title>
+</refentryinfo>
+<refmeta>
+<refentrytitle>jack_playfile</refentrytitle>
+<manvolnum>1</manvolnum>
+<refmiscinfo class="source">&#160;</refmiscinfo>
+<refmiscinfo class="manual">&#160;</refmiscinfo>
+</refmeta>
+<refnamediv>
+    <refname>jack_playfile</refname>
+    <refpurpose>play audio files with JACK</refpurpose>
+</refnamediv>
+<refsynopsisdiv id="_synopsis">
+<simpara><emphasis>jack_playfile</emphasis> [OPTION]&#8230; FILE&#8230;</simpara>
+</refsynopsisdiv>
+<refsect1 id="_description">
+<title>DESCRIPTION</title>
+<simpara><emphasis>jack_playfile</emphasis> is a simple audio file player for JACK.</simpara>
+<simpara>Main features:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+High quality resampling to match JACK sample rate (can be turned off)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Keyboard control while playing (can be turned off)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Fast and frame accurate seeking
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Supports multichannel files
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Can play files at alternative speed/pitch
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Adapts to a broad range of file formats and JACK settings
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Versatile command line options and live control
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Survives JACK restart (resume playing at the same position)
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>Please note:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Opus files are limited to 8 channels by libopusfile.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+FLAC files are limited to 8 channels per stream by spec.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+MP3 supports a maximum of two channels (no "MP3 Surround" support).
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</simpara>
+<simpara><emphasis>jack_playfile</emphasis> can read and play local audio files only. There is currently no support for playlists or handling of song meta data.
+No DSP other than optional resampling is applied to the audio signal.
+To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with <emphasis>jack_playfile</emphasis>.
+This plugin collection is a good starting point: <ulink url="https://github.com/x42/x42-plugins">https://github.com/x42/x42-plugins</ulink></simpara>
+<simpara>The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.</simpara>
+<simpara><emphasis role="strong">THIS PROGRAM COMES WITHOUT ANY WARRANTY</emphasis></simpara>
+<simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
+unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
+If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.84.</simpara>
+</refsect1>
+<refsect1 id="_options">
+<title>OPTIONS</title>
+<variablelist>
+<varlistentry>
+<term>
+<emphasis role="strong">-h, --help</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Display help and quit.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-V, --version</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Display version and quit.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-n, --name</emphasis> (string)
+</term>
+<listitem>
+<simpara>
+        JACK client name.
+        <emphasis role="strong">Default:</emphasis> "jack_playfile"
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-s, --sname</emphasis> (string)
+</term>
+<listitem>
+<simpara>
+        JACK server name to start <emphasis>jack_playfile</emphasis> in a specific JACK server.
+        <emphasis role="strong">Default:</emphasis> "default"
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-N, --noconnect</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Don&#8217;t connect to JACK playback ports.
+        <emphasis role="strong">Default:</emphasis> <emphasis>jack_playfile</emphasis> tries to connect all available channels to all available physical output/playback ports 1:1.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-E, --noreconnect</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Don&#8217;t wait for JACK to reconnect as a client.
+        <emphasis role="strong">Default:</emphasis> If JACK goes down, <emphasis>jack_playfile</emphasis> waits for the server to come back and then continues operation.
+        If <emphasis>jack_playfile</emphasis> was playing when JACK went down, it will continue right at the position where it was before JACK went down.
+        If JACK settings were changed between a restart, <emphasis>jack_playfile</emphasis> tries to adapt to the new settings as good as possible.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-D, --nocontrol</emphasis>:: (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Disable keyboard control.
+        <emphasis role="strong">Default:</emphasis> <emphasis>jack_playfile</emphasis> accepts keyboard input while playing.
+        For a detailed overview on available control actions, see <emphasis>KEYBOARD SHORTCUTS</emphasis> below or hit <emphasis>F1</emphasis> or <emphasis>h</emphasis> while <emphasis>jack_playfile</emphasis> is started and control is enabled.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-R, --noresampling</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
+        <emphasis role="strong">Default:</emphasis> The samples read from given file are resampled to match JACK sample rate.
+        This makes files play at the expected pitch and tempo.
+        Best results are achieved when the file sample rate matches JACK&#8217;s.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-S, --samplerate</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Override file sample rate. This affects how the resampler is setup.
+        The resampler ratio is defined with two sample rates, one of which is the JACK sample rate.
+        Overriding the sample rate that the meta data of the file is indicating results in a different (non-original) playback speed and pitch.
+        For instance, if a file has an SR of 48kHz, overriding with -S 24000 would play the file at half the original speed, i.e. the playback time is double the original length.
+        Not every given SR for overriding the file sample rate is possible. Odd values etc. will not work.
+        The zita-resampler documentation says: The Resampler class performs resampling at a fixed ratio F_out / F_in which is required to be greater than 1/16 and be reducible to the form b / a with a, b integer and b less than 1000. This includes all the <emphasis>standard</emphasis> ratios, e.g. 96000 / 44100 = 320 / 147. These restrictions allow for a more efficient implementation.
+        <emphasis role="strong">Default:</emphasis> Use original file sample rate.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-p, --paused</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Start paused.
+        <emphasis role="strong">Default:</emphasis> Start playing after successful file open and connection to JACK.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-m, --muted</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Start muted.
+        <emphasis role="strong">Default:</emphasis> Not muted, i.e. hear sound.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-l, --loop</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Enable loop. If end of track is reached (given offset+count), start over at offset.
+        <emphasis role="strong">Default:</emphasis> disabled. What happens when the end of a track is reached depends on other conditions.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-e, --pae</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Pause at end: If end of track is reached (given offset+count), <emphasis>jack_playfile</emphasis> won&#8217;t quit but pause playback instead.
+        If loop is disabled, the position will correspond to end. If loop is enabled, the position will be set to start.
+        While paused at end, play, toggle play and forward seeks are blocked i.e. not executed.
+        <emphasis role="strong">Default:</emphasis> Off. If the end of a track is reached and loop is not enabled, <emphasis>jack_playfile</emphasis> is done and will quit.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-j, --transport</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        JACK transport: If enabled, <emphasis>jack_playfile</emphasis> will follow JACK transport signals "Stopped" and "Rolling",
+        mapped to paused and playing. In the opposite direction, <emphasis>jack_playfile</emphasis> sends transport signals to JACK when the play status changes, i.e. spacebar was hit to toggle play.
+        No positional information from JACK transport is processed or sent by <emphasis>jack_playfile</emphasis> to JACK. The position of <emphasis>jack_playfile</emphasis> is independent, i.e. it can loop while the JACK transport position increments linearly.
+        <emphasis role="strong">Default:</emphasis> Off.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-f, --frames</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Show time as frames. A number of (multichannel) frames in native file sample rate.
+        Note: The sample rate for Opus and MP3 files is always 48000. This is a consequence of how <emphasis>jack_playfile</emphasis> treats these formats, not a limitation of the formats.
+        <emphasis role="strong">Default:</emphasis> Show time as seconds.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-a, --absolute</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Show absolute time. The frames and seconds indication relate to absolute position 0 of audio samples in file.
+        <emphasis role="strong">Default:</emphasis> Show relative time. Frames and seconds indication relate to given offset of audio samples in file (offset=relative position 0).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-r, --remaining</emphasis>:: (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Show remaining time. How many frames or seconds until the end of the track is reached (offset+count).
+        <emphasis role="strong">Default:</emphasis> Show elapsed time. How many frames or seconds away from start (offset).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-k, --noclock</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Disable clock display. This can save some resources.
+        <emphasis role="strong">Default:</emphasis> Enabled. The display is updated approximately with every JACK cycle.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-o, --offset</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Set frame offset: The first n (multichannel) frames (given number) in the file will be ignored.
+        The frame offset relates to native file sample rate (not JACK&#8217;s).
+        The offset is relative frame/time position 0 and will be used for seeking to start and looping.
+        Offsets beyond the end of available frames in the file will be set to 0.
+        <emphasis role="strong">Default:</emphasis> 0 (At first audio sample in file).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-c, --count</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Frame count: A number of (multichannel) frames to play from given offset position. The frame count relates to native file sample rate (not JACK&#8217;s).
+        Counts resulting in positions beyond the end of available frames in the file will be set to default.
+        <emphasis role="strong">Default:</emphasis> All available frames, full length of track (respecting given offset).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-O, --choffset</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Set channel offset: The first n channels (given number) in the file will be ignored.
+        Offsets beyond the total file channel count result in <emphasis>jack_playfile</emphasis> skipping the file, i.e. nothing will be set to a sane value and nothing will be played.
+        <emphasis role="strong">Default:</emphasis> 0 (At first channel in file).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-C, --chcount</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Channel count: How many channels to read from file, counting from offset (--choffset).
+        The channel count defines how many output ports <emphasis>jack_playfile</emphasis> will expose to JACK.
+        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --chcount.
+        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
+        A fixed channel count i.e. --chcount 4 will ensure that even if the first file initializes <emphasis>jack_playfile</emphasis> with only one JACK output channel (mono file),
+        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
+        <emphasis role="strong">Default:</emphasis> All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports <emphasis>jack_playfile</emphasis> will have.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-v, --verbose</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Display more information about loaded audio files and JACK properties.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-L, --libs</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Show license and library information (see <emphasis>LIBRARIES AND DEPENDENCIES</emphasis>)
+</simpara>
+</listitem>
+</varlistentry>
+</variablelist>
+<simpara>Count and offset relate to the sample rate and duration (frame count) indicated when <emphasis>jack_playfile</emphasis> starts up.
+For the audio formats Opus and MP3, frame offsets and counts always relate to a fixed sample rate of 48k.</simpara>
+<simpara>To play multiple files, each file can be appended to the command line, i.e.:</simpara>
+<literallayout class="monospaced">$ jack_playfile a.wav b.ogg c.flac</literallayout>
+<simpara>Please note that files containing spaces or special characters should be enclosed in <emphasis>"</emphasis>
+and if <emphasis>"</emphasis> is part of the filename, it needs escaping like <emphasis>\"</emphasis>.</simpara>
+<simpara>Of course all the shell filename expansion mechanisms can be used, so that</simpara>
+<literallayout class="monospaced">$ jack_playfile *.wav 0??.ogg</literallayout>
+<simpara>will play all files matching the patterns.</simpara>
+<simpara>If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
+file will be tried until there is a valid file or no more files left to try.</simpara>
+</refsect1>
+<refsect1 id="_keyboard_shortcuts">
+<title>KEYBOARD SHORTCUTS</title>
+<itemizedlist>
+<listitem>
+<simpara>
+Start refers to the relative start given with --offset which is 0 by default. Relative start is always 0.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+End refers to relative end which is always equal to --count.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Default Values are marked with "*"
+</simpara>
+<variablelist>
+<varlistentry>
+<term>
+<emphasis role="strong">h, f1</emphasis>
+</term>
+<listitem>
+<simpara>
+Help (this screen)
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">space</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle play/pause
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">enter</emphasis>
+</term>
+<listitem>
+<simpara>
+Play
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">arrow left</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek one step backward
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">arrow right</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek one step forward
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">arrow up</emphasis>
+</term>
+<listitem>
+<simpara>
+Increment seek step size
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">arrow down</emphasis>
+</term>
+<listitem>
+<simpara>
+Decrement seek step size
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">home</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek to start
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">0</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek to start and pause
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">backspace</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek to start and play
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">end</emphasis>
+</term>
+<listitem>
+<simpara>
+Seek to end
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">&lt; less than</emphasis>
+</term>
+<listitem>
+<simpara>
+Load previous file
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">&gt; greater than</emphasis>
+</term>
+<listitem>
+<simpara>
+Load next file
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">m</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle mute on/off*
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">l</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle loop on/off*
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">p</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle pause at end on/off*
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">j</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle JACK transport on/off*
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">c</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle clock display on*/off
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">, comma</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle clock seconds*/frames
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">. period</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle clock absolute*/relative
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">- dash</emphasis>
+</term>
+<listitem>
+<simpara>
+Toggle clock elapsed*/remaining
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">q</emphasis>
+</term>
+<listitem>
+<simpara>
+Quit
+</simpara>
+</listitem>
+</varlistentry>
+</variablelist>
+</listitem>
+</itemizedlist>
+<simpara>If the clock is set to seconds, changing the seek step size will use the following grid:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+0.001, 0.010, 0.100, 1, 10*, 60, 600, 3600 (seconds)
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>If the clock is set to frames, changing the seek step size will use the following grid:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+1*, 10, 100, 1000, 10k, 100k, 1000k, 10M, 100M (frames)
+</simpara>
+</listitem>
+</itemizedlist>
+</refsect1>
+<refsect1 id="_timeline">
+<title>TIMELINE</title>
+<simpara>The relation of absolute and relative start and end using offset and count, limited seek steps:</simpara>
+<literallayout class="monospaced">                   current abs pos
+abs start          v                                   abs end
+|------------------------------------------------------|
+           rel start                  rel end
+           |--------------------------|
+           frame_offset               offset + frame_count
+           |       rel pos            |
+           |-------|------------------|
+           |                          |
+    .======x=======.=============.====x=======.
+           |       seek steps         |
+           limit                      limit</literallayout>
+</refsect1>
+<refsect1 id="_examples">
+<title>EXAMPLES</title>
+<itemizedlist>
+<listitem>
+<simpara>
+Play RIFF wave file:
+</simpara>
+<literallayout class="monospaced">$ jack_playfile audio.wav</literallayout>
+</listitem>
+</itemizedlist>
+<simpara>Example output of <emphasis>jack_playfile</emphasis> using option -v:</simpara>
+<literallayout class="monospaced">file:        audio.wav  (#1/1)
+size:        57274264 bytes (57.27 MB)
+format:      Microsoft WAV format (little endian)
+             Signed 16 bit data (0x00010002)
+duration:    00:05:24.684 (14318555 frames)
+sample rate: 44100
+channels:    2
+data rate:   176400.0 bytes/s (0.18 MB/s)
+frame_count set to 14318555 (all available frames)
+playing frames offset, count, end: 0 14318555 14318555
+playing channels offset, count, end, file: 0 2 2
+JACK sample rate: 48000
+JACK period size: 128 frames
+JACK cycles per second: 375.00
+JACK output data rate: 384000.0 bytes/s (0.38 MB/s)
+total byte out_to_in ratio: 2.176871
+resampler out_to_in ratio: 1.088435
+autoconnect: jack_playfile-01:output_1 -&gt; firewire_pcm:000a9200d6012385_MainOut 1L_out
+autoconnect: jack_playfile-01:output_2 -&gt; firewire_pcm:000a9200d6012385_MainOut 2R_out
+&gt;  playing       S rel    10          4.3  (00:00:04.321)</literallayout>
+<simpara>(the last line is being updated in an interval)</simpara>
+<simpara>Note on ratios:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+resampler out_to_in ratio: JACK sample rate divided by file sample rate.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+data_rate: Bytes to read from file per second to satisfy constant flow to JACK output. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>Legend (example prompt):</simpara>
+<literallayout class="monospaced">|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)
+^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^
+1           2345  6 7   8     9     10    9 11            12</literallayout>
+<literallayout class="monospaced"> 1): status playing '&gt;', paused '||' or seeking '...'
+ 2): JACK transport on/off 'J' or ' '
+ 3): mute on/off 'M' or ' '
+ 4): loop on/off 'L' or ' '
+ 5): pause at end on/off 'P' or ' '
+ 6): time and seek in seconds 'S' or frames 'F'
+ 7): time indication 'rel' to frame_offset or 'abs'
+ 8): seek step size in seconds or frames
+ 9): time elapsed ' ' or remaining '-'
+10): time in seconds or frames
+11): time in HMS.millis
+12): keyboard input indication (i.e. seek)</literallayout>
+<itemizedlist>
+<listitem>
+<simpara>
+Play Opus file, starting at an offset of 480000 frames (10 seconds), playing 48000 frames (1 second),
+showing remaining absolute time, pause at end and loop:
+</simpara>
+<literallayout class="monospaced">$ jack_playfile -o 480000 -c 48000 -r -a --pae -l audio.opus</literallayout>
+</listitem>
+<listitem>
+<simpara>
+Play a short snippet of all wave files in a directory, using only first channel
+</simpara>
+<literallayout class="monospaced">$ jack_playfile --offset 5000 --count 10000 --chcount 1 samples/*.wav</literallayout>
+</listitem>
+</itemizedlist>
+</refsect1>
+<refsect1 id="_error_messages">
+<title>ERROR MESSAGES</title>
+<simpara><emphasis>jack_playfile</emphasis> does not automatically start a JACK default server if there is none running.
+If <emphasis>jack_playfile</emphasis> is started with the option --noreconnect,  this will lead to the following message:</simpara>
+<literallayout class="monospaced">Cannot connect to server socket err = No such file or directory
+Cannot connect to server request channel
+jack server is not running or cannot be started
+jack_client_open() failed, status = 0x11
+Unable to connect to JACK server</literallayout>
+<simpara>Simply start JACK before using <emphasis>jack_playfile</emphasis>.
+If --noreconnect is not present, <emphasis>jack_playfile</emphasis> will wait until JACK is reachable:</simpara>
+<literallayout class="monospaced">waiting for connection to JACK server...</literallayout>
+<simpara>To find out how to start JACK, see <emphasis>jackd</emphasis> manpage and tutorials on <ulink url="http://jackaudio.org">http://jackaudio.org</ulink>.
+There is an excellent graphical JACK control program called <emphasis>qjackctl</emphasis>, <ulink url="http://qjackctl.sourceforge.net/">http://qjackctl.sourceforge.net/</ulink>.</simpara>
+<simpara>In a nutshell:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Starting JACK in realtime mode from a terminal with ALSA backend
+(i.e. onboard audio), using first available audio card
+</simpara>
+<literallayout class="monospaced">$ jackd -R -dalsa -r48000 -p512 -n3 -dhw:0</literallayout>
+</listitem>
+</itemizedlist>
+<simpara>This can fail for several reasons:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+<emphasis>jackd</emphasis> is not installed &#8594; check repository for "jackd" or similar and install
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+The default JACK server is already running &#8594; no need to start again
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+The device at hw:0 is already in use by another audio server, i.e. <emphasis>pulseaudio</emphasis> &#8594; try to stop pulse or try another card (i.e. hw:1)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+You don&#8217;t have permissions to run <emphasis>jackd</emphasis> because of security limits (rtprio, memlock) &#8594; check /etc/security/limits.d/audio.conf, check that user is part of group "audio", eventually log out and login to make group changes take effect.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Other reason
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>If <emphasis>jackd</emphasis> is installed, it&#8217;s possible to start JACK with a dummy backend where no physical audio devices are involved:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Starting JACK with dummy backend, server name "virtual"
+</simpara>
+<literallayout class="monospaced">$ jackd --name virtual -ddummy -r4800 -p128</literallayout>
+</listitem>
+<listitem>
+<simpara>
+Telling jack_playfile to use JACK server "virtual"
+</simpara>
+<literallayout class="monospaced">$ jack_playfile --sname virtual audio.ogg</literallayout>
+</listitem>
+</itemizedlist>
+<simpara>If you have trouble starting <emphasis>jackd</emphasis> on your host, please consult JACK FAQ at <ulink url="http://jackaudio.org/faq/">http://jackaudio.org/faq/</ulink> and join IRC #jack on freenode. There is a mailinglist too.</simpara>
+<simpara><emphasis>jack_playfile</emphasis> returns 0 on regular program exit, or 1 if there was an error.</simpara>
+</refsect1>
+<refsect1 id="_program_statuses">
+<title>PROGRAM STATUSES</title>
+<simpara>(Simplified)</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Initializing (JACK, first/next/prev file)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Paused (||)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Playing (&gt;)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Seeking (&#8230;)
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+Shutting down
+</simpara>
+</listitem>
+</itemizedlist>
+</refsect1>
+<refsect1 id="_program_life_cycle">
+<title>PROGRAM LIFE CYCLE</title>
+<simpara><emphasis>jack_playfile</emphasis> procedure (simplified):</simpara>
+<simpara>0) Initializing, starting up with given parameters</simpara>
+<simpara>1) Trying to open given file with several decoders, quit on fail</simpara>
+<simpara>2) Check if JACK libraries are available on host, quit on fail</simpara>
+<simpara>3) Eventually wait for JACK server to become available</simpara>
+<simpara>4) Register JACK client, register ports, optionally connect ports, quit on fail</simpara>
+<simpara>5) Start operation based on playback settings (paused, muted etc.)</simpara>
+<simpara>6) Eventually stop operation if JACK away</simpara>
+<simpara>7) Eventually resume operation if JACK available</simpara>
+<simpara>8) Eventually play next or previous file in args list</simpara>
+<simpara>9) Release resources and quit nicely if all done or quit was requested</simpara>
+<simpara>The diagram below is not "pure" in any way. It should show some statuses and possible program flows.
+Unexpected errors that could happen anywhere aren&#8217;t graphed.
+(This diagram isn&#8217;t visible in ASCII text based representations of this document).</simpara>
+<informalfigure>
+<mediaobject>
+  <imageobject>
+  <imagedata fileref="images/jack_playfile_program_flow_rough.png"/>
+  </imageobject>
+  <textobject><phrase>images/jack_playfile_program_flow_rough.png</phrase></textobject>
+</mediaobject>
+</informalfigure>
+<simpara>During all operation <emphasis>jack_playfile</emphasis> tries to prevent to cause JACK X-runs or <emphasis>jack_playfile</emphasis> internal buffer underflows.
+It&#8217;s very likely that underruns happen inside <emphasis>jack_playfile</emphasis> though (not enough data available to play in buffer),
+i.e. while seeking, during startup or shutdown.
+<emphasis>jack_playfile</emphasis> relies on constant fast file read access. Files can be copied to a RAM disk (i.e. /dev/shm/) before playing
+to prevent physical disk access on non-SSD disks.</simpara>
+</refsect1>
+<refsect1 id="_libraries_and_dependencies">
+<title>LIBRARIES AND DEPENDENCIES</title>
+<simpara>Major audio libraries <emphasis>jack_playfile</emphasis> depends on:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+JACK audio connection kit - <ulink url="http://jackaudio.org/">http://jackaudio.org/</ulink> - <emphasis>jack_playfile</emphasis> works exclusively with JACK as audio backend. JACK is available for Linux, Windows and OSX.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libsndfile - <ulink url="http://www.mega-nerd.com/libsndfile/">http://www.mega-nerd.com/libsndfile/</ulink> - This is the main library to read audio files.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libzita-resampler - <ulink url="http://kokkinizita.linuxaudio.org/linuxaudio/">http://kokkinizita.linuxaudio.org/linuxaudio/</ulink> - High quality resampler.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libopus, libopusfile - <ulink url="http://www.opus-codec.org/">http://www.opus-codec.org/</ulink> - RFC 6716, incorporates SILK &amp; CELT codecs.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libvorbisfile - <ulink url="http://xiph.org/vorbis/">http://xiph.org/vorbis/</ulink> - Fast seeking in Ogg Vorbis files.
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libmpg123 - <ulink url="http://www.mpg123.org/">http://www.mpg123.org/</ulink> - Reading MPEG audio layer 3 files.
+</simpara>
+</listitem>
+</itemizedlist>
+<simpara>Libraries abstracted by libsndfile:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+libFLAC - <ulink url="http://xiph.org/flac/">http://xiph.org/flac/</ulink>
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libvorbis, libvorbisenc - <ulink url="http://xiph.org/vorbis/">http://xiph.org/vorbis/</ulink>
+</simpara>
+</listitem>
+<listitem>
+<simpara>
+libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
+</simpara>
+</listitem>
+</itemizedlist>
+</refsect1>
+<refsect1 id="_resources">
+<title>RESOURCES</title>
+<simpara>Github: <ulink url="https://github.com/7890/jack_tools">https://github.com/7890/jack_tools</ulink> in subdirectory jack_playfile</simpara>
+</refsect1>
+<refsect1 id="_bugs">
+<title>BUGS</title>
+<simpara>Please report any bugs as issues to the github repository. Patches and pull requests are welcome.</simpara>
+</refsect1>
+<refsect1 id="_see_also">
+<title>SEE ALSO</title>
+<simpara><emphasis role="strong">jackd</emphasis>(1) <emphasis role="strong">jack_capture</emphasis>(1) <emphasis role="strong">sndfile-info</emphasis>(1) <emphasis role="strong">zresample</emphasis>(1) <emphasis role="strong">flac</emphasis>(1) <emphasis role="strong">oggenc</emphasis>(1) <emphasis role="strong">opusenc</emphasis>(1) <emphasis role="strong">mpg123</emphasis>(1) <emphasis role="strong">sox</emphasis>(1) <emphasis role="strong">patchage</emphasis>(1)</simpara>
+</refsect1>
+<refsect1 id="_authors">
+<title>AUTHORS</title>
+<simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
+<simpara>Last Update: Mon Aug 24 17:36:08 CEST 2015</simpara>
+</refsect1>
+<refsect1 id="_copying">
+<title>COPYING</title>
+<simpara>Copyright (C) 2015 Thomas Brand. Free use of this software is
+granted under the terms of the GNU General Public License (GPL).</simpara>
+</refsect1>
+</refentry>
