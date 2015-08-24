@@ -883,6 +883,61 @@ Unexpected errors that could happen anywhere aren&#8217;t graphed.
   <textobject><phrase>images/jack_playfile_program_flow_rough.png</phrase></textobject>
 </mediaobject>
 </informalfigure>
+<simpara>The diagram below is a more detailed view of <emphasis>Transport statuses</emphasis>.
+(This diagram isn&#8217;t visible in ASCII text based representations of this document).</simpara>
+<informalfigure>
+<mediaobject>
+  <imageobject>
+  <imagedata fileref="images/jack_playfile_transport_statuses.png"/>
+  </imageobject>
+  <textobject><phrase>images/jack_playfile_transport_statuses.png</phrase></textobject>
+</mediaobject>
+</informalfigure>
+<simpara>Example playhead movements:</simpara>
+<itemizedlist>
+<listitem>
+<simpara>
+Default playback
+</simpara>
+<literallayout class="monospaced">1)
+    v Playhead
+----|-----------------|-----&gt; time
+    offset            offset+count
+    (=rel. start)     (=rel. end)</literallayout>
+<literallayout class="monospaced">2)
+    .(advancing)...v Playhead
+----|-----------------|-----&gt; time
+    offset            offset+count</literallayout>
+<literallayout class="monospaced">3)
+    .(end reached)....v Playhead
+----|-----------------|-----&gt; time
+    offset            offset+count</literallayout>
+<literallayout class="monospaced">4) all played out, program terminates
+   OR loads next file if available, restart at 1)</literallayout>
+</listitem>
+<listitem>
+<simpara>
+Loop playback (--loop)
+</simpara>
+<literallayout class="monospaced">1) - 3) as default</literallayout>
+<literallayout class="monospaced">4) seek to offset, repeat from 1)</literallayout>
+</listitem>
+<listitem>
+<simpara>
+Pause at end (--pae)
+</simpara>
+<literallayout class="monospaced">1) - 3) as default</literallayout>
+<literallayout class="monospaced">4) Idling at end (playhead stays at end, paused)</literallayout>
+<literallayout class="monospaced">5) Optional: seek backwards, load previous or next file</literallayout>
+</listitem>
+<listitem>
+<simpara>
+Pause at end combined with Loop (--loop --pae)
+</simpara>
+<literallayout class="monospaced">1) - 3) as default</literallayout>
+<literallayout class="monospaced">4) seek to offset (playhead at start, paused)</literallayout>
+</listitem>
+</itemizedlist>
 <simpara>During all operation <emphasis>jack_playfile</emphasis> tries to prevent to cause JACK X-runs or <emphasis>jack_playfile</emphasis> internal buffer underflows.
 It&#8217;s very likely that underruns happen inside <emphasis>jack_playfile</emphasis> though (not enough data available to play in buffer),
 i.e. while seeking, during startup or shutdown.
@@ -958,7 +1013,7 @@ libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
 <refsect1 id="_authors">
 <title>AUTHORS</title>
 <simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
-<simpara>Last Update: Mon Aug 24 17:36:08 CEST 2015</simpara>
+<simpara>Last Update: Mon Aug 24 20:01:33 CEST 2015</simpara>
 </refsect1>
 <refsect1 id="_copying">
 <title>COPYING</title>

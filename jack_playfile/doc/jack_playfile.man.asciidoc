@@ -409,10 +409,61 @@ Unexpected errors that could happen anywhere aren't graphed.
 include::images/jack_playfile_program_flow_rough.dot[]
 ---------------------------------------------------------------------
 
+The diagram below is a more detailed view of 'Transport statuses'.
+(This diagram isn't visible in ASCII text based representations of this document).
+
+["graphviz", "images/jack_playfile_transport_statuses.png", "dot"]
+---------------------------------------------------------------------
+include::images/jack_playfile_transport_statuses.dot[]
+---------------------------------------------------------------------
+
 /////////
 - *to work on the .dot file: xdot jack_playfile_statuses.dot
 - *then edit jack_playfile_statuses.dot in text editor. saving file will update view in xdot
 /////////
+
+Example playhead movements:
+
+- Default playback
+
+   1)
+       v Playhead
+   ----|-----------------|-----> time
+       offset            offset+count
+       (=rel. start)     (=rel. end)
+
+   2)
+       .(advancing)...v Playhead
+   ----|-----------------|-----> time
+       offset            offset+count
+
+   3)
+       .(end reached)....v Playhead
+   ----|-----------------|-----> time
+       offset            offset+count
+
+   4) all played out, program terminates
+      OR loads next file if available, restart at 1)
+
+- Loop playback (--loop)
+
+  1) - 3) as default
+
+  4) seek to offset, repeat from 1)
+
+- Pause at end (--pae)
+
+  1) - 3) as default
+
+  4) Idling at end (playhead stays at end, paused)
+
+  5) Optional: seek backwards, load previous or next file
+
+- Pause at end combined with Loop (--loop --pae)
+
+  1) - 3) as default
+
+  4) seek to offset (playhead at start, paused)
 
 During all operation 'jack_playfile' tries to prevent to cause JACK X-runs or 'jack_playfile' internal buffer underflows.
 It's very likely that underruns happen inside 'jack_playfile' though (not enough data available to play in buffer), 
@@ -458,7 +509,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Mon Aug 24 17:36:08 CEST 2015
+Last Update: Mon Aug 24 20:01:33 CEST 2015
 
 COPYING
 -------

@@ -1,0 +1,40 @@
+#["graphviz", "images/jack_playfile_transport_statuses.png", "dot"]
+#---------------------------------------------------------------------
+digraph jack_playfile_transport_statuses {
+#rankdir=LR;
+#size="8,5"
+node [shape = doublecircle]; Start End;
+node [shape = circle];
+
+Start -> "At start" [ label = "frame_offset=0" ]
+Start -> Seeking [ label = "frame_offset>0" ]
+
+"At start" -> Playing [ label = "is_paused=0" ]
+"At start" -> Paused [ label = "is_paused=1" ]
+
+Playing -> Paused [ label = "pause" ]
+Paused -> Playing [ label = "play" ]
+
+Playing -> Seeking [ label = "seek" ]
+Seeking -> Playing [ label = "seek done\n while playing\n or after\n initial seek" ]
+
+Paused -> Seeking [ label = "seek" ]
+Seeking -> Paused [ label = "seek done\n while paused\n or after initial\n seek, is_paused=1" ]
+
+Playing -> "At end" [ label = "all played out" ]
+Seeking -> "At end" [ label = "end of data reached,\n seek limited to end" ]
+
+"At end" -> Start [ label = "next / prev.\n file,\n no loop" ]
+"At end" -> Seeking [ label = "loop" ]
+
+Seeking -> "At start" [ label = "seek 0, loop" ]
+
+"At end" -> "Idling at end" [ label = "--pae" ]
+
+"Idling at end" -> Start [ label = "next / prev.\n file" ]
+
+"Idling at end" -> Seeking [ label = "seek backward\n or loop" ]
+
+"At end" -> End [ label = "all payed out,\n no loop" ]
+}
+#---------------------------------------------------------------------

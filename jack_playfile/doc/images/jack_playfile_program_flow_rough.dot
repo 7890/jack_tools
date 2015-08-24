@@ -1,6 +1,6 @@
-#["graphviz", "jack_playfile_statuses.png", "dot"]
+#["graphviz", "images/jack_playfile_program_flow_rough.png", "dot"]
 #---------------------------------------------------------------------
-digraph jack_playfile_statuses {
+digraph jack_playfile_program_flow_rough {
 #rankdir=LR;
 #size="8,5"
 node [shape = doublecircle]; Start End;
