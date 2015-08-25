@@ -14,16 +14,17 @@ INSTALLDIR = $(PREFIX)/bin
 MANDIR = $(PREFIX)/share/man/man1
 
 DISTRO_LIBS_DIR = /usr/lib/x86_64-linux-gnu
+#DISTRO_LIBS_DIR = /usr/lib/i386-linux-gnu
 LOCAL_LIBS_DIR = /usr/local/lib
 
-STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(DISTRO_LIBS_DIR)/libopus.a -l:$(DISTRO_LIBS_DIR)/libvorbisfile.a
+STATIC_LIBS_DISTRO = -l:$(DISTRO_LIBS_DIR)/libsndfile.a -l:$(DISTRO_LIBS_DIR)/libFLAC.a -l:$(DISTRO_LIBS_DIR)/libvorbisenc.a -l:$(DISTRO_LIBS_DIR)/libvorbis.a -l:$(DISTRO_LIBS_DIR)/libogg.a -l:$(DISTRO_LIBS_DIR)/libvorbisfile.a -l:$(DISTRO_LIBS_DIR)/libopus.a
 #custom install locaiton
 LIB_OPUSFILE_A = -l:/usr/lib/libopusfile.a
 
 #zita-resampler: ar -cvq libzita-resampler.a resampler.o vresampler.o resampler-table.o
 #mpg123: ./configure --enable static
 
-STATIC_LIBS_LOCAL = -l:$(LOCAL_LIBS_DIR)/libmpg123.a 
+STATIC_LIBS_LOCAL = -l:$(LOCAL_LIBS_DIR)/libmpg123.a
 #-l:$(LOCAL_LIBS_DIR)/libzita-resampler.a
 
 STATIC_LIBS = $(LIB_OPUSFILE_A) $(STATIC_LIBS_DISTRO) $(STATIC_LIBS_LOCAL)
@@ -36,6 +37,12 @@ default: jack_playfile
 all:	jack_playfile jack_playfile_static manpage
 
 zita_resampler:
+	@echo "checking prerequisites..."
+	which $(CC) \
+	&& which bunzip2 \
+	&& which tar
+	@echo "ok."
+
 	mkdir -p $(BUILD)
 	cp $(ARCHIVE)/zita-resampler-1.3.0.tar.bz2 $(BUILD)/ \
 	&& cd $(BUILD)/ \
@@ -45,17 +52,32 @@ zita_resampler:
 	&& make \
 	&& cp *.o ../../
 
-#$(BUILD)/resampler.o $(BUILD)/resampler-table.o $(BUILD)/vresampler.o
-
 jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/kb_control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
+	@echo "checking prerequisites..."
+	which $(CC) \
+	&& which pkg-config \
+	&& pkg-config --exists jack sndfile opus opusfile vorbis vorbisfile ogg flac libmpg123
+	echo "ok."
+
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -ldl -lmpg123
 
-
 jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/kb_control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/manpage.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 #	@echo $(STATIC_LIBS)
+
+	echo "checking prerequisites..."
+	which zcat \
+	&& which pkg-config \
+	&& which xxd \
+	&& which groff \
+	&& which sed \
+	&& which strip \
+	&& which readelf \
+	&& which du \
+	&& pkg-config --exists jack sndfile opus opusfile vorbis vorbisfile ogg flac libmpg123
+	@echo "ok."
 
 	#create built-in man page
 	zcat $(DOC)/jack_playfile.1.gz | groff -Tascii -man - > jack_playfile_man_dump \
@@ -72,6 +94,14 @@ jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/ja
 	du -h jack_playfile_static
 
 manpage:
+	@echo "checking prerequisites..."
+	which asciidoc \
+	&& asciidoc --filter list | grep graphviz \
+	&& which a2x \
+	&& which gzip \
+	&& which dblatex
+	@echo "ok."
+
 	@echo ""
 	@echo "creating manpage with asciidoc"
 	@echo "------------------------------"
@@ -87,21 +117,22 @@ manpage:
 	#pdf, xml (docbook)
 	a2x --format pdf --keep-artifacts --dblatex-opts " -P doc.layout=\"coverpage mainmatter\" -P doc.publisher.show=0" $(DOC)/jack_playfile.man.asciidoc
 
-#	docbook2pdf --backend pdf --output $(DOC)/ --nochunks $(DOC)/jack_playfile.man.xml
 	mv $(DOC)/jack_playfile.man.pdf $(DOC)/jack_playfile.pdf
 	mv $(DOC)/jack_playfile.man.xml $(DOC)/jack_playfile.xml
 	mv $(DOC)/jack_playfile.man.html $(DOC)/jack_playfile.html
-
-#	rm -f $(DOC)/jack_playfile.man.xml
-#	rm -f $(DOC)/jack_playfile.man.html
-
-#	man -l -Tps $(DOC)/jack_playfile.1.gz | ps2pdf -sPAPERSIZE=a4 - $(DOC)/jack_playfile.pdf
 
 	@echo ""
 	@echo "done."
 	@echo ""
 
 build_info:
+	@echo "checking prerequisites..."
+	which git \
+	&& which pkg-config \
+	&& which uname \
+	&& which xxd
+	@echo "ok."
+
 	(echo -n "git master    " \
 	&& git show-ref master | head -1 \
 	&& echo -n "cc            " \
