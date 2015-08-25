@@ -14,3 +14,7 @@ playing half of the file, giving a continuous tone:
 	jack_playfile --count 22050 --loop a.wav
 
 short loops smaller than JACK period size are still problematic. they could be in-memory only (no seeking in file involved etc).
+
+playing highly compressed opus file at lower speed:
+
+	jack_playfile -S 38000 JLtestingArdour.opus
