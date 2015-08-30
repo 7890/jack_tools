@@ -8,7 +8,7 @@
 
     This program is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
@@ -42,19 +42,18 @@ jack_client_t *client;
 
 lo_server_thread st;
 
-void error(int num, const char *m, const char *path);
-
 //default port to send OSC messages from (my port)
-const char* osc_my_server_port = "6677";
+const char* osc_my_server_port="6677";
 //default host to send OSC messages
-const char* osc_send_to_host = "127.0.0.1";
+const char* osc_send_to_host="127.0.0.1";
 //default port to send OSC messages
-const char* osc_send_to_port = "6678";
+const char* osc_send_to_port="6678";
 
 //osc server
 lo_server_thread st;
 lo_address loa;
 
+//===================================================================
 static void signal_handler(int sig)
 {
 	jack_client_close(client);
@@ -62,27 +61,27 @@ static void signal_handler(int sig)
 	exit(0);
 }
 
-static void
-port_callback (jack_port_id_t port, int yn, void* arg)
+//===================================================================
+static void port_callback(jack_port_id_t port, int yn, void* arg)
 {
 	lo_message reply=lo_message_new();
 	lo_message_add_int32(reply,port);
 
 	if(yn)
 	{
-		lo_send_message (loa, "/oscev/port/registered", reply);
+		lo_send_message(loa, "/oscev/port/registered", reply);
 	}
 	else
 	{
-		lo_send_message (loa, "/oscev/port/unregistered", reply);
+		lo_send_message(loa, "/oscev/port/unregistered", reply);
 	}
-	lo_message_free (reply);
+	lo_message_free(reply);
 
-	printf ("Port %d %s\n", port, (yn ? "registered" : "unregistered"));
+	printf("Port %d %s\n", port, (yn ? "registered" : "unregistered"));
 }
 
-static void
-connect_callback (jack_port_id_t a, jack_port_id_t b, int yn, void* arg)
+//===================================================================
+static void connect_callback(jack_port_id_t a, jack_port_id_t b, int yn, void* arg)
 {
 	lo_message reply=lo_message_new();
 	lo_message_add_int32(reply,a);
@@ -90,57 +89,57 @@ connect_callback (jack_port_id_t a, jack_port_id_t b, int yn, void* arg)
 
 	if(yn)
 	{
-		lo_send_message (loa, "/oscev/port/connected", reply);
+		lo_send_message(loa, "/oscev/port/connected", reply);
 	}
 	else
 	{
-		lo_send_message (loa, "/oscev/port/disconnected", reply);
+		lo_send_message(loa, "/oscev/port/disconnected", reply);
 	}
-	lo_message_free (reply);
+	lo_message_free(reply);
 
-	printf ("Ports %d and %d %s\n", a, b, (yn ? "connected" : "disconnected"));
+	printf("Ports %d and %d %s\n", a, b, (yn ? "connected" : "disconnected"));
 }
 
-static void
-client_callback (const char* client, int yn, void* arg)
+//===================================================================
+static void client_callback(const char* client, int yn, void* arg)
 {
 	lo_message reply=lo_message_new();
 	lo_message_add_string(reply,client);
 
 	if(yn)
 	{
-		lo_send_message (loa, "/oscev/client/registered", reply);
+		lo_send_message(loa, "/oscev/client/registered", reply);
 	}
 	else
 	{
-		lo_send_message (loa, "/oscev/client/unregistered", reply);
+		lo_send_message(loa, "/oscev/client/unregistered", reply);
 	}
-	lo_message_free (reply);
+	lo_message_free(reply);
 
-	printf ("Client %s %s\n", client, (yn ? "registered" : "unregistered"));
+	printf("Client %s %s\n", client, (yn ? "registered" : "unregistered"));
 }
 
-static int
-graph_callback (void* arg)
+//===================================================================
+static int graph_callback(void* arg)
 {
 
 	lo_message reply=lo_message_new();
-	lo_send_message (loa, "/oscev/graph_reordered", reply);
-	lo_message_free (reply);
+	lo_send_message(loa, "/oscev/graph_reordered", reply);
+	lo_message_free(reply);
 
-	printf ("Graph reordered\n");
+	printf("Graph reordered\n");
 	return 0;
 }
 
-int
-main (int argc, char *argv[])
+//===================================================================
+int main(int argc, char *argv[])
 {
 	// Make output unbuffered
 	setbuf(stdout, NULL);
 	setbuf(stderr, NULL);
 
-	if (argc >= 2 && 
-		( strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
+	if(argc >= 2 &&
+		(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
 	{
 		printf("send jack events as OSC message\n\n");
 		printf("syntax: jack_oscev <osc local port> <osc remote host> <osc remote port>\n\n");
@@ -162,66 +161,72 @@ main (int argc, char *argv[])
 		return(0);
 	}
 
-        //remote port
-        if (argc >= 4)
-        {
-                osc_send_to_port=argv[3];
-        }
+	//remote port
+	if(argc >= 4)
+	{
+		osc_send_to_port=argv[3];
+	}
 
-	if (argc >= 3)
+	if(argc >= 3)
 	{
 		osc_send_to_host=argv[2];
 	}
 
 	//local port
-	if (argc >= 2)
+	if(argc >= 2)
 	{
 		osc_my_server_port=argv[1];
 	}
  
 	//init osc
-	st = lo_server_thread_new(osc_my_server_port, error);
-	loa = lo_address_new(osc_send_to_host, osc_send_to_port);
+	st=lo_server_thread_new(osc_my_server_port, NULL);
+	loa=lo_address_new(osc_send_to_host, osc_send_to_port);
 
 	lo_server_thread_start(st);
 
 	lo_message reply=lo_message_new();
-	lo_send_message (loa, "/oscev/started", reply);
-	lo_message_free (reply);
+	lo_send_message(loa, "/oscev/started", reply);
+	lo_message_free(reply);
 
-	jack_options_t options = JackNullOption;
+	jack_options_t options=JackNullOption;
 	jack_status_t status;
 
-	if ((client = jack_client_open ("oscev", options, &status, NULL)) == 0) {
-		fprintf (stderr, "jack_client_open() failed, "
-			 "status = 0x%2.0x\n", status);
-		if (status & JackServerFailed) {
-			fprintf (stderr, "Unable to connect to JACK server\n");
+	if((client=jack_client_open("oscev", options, &status, NULL))==0)
+	{
+		fprintf(stderr, "jack_client_open() failed, "
+			 "status=0x%2.0x\n", status);
+		if(status & JackServerFailed)
+		{
+			fprintf(stderr, "Unable to connect to JACK server\n");
 		}
 		return 1;
 	}
 	
-	if (jack_set_port_registration_callback (client, port_callback, NULL)) {
-		fprintf (stderr, "cannot set port registration callback\n");
+	if(jack_set_port_registration_callback(client, port_callback, NULL))
+	{
+		fprintf(stderr, "cannot set port registration callback\n");
 		return 1;
 	}
-	if (jack_set_port_connect_callback (client, connect_callback, NULL)) {
-		fprintf (stderr, "cannot set port connect callback\n");
+	if(jack_set_port_connect_callback(client, connect_callback, NULL))
+	{
+		fprintf(stderr, "cannot set port connect callback\n");
 		return 1;
 	}
-	if (jack_set_client_registration_callback (client, client_callback, NULL)) {
-		fprintf (stderr, "cannot set client registration callback\n");
+	if(jack_set_client_registration_callback(client, client_callback, NULL))
+	{
+		fprintf(stderr, "cannot set client registration callback\n");
 		return 1;
 	}
 /*
 	//don't register for now
-	if (jack_set_graph_order_callback (client, graph_callback, NULL)) {
-		fprintf (stderr, "cannot set graph order registration callback\n");
+	if(jack_set_graph_order_callback(client, graph_callback, NULL)) {
+		fprintf(stderr, "cannot set graph order registration callback\n");
 		return 1;
 	}
 */
-	if (jack_activate (client)) {
-		fprintf (stderr, "cannot activate client");
+	if(jack_activate(client))
+	{
+		fprintf(stderr, "cannot activate client");
 		return 1;
 	}
     
@@ -236,7 +241,7 @@ main (int argc, char *argv[])
 #ifdef WIN32
 	Sleep(INFINITE);
 #else
-	sleep (-1);
+	sleep(-1);
 #endif
-	exit (0);
-}
+	exit(0);
+}//end main
