@@ -40,8 +40,6 @@
 
 jack_client_t *client;
 
-lo_server_thread st;
-
 //default port to send OSC messages from (my port)
 const char* osc_my_server_port="6677";
 //default host to send OSC messages
