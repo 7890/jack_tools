@@ -40,11 +40,16 @@ info:
 shapes:
 	/shape/sine
 	/shape/square
-		/gen/pulse_length f 	#(high) >=0, <= shape period length
-		/gen/pulse_length_ratio f #(high) relative to shape period length >=0, <=1
-		/gen/pulse_length_auto	#set pulse length (high) to half of shape period size
-		/gen/pulse_length_auto i	#set automatic pulse length setting (0=off,1=on).
-						#if on, will recalc pulse length on frequency change
+
+	/gen/pulse_length_auto i	#set automatic pulse length setting (0=off,1=on).
+					#if on, will recalc pulse length on frequency change
+					#on by default
+
+	#only has an effect if /gen/pulse_length_auto off
+	/gen/pulse_length f 	#(high) >=0, <= shape period length
+	/gen/pulse_length_ratio f #(high) relative to shape period length >=0, <=1
+	/gen/pulse_length_auto	#set pulse length (high) to half of shape period size
+				#this is temporary, see /gen/pulse_length_auto i above
 
 frequency / periodicity:
 	/freq/hertz f
@@ -53,7 +58,7 @@ frequency / periodicity:
 	/freq/jack_cycles f	#f times size of jack cycle
 	/freq/wavelength f	#[mm]
 		/freq/speed_of_sound f	#[m/s] (345*)
-	/freq/period_duration	#[ms]
+	/freq/period_duration f	#[ms]
 	/freq/multiply f	#multiply current freq with f
 
 #add or substract f from freq in given units
@@ -71,7 +76,6 @@ frequency / periodicity:
 				#midi note symbol is a composition of
 				#starting with one of: C,C#,D,D#,E,F,F#,G,G#,A,A#,B
 				#followed by octave: -1 - 9
-
 
 	/freq/midi_note/rel i
 
@@ -94,11 +98,11 @@ minimal processing:
 	/gen/limit_low f	#clamp samples with value < f to f
 
 duration of signal output:
-	/duration/inf		#infinite
+	/duration/inf			#infinite
 	/duration/beats f		#current bpm used. default bpm is 120
 	/duration/samples i
 	/duration/jack_cycles f		#f times size of jack cycle
-	/duration/ms f		#[ms]
+	/duration/ms f			#[ms]
 	/duration/follow_transport i	#0: off, 1: on -> generate signal only while jack transport is rolling
 
 
@@ -743,24 +747,41 @@ static int process (jack_nframes_t frames, void* arg)
 		}
 		else if(gen.shape==SHAPE_SQUARE)
 		{
-			if(gen.current_sample_in_period>=freq.samples_per_period)
+			//dedice based on sine value if high or low to make even distribution of high/low
+			if(gen.pulse_length_auto==1)
 			{
-				gen.low=0;
-				gen.current_sample_in_period=gen.current_sample_in_period-freq.samples_per_period;
-				gen.current_pulse_length=0;
-			}
-
-			if(!gen.low && gen.current_pulse_length<=gen.pulse_length)
-			{
-				val=1;
-				gen.current_pulse_length++;
+				val=sin(gen.current_rad);
+				gen.current_rad+=gen.radstep;
+				if(val<0)
+				{
+					val=-1;
+				}
+				else if(val>0)
+				{
+					val=1;
+				}
 			}
 			else
 			{
-				val=-1;
-			}
+				if(gen.current_sample_in_period>=freq.samples_per_period)
+				{
+					gen.low=0;
+					gen.current_sample_in_period=gen.current_sample_in_period-freq.samples_per_period;
+					gen.current_pulse_length=0;
+				}
 
-			gen.current_sample_in_period++;
+				if(!gen.low && gen.current_pulse_length<=gen.pulse_length)
+				{
+					val=1;
+					gen.current_pulse_length++;
+				}
+				else
+				{
+					val=-1;
+				}
+
+				gen.current_sample_in_period++;
+			}
 		}
 
 		//========================================
@@ -1038,7 +1059,7 @@ void print_all_properties()
 	fprintf(stderr,"duration jack_cycles: %f\n",dur.jack_cycles);
 	fprintf(stderr,"duration time [ms]: %f\n",dur.ms);
 
-        fprintf(stderr,"radstep [rad]: %f\n",gen.radstep);
+	fprintf(stderr,"radstep [rad]: %f\n",gen.radstep);
 
 	//jack time, cycle frame number
 }
@@ -1052,8 +1073,8 @@ int find_nearest_midi_note(float samples)
 	int index_smallest=0;
 
 	int i;
-        for(i=0;i<128;i++)
-        {
+	for(i=0;i<128;i++)
+	{
 		diff_prev=diff;
 		diff=fabs(samples - midi_notes[i].samples);
 
