@@ -38,18 +38,18 @@
 
 #include "lo/lo.h"
 
-jack_client_t *client;
+static jack_client_t *client;
 
 //default port to send OSC messages from (my port)
-const char* osc_my_server_port="6677";
+static const char* osc_my_server_port="6677";
 //default host to send OSC messages
-const char* osc_send_to_host="127.0.0.1";
+static const char* osc_send_to_host="127.0.0.1";
 //default port to send OSC messages
-const char* osc_send_to_port="6678";
+static const char* osc_send_to_port="6678";
 
 //osc server
-lo_server_thread st;
-lo_address loa;
+static lo_server_thread st;
+static lo_address loa;
 
 //===================================================================
 static void signal_handler(int sig)
