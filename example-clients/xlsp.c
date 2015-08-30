@@ -52,11 +52,12 @@ static void show_usage(void)
 	fprintf(stderr, "        -s, --server <name>   Connect to the jack server named <name>\n");
 	fprintf(stderr, "        -A, --aliases         List aliases for each port\n");
 	fprintf(stderr, "        -c, --connections     List connections to/from each port\n");
-	fprintf(stderr, "        -l, --latency         Display per-port latency in frames at each port\n");
-	fprintf(stderr, "        -L, --latency         Display total latency in frames at each port\n");
+	fprintf(stderr, "        -l, --port-latency    Display per-port latency in frames at each port\n");
+	fprintf(stderr, "        -L, --total-latency   Display total latency in frames at each port\n");
 	fprintf(stderr, "        -p, --properties      Display port properties. Output may include:\n"
-			 "                              input|output, can-monitor, physical, terminal\n\n");
+			"                              input|output, can-monitor, physical, terminal\n\n");
 	fprintf(stderr, "        -t, --type            Display port type\n");
+	fprintf(stderr, "        -a, --all             List all (-A, -c, -l, -L, -p, -t)\n");
 	fprintf(stderr, "        -h, --help            Display this help message\n");
 	fprintf(stderr, "        --version             Output version information and exit\n\n");
 	fprintf(stderr, "For more information see http://jackaudio.org/\n");
@@ -106,6 +107,7 @@ int main(int argc, char *argv[])
 		{ "total-latency", 0, 0, 'L' },
 		{ "properties", 0, 0, 'p' },
 		{ "type", 0, 0, 't' },
+		{ "all", 0, 0, 'a' },
 		{ "help", 0, 0, 'h' },
 		{ "version", 0, 0, 'v' },
 		{ 0, 0, 0, 0 }
@@ -120,7 +122,7 @@ int main(int argc, char *argv[])
 		my_name ++;
 	}
 
-	while((c=getopt_long(argc, argv, "s:AclLphvt", long_options, &option_index)) >= 0)
+	while((c=getopt_long(argc, argv, "s:AclLphvta", long_options, &option_index)) >= 0)
 	{
 		switch(c)
 		{
@@ -147,6 +149,16 @@ int main(int argc, char *argv[])
 			show_properties=1;
 			break;
 		case 't':
+			show_type=1;
+			break;
+		case 'a':
+			aliases[0]=(char *) malloc(jack_port_name_size());
+			aliases[1]=(char *) malloc(jack_port_name_size());
+			show_aliases=1;
+			show_con=1;
+			show_port_latency=1;
+			show_total_latency=1;
+			show_properties=1;
 			show_type=1;
 			break;
 		case 'h':
@@ -227,43 +239,43 @@ int main(int argc, char *argv[])
 				printf("<properties ");
 				if(flags & JackPortIsInput)
 				{
-					fputs("input=\"1\" ", stdout);
+					printf("input=\"1\" ");
 				}
 				else
 				{
-					fputs("input=\"0\" ", stdout);
+					printf("input=\"0\" ");
 				}
 				if(flags & JackPortIsOutput)
 				{
-					fputs("output=\"1\" ", stdout);
+					printf("output=\"1\" ");
 				}
 				else
 				{
-					fputs("output=\"0\" ", stdout);
+					printf("output=\"0\" ");
 				}
 				if(flags & JackPortCanMonitor)
 				{
-					fputs("can_monitor=\"1\" ", stdout);
+					printf("can_monitor=\"1\" ");
 				}
 				else
 				{
-					fputs("can_monitor=\"0\" ", stdout);
+					printf("can_monitor=\"0\" ");
 				}
 				if(flags & JackPortIsPhysical)
 				{
-					fputs("physical=\"1\" ", stdout);
+					printf("physical=\"1\" ");
 				}
 				else
 				{
-					fputs("physical=\"0\" ", stdout);
+					printf("physical=\"0\" ");
 				}
 				if(flags & JackPortIsTerminal)
 				{
-					fputs("terminal=\"1\" ", stdout);
+					printf("terminal=\"1\" ");
 				}
 				else
 				{
-					fputs("terminal=\"0\"", stdout);
+					printf("terminal=\"0\"");
 				}
 				//end properties
 				printf("/>\n");
