@@ -40,6 +40,11 @@
 
 static jack_client_t *client;
 
+static int connection_to_jack_down=1;
+int64_t xrun_counter=0;
+static jack_transport_state_t transport_state=-1;
+static transport_state_prev=-2; //provocate notification at start
+
 //default port to send OSC messages from (my port)
 static const char* osc_my_server_port="6677";
 //default host to send OSC messages
@@ -50,10 +55,6 @@ static const char* osc_send_to_port="6678";
 //osc server
 static lo_server_thread st;
 static lo_address loa;
-
-static int connection_to_jack_down=1;
-
-int64_t xrun_counter=0;
 
 //===================================================================
 static void signal_handler(int sig)
@@ -176,7 +177,6 @@ static void shutdown_callback(void *arg)
 //===================================================================
 static int graph_callback(void* arg)
 {
-
 	lo_message reply=lo_message_new();
 	lo_send_message(loa, "/oscev/graph_reordered", reply);
 	lo_message_free(reply);
@@ -186,9 +186,34 @@ static int graph_callback(void* arg)
 }
 
 //===================================================================
-void jack_error(const char* err)
+static void jack_error(const char* err)
 {
 	//suppress for now
+}
+
+//=============================================================================
+static int process(jack_nframes_t nframes, void *arg)
+{
+	if(transport_state!=-2)
+	{
+		transport_state_prev=transport_state;
+	}
+	transport_state=jack_transport_query(client, NULL);
+
+	if(transport_state!=transport_state_prev)
+	{
+		lo_message reply=lo_message_new();
+		/*
+		JackTransportStarting  3
+		JackTransportRolling   1
+		JackTransportStopped   0
+		*/
+		lo_message_add_int32(reply,(int)transport_state);
+
+		lo_send_message(loa, "/oscev/transport", reply);
+		lo_message_free(reply);
+	}
+	return 0;
 }
 
 //===================================================================
@@ -209,6 +234,8 @@ int main(int argc, char *argv[])
 		printf("test on .42: oscdump 6678\n\n");
 		printf("messages sent by jack_oscev (example content):\n");
 		printf("  /oscev/started\n");
+		printf("  /oscev/transport i 0\n");
+		printf("  /oscev/jack ii 48000 64\n");
 		printf("  /oscev/ready\n");
 		printf("  /oscev/error\n");
 		printf("  /oscev/client/registered s \"meter\"\n");
@@ -216,10 +243,10 @@ int main(int argc, char *argv[])
 		printf("  /oscev/port/connected ii 2 24\n");
 		printf("  /oscev/port/disconnected ii 2 24\n");
 		printf("  /oscev/port/unregistered i 24\n");
-		printf("  /oscev/client/unregistered s \"meter\"\n\n");
+		printf("  /oscev/client/unregistered s \"meter\"\n");
 		printf("  /oscev/jack/down\n");
 		printf("  /oscev/jack/xrun h 4\n");
-		printf("  /oscev/jack/freewheeling i 1\n");
+		printf("  /oscev/jack/freewheeling i 1\n\n");
 		//printf("");
 
 		printf("jack_oscev source at https://github.com/7890/jack_tools\n\n");
@@ -327,11 +354,21 @@ int main(int argc, char *argv[])
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
+	transport_state=-2;
+	transport_state_prev=-1;
+	jack_set_process_callback (client, process, NULL);
+
 	if(jack_activate(client))
 	{
 		fprintf(stderr, "cannot activate client");
 		goto _error;
 	}
+
+	reply=lo_message_new();
+	lo_message_add_int32(reply,(int)jack_get_sample_rate(client));
+	lo_message_add_int32(reply,(int)jack_get_buffer_size(client));
+	lo_send_message(loa, "/oscev/jack", reply);
+	lo_message_free(reply);
 
 	reply=lo_message_new();
 	lo_send_message(loa, "/oscev/ready", reply);
