@@ -23,7 +23,7 @@
 //send jack events as OSC messages 
 //gcc -o jack_oscev oscev.c `pkg-config --libs liblo` `pkg-config --libs jack`
 
-//tb/131020
+//tb/131020/150831
 
 #include <stdio.h>
 #include <errno.h>
@@ -51,11 +51,23 @@ static const char* osc_send_to_port="6678";
 static lo_server_thread st;
 static lo_address loa;
 
+static int connection_to_jack_down=1;
+
+int64_t xrun_counter=0;
+
 //===================================================================
 static void signal_handler(int sig)
 {
-	jack_client_close(client);
 	fprintf(stderr, "signal received, exiting ...\n");
+
+	lo_message reply=lo_message_new();
+	lo_send_message(loa, "/oscev/terminated", reply);
+	lo_message_free(reply);
+
+	if(!connection_to_jack_down)
+	{
+		jack_client_close(client);
+	}
 	exit(0);
 }
 
@@ -75,7 +87,7 @@ static void port_callback(jack_port_id_t port, int yn, void* arg)
 	}
 	lo_message_free(reply);
 
-	printf("Port %d %s\n", port, (yn ? "registered" : "unregistered"));
+	fprintf(stderr,"port %d %s\n", port, (yn ? "registered" : "unregistered"));
 }
 
 //===================================================================
@@ -95,7 +107,7 @@ static void connect_callback(jack_port_id_t a, jack_port_id_t b, int yn, void* a
 	}
 	lo_message_free(reply);
 
-	printf("Ports %d and %d %s\n", a, b, (yn ? "connected" : "disconnected"));
+	fprintf(stderr,"ports %d and %d %s\n", a, b, (yn ? "connected" : "disconnected"));
 }
 
 //===================================================================
@@ -114,7 +126,51 @@ static void client_callback(const char* client, int yn, void* arg)
 	}
 	lo_message_free(reply);
 
-	printf("Client %s %s\n", client, (yn ? "registered" : "unregistered"));
+	fprintf(stderr,"client %s %s\n", client, (yn ? "registered" : "unregistered"));
+}
+
+//===================================================================
+static void freewheel(int isfw, void *arg)
+{
+	lo_message reply=lo_message_new();
+
+	if(isfw)
+	{
+		lo_message_add_int32(reply,1);
+	}
+	else
+	{
+		lo_message_add_int32(reply,0);
+	}
+
+	lo_send_message(loa, "/oscev/jack/freewheeling", reply);
+	lo_message_free(reply);
+
+	fprintf(stderr,"JACK freewhelling %d\n",isfw);
+}
+
+//================================================================
+static int xrun_callback(void *arg)
+{
+	xrun_counter++;
+	lo_message reply=lo_message_new();
+	lo_message_add_int64(reply,xrun_counter);
+	lo_send_message(loa, "/oscev/jack/xrun", reply);
+	lo_message_free(reply);
+
+	fprintf(stderr, "xrun!\n");
+}
+
+//================================================================
+static void shutdown_callback(void *arg)
+{
+	lo_message reply=lo_message_new();
+	lo_send_message(loa, "/oscev/jack/down", reply);
+	lo_message_free(reply);
+
+	connection_to_jack_down=1;
+
+	fprintf(stderr, "JACK server down!\n");
 }
 
 //===================================================================
@@ -125,8 +181,14 @@ static int graph_callback(void* arg)
 	lo_send_message(loa, "/oscev/graph_reordered", reply);
 	lo_message_free(reply);
 
-	printf("Graph reordered\n");
+	fprintf(stderr,"graph reordered\n");
 	return 0;
+}
+
+//===================================================================
+void jack_error(const char* err)
+{
+	//suppress for now
 }
 
 //===================================================================
@@ -147,12 +209,17 @@ int main(int argc, char *argv[])
 		printf("test on .42: oscdump 6678\n\n");
 		printf("messages sent by jack_oscev (example content):\n");
 		printf("  /oscev/started\n");
+		printf("  /oscev/ready\n");
+		printf("  /oscev/error\n");
 		printf("  /oscev/client/registered s \"meter\"\n");
 		printf("  /oscev/port/registered i 24\n");
 		printf("  /oscev/port/connected ii 2 24\n");
 		printf("  /oscev/port/disconnected ii 2 24\n");
 		printf("  /oscev/port/unregistered i 24\n");
 		printf("  /oscev/client/unregistered s \"meter\"\n\n");
+		printf("  /oscev/jack/down\n");
+		printf("  /oscev/jack/xrun h 4\n");
+		printf("  /oscev/jack/freewheeling i 1\n");
 		//printf("");
 
 		printf("jack_oscev source at https://github.com/7890/jack_tools\n\n");
@@ -178,6 +245,17 @@ int main(int argc, char *argv[])
  
 	//init osc
 	st=lo_server_thread_new(osc_my_server_port, NULL);
+
+	if(st==NULL)
+	{
+		fprintf(stderr,"could not start OSC server on port %s\n",osc_my_server_port);
+		exit(1);
+	}
+	else
+	{
+		fprintf(stderr,"127.0.0.1:%s -> %s:%s\n",osc_my_server_port,osc_send_to_host, osc_send_to_port);
+	}
+
 	loa=lo_address_new(osc_send_to_host, osc_send_to_port);
 
 	lo_server_thread_start(st);
@@ -186,48 +264,79 @@ int main(int argc, char *argv[])
 	lo_send_message(loa, "/oscev/started", reply);
 	lo_message_free(reply);
 
-	jack_options_t options=JackNullOption;
+	//jack_options_t options=JackNullOption;
+	jack_options_t options=JackNoStartServer;
 	jack_status_t status;
 
-	if((client=jack_client_open("oscev", options, &status, NULL))==0)
+	jack_set_error_function(jack_error);
+
+	//outer loop, wait and reconnect to jack
+	while(1==1)
 	{
-		fprintf(stderr, "jack_client_open() failed, "
-			 "status=0x%2.0x\n", status);
-		if(status & JackServerFailed)
+	connection_to_jack_down=1;
+	fprintf(stderr,"waiting for connection to JACK");
+	while(connection_to_jack_down)
+	{
+		if((client=jack_client_open("oscev", options, &status, NULL))==0)
 		{
-			fprintf(stderr, "Unable to connect to JACK server\n");
+//			fprintf(stderr, "jack_client_open() failed, ""status=0x%2.0x\n", status);
+			if(status & JackServerFailed)
+			{
+//				fprintf(stderr, "Unable to connect to JACK server\n");
+			}
+//			fprintf(stderr,".");
+			//goto _error;
+			usleep(1000000);
 		}
-		return 1;
+		else
+		{
+			connection_to_jack_down=0;
+			fprintf(stderr,"\r                                    \rconnected to JACK.\n");
+		}
 	}
-	
+
 	if(jack_set_port_registration_callback(client, port_callback, NULL))
 	{
 		fprintf(stderr, "cannot set port registration callback\n");
-		return 1;
+		goto _error;
 	}
 	if(jack_set_port_connect_callback(client, connect_callback, NULL))
 	{
 		fprintf(stderr, "cannot set port connect callback\n");
-		return 1;
+		goto _error;
 	}
 	if(jack_set_client_registration_callback(client, client_callback, NULL))
 	{
 		fprintf(stderr, "cannot set client registration callback\n");
-		return 1;
+		goto _error;
 	}
 /*
 	//don't register for now
 	if(jack_set_graph_order_callback(client, graph_callback, NULL)) {
 		fprintf(stderr, "cannot set graph order registration callback\n");
-		return 1;
+		goto _error;
 	}
 */
+	if(jack_set_freewheel_callback(client, freewheel, NULL))
+	{
+		fprintf(stderr, "cannot set freewheel callback\n");
+		goto _error;
+	}
+
+	jack_set_xrun_callback(client, xrun_callback, NULL);
+
+	jack_on_shutdown(client, shutdown_callback, NULL);
+
 	if(jack_activate(client))
 	{
 		fprintf(stderr, "cannot activate client");
-		return 1;
+		goto _error;
 	}
-    
+
+	reply=lo_message_new();
+	lo_send_message(loa, "/oscev/ready", reply);
+	lo_message_free(reply);
+
 #ifndef WIN32
 	signal(SIGINT, signal_handler);
 	signal(SIGQUIT, signal_handler);
@@ -236,10 +345,30 @@ int main(int argc, char *argv[])
 	signal(SIGABRT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-#ifdef WIN32
-	Sleep(INFINITE);
-#else
-	sleep(-1);
-#endif
+//#ifdef WIN32
+//	Sleep(INFINITE);
+//#else
+//	sleep(-1);
+//#endif
+//	exit(0);
+
+	while(1==1)
+	{
+		if(connection_to_jack_down)
+		{
+			goto _continue;
+		}
+		usleep(10000);
+	}
+
+_error:
+	reply=lo_message_new();
+	lo_send_message(loa, "/oscev/error", reply);
+	lo_message_free(reply);
+
+_continue:
+	usleep(10000);
+}//end while true outer loop
+
 	exit(0);
 }//end main
