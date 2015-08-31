@@ -73,13 +73,60 @@ static void signal_handler(int sig)
 }
 
 //===================================================================
-static void port_callback(jack_port_id_t port, int yn, void* arg)
+static void port_callback(jack_port_id_t a, int yn, void* arg)
 {
 	lo_message reply=lo_message_new();
-	lo_message_add_int32(reply,port);
+	lo_message_add_int32(reply,a);
 
 	if(yn)
 	{
+		jack_port_t *port=jack_port_by_id(client,a);
+		const char *port_name=jack_port_name(jack_port_by_id(client,a));
+		lo_message_add_string(reply,port_name);
+		lo_message_add_string(reply,jack_port_type(port));
+
+		int flags=jack_port_flags(port);
+		if(flags & JackPortIsInput)
+		{
+			lo_message_add_int32(reply,1);
+		}
+		else
+		{
+			lo_message_add_int32(reply,0);
+		}
+		if(flags & JackPortIsOutput)
+		{
+			lo_message_add_int32(reply,1);
+		}
+		else
+		{
+			lo_message_add_int32(reply,0);
+		}
+		if(flags & JackPortCanMonitor)
+		{
+			lo_message_add_int32(reply,1);
+		}
+		else
+		{
+			lo_message_add_int32(reply,0);
+		}
+		if(flags & JackPortIsPhysical)
+		{
+			lo_message_add_int32(reply,1);
+		}
+		else
+		{
+			lo_message_add_int32(reply,0);
+		}
+		if(flags & JackPortIsTerminal)
+		{
+			lo_message_add_int32(reply,1);
+		}
+		else
+		{
+			lo_message_add_int32(reply,0);
+		}
+
 		lo_send_message(loa, "/oscev/port/registered", reply);
 	}
 	else
@@ -88,7 +135,7 @@ static void port_callback(jack_port_id_t port, int yn, void* arg)
 	}
 	lo_message_free(reply);
 
-	fprintf(stderr,"port %d %s\n", port, (yn ? "registered" : "unregistered"));
+	fprintf(stderr,"port %d %s\n", a, (yn ? "registered" : "unregistered"));
 }
 
 //===================================================================
@@ -96,6 +143,7 @@ static void connect_callback(jack_port_id_t a, jack_port_id_t b, int yn, void* a
 {
 	lo_message reply=lo_message_new();
 	lo_message_add_int32(reply,a);
+
 	lo_message_add_int32(reply,b);
 
 	if(yn)
@@ -112,10 +160,16 @@ static void connect_callback(jack_port_id_t a, jack_port_id_t b, int yn, void* a
 }
 
 //===================================================================
-static void client_callback(const char* client, int yn, void* arg)
+static void client_callback(const char* client_name, int yn, void* arg)
 {
 	lo_message reply=lo_message_new();
-	lo_message_add_string(reply,client);
+	char *client_id=jack_get_uuid_for_client_name(client, client_name);
+	if(client_id!=NULL)
+	{
+		lo_message_add_string(reply,client_id);
+	}
+
+	lo_message_add_string(reply,client_name);
 
 	if(yn)
 	{
@@ -127,7 +181,7 @@ static void client_callback(const char* client, int yn, void* arg)
 	}
 	lo_message_free(reply);
 
-	fprintf(stderr,"client %s %s\n", client, (yn ? "registered" : "unregistered"));
+	fprintf(stderr,"client %s %s\n", client_name, (yn ? "registered" : "unregistered"));
 }
 
 //===================================================================
@@ -238,12 +292,13 @@ int main(int argc, char *argv[])
 		printf("  /oscev/jack ii 48000 64\n");
 		printf("  /oscev/ready\n");
 		printf("  /oscev/error\n");
-		printf("  /oscev/client/registered s \"meter\"\n");
-		printf("  /oscev/port/registered i 24\n");
+		printf("  /oscev/client/registered s \"player\"\n");
+		printf("  /oscev/port/registered is 24 \"player:out\"\n");
+		printf("  /oscev/port/registered issiiiii 24 \"player:out\" \"32 bit float mono audio\" 0 1 0 0 0\n");
 		printf("  /oscev/port/connected ii 2 24\n");
 		printf("  /oscev/port/disconnected ii 2 24\n");
 		printf("  /oscev/port/unregistered i 24\n");
-		printf("  /oscev/client/unregistered s \"meter\"\n");
+		printf("  /oscev/client/unregistered s \"player\"\n");
 		printf("  /oscev/jack/down\n");
 		printf("  /oscev/jack/xrun h 4\n");
 		printf("  /oscev/jack/freewheeling i 1\n\n");
@@ -327,6 +382,11 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "cannot set port registration callback\n");
 		goto _error;
 	}
+
+//typedef int(* 	JackBufferSizeCallback )(jack_nframes_t nframes, void *arg)
+//typedef int(* 	JackSampleRateCallback )(jack_nframes_t nframes, void *arg)
+//typedef void(* 	JackPortRenameCallback )(jack_port_id_t port, const char *old_name, const char *new_name, void *arg)
+
 	if(jack_set_port_connect_callback(client, connect_callback, NULL))
 	{
 		fprintf(stderr, "cannot set port connect callback\n");
