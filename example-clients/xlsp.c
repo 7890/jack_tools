@@ -212,6 +212,11 @@ int main(int argc, char *argv[])
 		printf("<cpu_load>%f</cpu_load>\n",jack_cpu_load(client)/100);
 	printf("</server>\n");
 
+	char cname[256];
+	char cname_prev[256];
+
+	int unit_unclosed=0;
+
 	for(i=0; ports && ports[i]; ++i)
 	{
 		//skip over any that don't match ALL of the strings presented at command line
@@ -224,6 +229,36 @@ int main(int argc, char *argv[])
 			}
 		}
 		if(skip_port) continue;
+
+		//save old client name
+		strcpy(cname_prev,cname);
+
+		//get clientname from portname
+		//all: clientname:portname
+		const char *aname=ports[i];
+		int alen=strlen(aname);
+		const char *pname=strstr(aname,":"); //:portname
+		int plen=strlen(pname)-1;
+		int nlen=alen-plen-1;
+
+		//copy first part (client name)
+		strncpy(cname,aname,nlen);
+		cname[nlen]='\0'; //terminate with null
+
+//		fprintf(stderr,"%s %d %d %d %s\n",pname,alen,plen,nlen,cname);
+
+		//if not the same as before, start new <unit>...</unit>
+		if(strcmp(cname,cname_prev)) //if not equal
+		{
+			//eventually close previous unit
+			if(unit_unclosed)
+			{
+				printf("</unit>");
+			}
+
+			printf("<unit name=\"%s\">\n", cname);
+			unit_unclosed=1;
+		}
 
 		printf("<port index=\"%d\" name=\"%s\">\n", (i+1), ports[i]);
 		port=jack_port_by_name(client, ports[i]);
@@ -340,6 +375,11 @@ int main(int argc, char *argv[])
 			}
 		}
 		printf("</port>\n");
+	}
+
+	if(unit_unclosed)
+	{
+		printf("</unit>\n");
 	}
 	printf("</jack_xlsp>\n");
 
