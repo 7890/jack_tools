@@ -38,10 +38,13 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 	$(CC) -o $(BLD)/jack_xlsp xlsp.c $(CFLAGS_JACK_ONLY)
 	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
 
+#########
+#	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS_METADATA)
+	g++ -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS)
+
 	$(CC) -o $(BLD)/jack_osc_bridge_in $(SRC)/osc_bridge_in.c $(CFLAGS) $(CFLAGS_METADATA)
 	$(CC) -o $(BLD)/jack_osc_bridge_out $(SRC)/osc_bridge_out.c $(CFLAGS) $(CFLAGS_METADATA)
 	$(CC) -o $(BLD)/jack_osc_filter $(SRC)/osc_filter.c $(CFLAGS) $(CFLAGS_METADATA)
-	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS_METADATA)
 
 	@echo ""
 	@echo "done. next (if there were no errors) is: sudo make install"

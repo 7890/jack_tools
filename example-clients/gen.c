@@ -10,6 +10,8 @@
 #include <lo/lo.h>
 #include <math.h>
 
+#include <vector>
+
 //tb/140511/140513
 //test tone signal generator
 //control via jack osc (use jack_osc_bridge_in or similar)
@@ -79,6 +81,11 @@ frequency / periodicity:
 
 	/freq/midi_note/rel i
 
+	/midi_note iiii		#0:off 1:on
+				#0:all channels, 1-16 specific channel (ignored by gen)
+				#midi note number 0-127
+				#velocity 0-127
+
 basic control:
 	/gen/on			#global on: fill audio output buffers with generated signal
 	/gen/off		#global off: fill audio output buffers with 0 (off) or with generated signal (on)
@@ -133,6 +140,17 @@ jack_transport_state_t tstate;
 #ifdef HAS_JACK_METADATA_API
 jack_uuid_t osc_port_uuid;
 #endif
+
+struct OscNote
+{
+	int type;
+	int channel;
+	int number;
+	int velocity;
+};
+
+int midi_note_on_off_balance=0;
+std::vector<OscNote> note_vector;
 
 //==================================================================
 void exit(int err);
@@ -400,7 +418,7 @@ static int process (jack_nframes_t frames, void* arg)
 	buffer_in = jack_port_get_buffer (port_in, frames);
 
 //prepare send buffers
-	buffer_out = jack_port_get_buffer(port_out, frames);
+	buffer_out = (jack_default_audio_sample_t*)jack_port_get_buffer(port_out, frames);
 
 	clear_buffer(frames,buffer_out);
 
@@ -523,6 +541,89 @@ static int process (jack_nframes_t frames, void* arg)
 			{
 				set_all_freq(midi_note_symbol_to_samples(&args[0]->s));
 			}
+			else if(!strcmp(path,"/midi_note") && !strcmp(types,"iiii"))
+			{
+				OscNote n;
+				n.type=args[0]->i;
+				n.channel=args[1]->i;
+				n.number=args[2]->i;
+				n.velocity=args[3]->i;
+
+				if(n.type) //on
+				{
+					midi_note_on_off_balance++;
+					note_vector.push_back(n);
+
+					//trig
+					set_all_freq(midi_note_to_samples(n.number));
+					gen.amplification=(float)n.velocity/127;
+					gen.status=STATUS_ON;
+					gen.restart_at=args[0]->i;
+					gen.restart_pending=1;
+
+					fprintf(stderr,"MIDI: note on, ch %d num %d vel %d\n"
+						,n.channel
+						,n.type
+						,n.velocity
+					);
+				}
+				else //off
+				{
+					midi_note_on_off_balance--;
+					//find matching (foregoing) note on event
+					//channel and notenumber must match
+
+					for(int i=note_vector.size()-1;i>=0;i--)
+					{
+/*
+						fprintf(stderr,"prev type %d ch %d num %d\n"
+							,note_vector[i].type
+							,note_vector[i].channel
+							,note_vector[i].number
+						);
+*/
+						//test if corresponding "on" event found
+						if(//note_vector[i].type==1 && //always true
+							note_vector[i].channel == n.channel
+							&& note_vector[i].number == n.number
+						)
+						{
+//							fprintf(stderr,"match at %i, removing\n",i);
+							note_vector.erase(note_vector.begin() + i);
+							//could break out here
+						}
+					}//end search prev note events
+
+					if(midi_note_on_off_balance<=0)
+					{
+						midi_note_on_off_balance=0;
+						//release
+//						fprintf(stderr,"ALL OFF\n");
+						gen.status=STATUS_OFF;
+					}
+					else
+					{
+						//last on in vector is new "top"
+						//since we only put on to vector, it's simply the last element
+
+						n.type=note_vector.back().type;
+						n.channel=note_vector.back().channel;
+						n.number=note_vector.back().number;
+						n.velocity=note_vector.back().velocity;
+						//trig
+						set_all_freq(midi_note_to_samples(n.number));
+						gen.amplification=(float)n.velocity/127;
+
+						fprintf(stderr,"MIDI: (re-use) note, ch %d num %d vel %d\n"
+							,n.channel
+							,n.type
+							,n.velocity
+						);
+					}
+				}
+//				fprintf(stderr,"note on events in vector: %lu\n",note_vector.size());
+			}//end /midi_note
+
 			//===
 			// continue
 			else if(argc==0 && !strcmp(path,"/gen/on"))
@@ -1109,11 +1210,11 @@ void create_midi_notes()
 {
 	//needs re-creation when a4 ref changes
 
-	const char note_chars[7]="CDEFGAB";
+	const char note_chars[7+1]="CDEFGAB";
 	int note_index=0;
 	int octave=-1;
 
-	char* flat_sharp_char="#";
+	const char* flat_sharp_char="#";
 
 	int i;
 	for(i=0;i<128;i++)
