@@ -33,6 +33,7 @@ static void init_jack_struct();
 static void init_debug_marker_struct();
 
 static void jack_init();
+static void jack_error(const char* err);
 static void jack_post_init();
 static int jack_process(jack_nframes_t nframes, void *arg);
 static void jack_open_client();
@@ -122,60 +123,29 @@ static void jack_init()
 	jack->ioPortArray = (jack_port_t**) calloc(
 		output_port_count * sizeof(jack_port_t*), sizeof(jack_port_t*));
 
+
+	jack_set_error_function(jack_error);
+
 }//end init_jack()
+
+//===================================================================
+static void jack_error(const char* err)
+{
+	//suppress for now
+}
 
 //=============================================================================
 static void wait_connect_jack()
 {
 	fprintf (stderr, "\r%s\rwaiting for connection to JACK server...",clear_to_eol_seq);
 
-	//http://stackoverflow.com/questions/4832603/how-could-i-temporary-redirect-stdout-to-a-file-in-a-c-program
-	int bak_stderr, bak_stdout, new_;
-
 	while(jack->client==NULL)
 	{
-		//hide possible error output from jack temporarily
-		fflush(stderr);
-		bak_stderr = dup(fileno(stderr));
-
-#ifndef WIN32
-		new_ = open("/dev/null", O_WRONLY);
-
-		dup2(new_, fileno(stderr));
-		close(new_);
-
-#else
-		new_ = open("nul", O_WRONLY);
-		dup2(new_, fileno(stderr));
-		close(new_);
-
-		fflush(stdout);
-		bak_stdout = dup(fileno(stdout));
-
-		new_ = open("nul", O_WRONLY);
-		dup2(new_, fileno(stdout));
-		close(new_);
-#endif
-
-		//open a client connection to the JACK server
 		jack_open_client();
-
-		//show stderr again
-		fflush(stderr);
-		dup2(bak_stderr, fileno(stderr));
-		close(bak_stderr);
-
-#ifdef WIN32
-		//show stdout again
-		fflush(stdout);
-		dup2(bak_stdout, fileno(stdout));
-		close(bak_stdout);
-#endif
 
 		if (jack->client == NULL) 
 		{
 //			fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", jack->status);
-
 			if(!jack->try_reconnect)
 			{
 				fprintf (stderr, " failed.\n");
@@ -190,9 +160,7 @@ static void wait_connect_jack()
 	}//end while client==NULL
 
 	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
-
 }//end wait_connect_jack()
-
 
 //=============================================================================
 static void jack_post_init()
