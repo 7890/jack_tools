@@ -57,7 +57,7 @@ jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SR
 	which $(CC) \
 	&& which pkg-config \
 	&& pkg-config --exists jack sndfile opus opusfile vorbis vorbisfile ogg flac libmpg123
-	echo "ok."
+	@echo "ok."
 
 	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
@@ -133,7 +133,9 @@ build_info:
 	&& which xxd
 	@echo "ok."
 
-	(echo -n "git master    " \
+	(echo   -n "build date    " \
+	&& echo "`date`" \
+	&& echo -n "git master    " \
 	&& git show-ref master | head -1 \
 	&& echo -n "cc            " \
 	&& $(CC) --version | head -1 \
