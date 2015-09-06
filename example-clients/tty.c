@@ -176,7 +176,7 @@ int main(int argc, char *argv[])
 		printf("default values: /dev/ttyUSB0 115200\n");
 		printf("example: jack_tty /dev/ttyACM0 9600\n");
 
-		printf("jack_oscev source at https://github.com/7890/jack_tools\n\n");
+		printf("jack_tty source at https://github.com/7890/jack_tools\n\n");
 		return(0);
 /*
 		printf("  /tty/status\n");
