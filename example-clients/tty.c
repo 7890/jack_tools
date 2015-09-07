@@ -86,7 +86,8 @@ void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
   //sendRealTime (MidiType inType)
   MIDI_.sendRealTime(midi::Start); //start
   //sendPitchBend (int inPitchValue, Channel inChannel)
-  MIDI_.sendPitchBend (44, 1);
+  //MIDI_.sendPitchBend (1234, 8); //doesn't work (?)
+  MIDI_.sendNoteOn(42, 127, 1); // Send a Note (pitch 42, velo 127 on channel 1)
 }
 void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
 {
@@ -94,7 +95,8 @@ void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
   //MIDI.sendControlChange (DataByte inControlNumber, DataByte inControlValue, Channel inChannel)
   MIDI_.sendControlChange (25, 31, 1); //send back
   //sendProgramChange (DataByte inProgramNumber, Channel inChannel)
-  MIDI_.sendProgramChange (33, 1);
+  MIDI_.sendProgramChange (16, 8);
+  MIDI_.sendNoteOff(42, 0, 1); // Stop the note
 }
 void loop() //main loop
 {
@@ -154,9 +156,9 @@ Command Meaning 		# parameters 	param 1 	param 2
 0x90 	Note-on 		2 		key 		veolcity
 0xA0 	Aftertouch 		2 		key 		touch
 0xB0 	Continuous controller 	2 		controller # 	controller value
-0xC0 	Patch change 		2 		instrument # 	
+0xC0 	Program change 		1 		instrument # 			(! only one param)
 0xD0 	Channel Pressure 	1 		pressure
-0xE0 	Pitch bend 		2 		lsb (7 bits) 	msb (7 bits)
+0xE0 	Pitch bend 		2 		lsb (7 bits) 	msb (7 bits)	(!!!)
 0xF0 	(non-musical commands) 			
 
 Command Meaning 				# param
@@ -288,11 +290,6 @@ static int serial_thread_initialized=0;
 //serial byte value
 static int current_value=0;
 static float output_value=0;
-
-//bit masks to determine length of MIDI event from first byte
-static short MASK_3= 0x80 | 0x90 | 0xA0 | 0xB0 | 0xC0 | 0xE0; //3 bytes
-static short MASK_2= 0xD0; //2 bytes
-static short MASK_1= 0xF0; //1 byte
 
 //===================================================================
 int main(int argc, char *argv[])
@@ -685,6 +682,8 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	//parse bytestream here to single MIDI messages (one / two / n bytes packages)
 
+	//something with pitchbend is still fishy
+
 	int pos=0; //!!!! timing wrong, all messages at start of period
 	while(jack_ringbuffer_read_space(rb)>0)
 	{
@@ -693,26 +692,37 @@ static int process(jack_nframes_t nframes, void *arg)
 		//peek read one byte
 		jack_ringbuffer_peek(rb,&c,1);
 
-		if((c & MASK_1) == MASK_1)
+		if((c & 0xF0)==0xF0)
 		{
 //			fprintf(stderr,"1 ");
 			msg_len=1;
 		}
 
-		else if((c & MASK_2) == MASK_2)
+
+		else if(
+			(c & 0xC0)==0xC0
+			|| (c & 0xD0)==0xD0
+		)
 		{
-//			fprintf(stderr,"2 ");
 			msg_len=2;
 		}
-		else if((c & MASK_3) > 0x00)
+
+		else if(
+			(c & 0x80)==0x80
+			|| (c & 0x90)==0x90
+			|| (c & 0xA0)==0xA0
+			|| (c & 0xB0)==0xB0
+			|| (c & 0xE0)==0xE0
+
+		)
 		{
-//			fprintf(stderr,"3 ");
 			msg_len=3;
 		}
 		else
 		{
 			//drop!
-//			jack_ringbuffer_read_advance(rb,1);
+			fprintf(stderr,"DROP\n");
+			jack_ringbuffer_read_advance(rb,1);
 			break;
 		}
 
