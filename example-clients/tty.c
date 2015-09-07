@@ -6,20 +6,19 @@ rudimentary proof-of-concept to integrate serial devices directly in JACK ecosys
 gcc -o jack_tty tty.c `pkg-config --libs liblo` `pkg-config --libs jack`
 
 -the program tries to connect to the given serial device (/dev/ttyUSB0 @ 115200 by default)
--once connected it tries to connect to the default JACK server
+-once connected, it tries to connect to the default JACK server
 -if the device or JACK is disconnected, reconnection is tried until connected again
--hitting a key will send byte(s) to the serial device
+-hitting a key on the keyboard will send byte(s) to the serial device
+-bytes/MIDI event buffers sent to jack_tty MIDI input are sent to device
 -bytes read from the serial device are testwise interpreted as signed int (-128 to 127)
  to create a signal on the audio output port
+-bytes read from the serial device are testwise put to JACK MIDI (as 3-byte messages only, no parsing!!)
 
 -a serial device could send and read MIDI data
--received MIDI bytes would need to be portioned in order to be forwarded to JACK MIDI
+-received MIDI bytes would need to be portioned in order to be forwarded to JACK MIDI (now: 3 bytes fixed for test)
 
--a serial device can also simply send bytes with a custom meaning
+-a serial device can also simply send and receive bytes with a custom meaning
  triggering anything (i.e. send MIDI, shape audio output, send to OSC event etc.) *inside* JACK
-
--MIDI input port receives JACK MIDI and OSC (but doesn't do anything)
--MIDI output port is never filled but ready to be used
 
 //tb/150903 tom@trellis.ch
 */
@@ -50,6 +49,55 @@ void loop()
   Serial.print(val);
   if(val==255){val=0;}else{val++;}
   delay(1);
+}
+*/
+
+/*
+//example code for a serial MIDI device (copy to Arduino IDE)
+//-receives note on and off messages on any channel
+//-toggles LED according to note on/off
+//-sends back MIDI control change for every received note off message
+//(this program does not do anything meaningful and serves only as a test)
+//LED indication on arduino (UNO)
+// L13   TX  RX
+// x         x    received note on, L13 on
+//       x   x    recieved note off, L13 off, send back control change
+// x         x    repeat (on again)
+//see jack_midi_heartbeat as a note on/off deliverer
+
+//https://github.com/FortySevenEffects/arduino_midi_library/
+//http://arduinomidilib.fortyseveneffects.com/index.html
+#include <MIDI.h>
+//MIDI_CREATE_DEFAULT_INSTANCE();
+//override default settings
+struct MySettings : public midi::DefaultSettings
+{
+  static const long BaudRate = 115200; //31250; //since this is not a regular MIDI device, use max baudrate
+  static const bool UseRunningStatus = false; //JACK MIDI is "normalized"
+};
+MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI_, MySettings);
+#define LED 13
+void setup()
+{
+  pinMode(LED, OUTPUT);
+  MIDI_.setHandleNoteOn(handleNoteOn); //attach handler
+  MIDI_.setHandleNoteOff(handleNoteOff);
+  MIDI_.begin(MIDI_CHANNEL_OMNI); //listen on all channels
+  MIDI_.turnThruOff(); //don't echo back received MIDI events
+}
+void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
+{
+  digitalWrite(LED, HIGH); //turn on LED
+}
+void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
+{
+  digitalWrite(LED, LOW); //turn off LED
+  //MIDI.sendControlChange (DataByte inControlNumber, DataByte inControlValue, Channel inChannel)
+  MIDI_.sendControlChange (25, 31, 1); //send back
+}
+void loop() //main loop
+{
+  MIDI_.read();
 }
 */
 
@@ -91,6 +139,7 @@ void loop()
 #include <string.h>
 #include <stdlib.h>
 #include <jack/jack.h>
+#include <jack/ringbuffer.h>
 #include <jack/midiport.h>
 #include <termios.h>
 #include <sys/signal.h>
@@ -106,17 +155,19 @@ static void signal_handler(int sig);
 static void shutdown_callback(void *arg);
 static void jack_error(const char* err);
 static int process(jack_nframes_t nframes, void *arg);
-int transfer_byte(int from, int to, int is_control);
-void print_status(int fd);
+static int transfer_byte(int from, int to, int is_control);
+static void print_status(int fd);
 
-int comfd;
+static int comfd;
 struct termios oldtio, newtio; //place for old and new port settings for serial por
 struct termios oldkey, newkey; //place tor old and new port settings for keyboard t
 
 typedef struct {char *name; int flag; } speed_spec;
 
-char *devicename = "/dev/ttyUSB0";
+static char *devicename = "/dev/ttyUSB0";
 //char *devicename = "/dev/ttyACM0";
+
+static jack_ringbuffer_t *rb=NULL;
 
 speed_spec speeds[] =
 {
@@ -225,6 +276,8 @@ int main(int argc, char *argv[])
 	{
 		usleep(500);
 	}
+
+	rb=jack_ringbuffer_create(10000);
 
 	//jack_options_t options=JackNullOption;
 	jack_options_t options=JackNoStartServer;
@@ -438,7 +491,25 @@ _init:
 			if(FD_ISSET(comfd, &fds))
 			{
 //				fprintf(stderr,"SERIAL> "); //coming from serial
-				need_exit = transfer_byte(comfd, STDIN_FILENO, 0);
+//				need_exit = transfer_byte(comfd, STDIN_FILENO, 0);
+
+				char c;
+			        int ret;
+			        do
+			        {
+			                ret = read(comfd, &c, 1);
+			        } while (ret < 0 && errno == EINTR);
+			        if(ret == 1)
+			        {
+					current_value=(int)c;
+//					fprintf(stderr,"! %d",c);
+					jack_ringbuffer_write(rb,&c,1);
+				}
+				else
+				{
+					fprintf(stderr, "\n\rnothing to read. probably serial device disconnected.\n\r");
+					need_exit=-2;
+				}
 			}
 		}
 	}//end while(!need_exit)
@@ -498,7 +569,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	buffer_out_midi = jack_port_get_buffer (port_out_midi, nframes);
 	jack_midi_clear_buffer(buffer_out_midi);
 
-	//process messages
+	//process incoming messages from JACK
 	int msgCount = jack_midi_get_event_count (buffer_in_midi);
 
 	int i;
@@ -519,11 +590,25 @@ static int process(jack_nframes_t nframes, void *arg)
 			}
 			else
 			{
-				fprintf(stderr,"MIDI> #%d len %lu\n\r",msgCount,event.size);//,event.buffer);
-				//du stuff here
+//				fprintf(stderr,"MIDI> #%d len %lu\n\r",msgCount,event.size);//,event.buffer);
+				//write to serial
+				write(comfd,(void*)event.buffer,event.size);
 			}
 		}
 	}
+
+	//put MIDI bytes from serial to JACK
+	//!!!!!!!!! for now, assume every MIDI message is 3 bytes !!!!!!!! good for note on/off, control change etc.
+	//should parse bytestream here to single MIDI messages (one / two / n bytes packages)
+	int pos=0; //!!!! timing wrong, all messages at start of period
+	while(jack_ringbuffer_read_space(rb)>=3)
+	{
+		void *buf;
+		buf=malloc(3);
+		jack_ringbuffer_read(rb,buf,3);
+		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,3);
+	}
+//	fprintf(stderr,"\n\rcan read after %lu\n",jack_ringbuffer_read_space(rb));
 
 	//fill audio buffers
 	//set value using last received serial byte
@@ -551,7 +636,7 @@ static int process(jack_nframes_t nframes, void *arg)
 }
 
 //=============================================================================
-void print_status(int fd)
+static void print_status(int fd)
 {
 	int status;
 	unsigned int arg;
@@ -567,7 +652,7 @@ void print_status(int fd)
 }
 
 //=============================================================================
-int transfer_byte(int from, int to, int is_control)
+static int transfer_byte(int from, int to, int is_control)
 {
 	char c;
 	int ret;
@@ -588,11 +673,13 @@ int transfer_byte(int from, int to, int is_control)
 				return 0;
 			}
 		}
+/*
 		else
 		{
 			current_value=(int)c;
 			//fprintf(stderr,"\n\r%d\n\r",(int)current_value);
 		}
+*/
 		while(write(to, &c, 1) == -1) {
 			if(errno!=EAGAIN && errno!=EINTR) { perror("write failed"); break; }
 		}
