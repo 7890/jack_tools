@@ -38,6 +38,7 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 	$(CC) -o $(BLD)/jack_xlsp xlsp.c $(CFLAGS_JACK_ONLY)
 	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_tty tty.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_midi_heartbeat midi_heartbeat.c $(CFLAGS)
 
 #########
 #	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS_METADATA)
