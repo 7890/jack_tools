@@ -496,10 +496,10 @@ static void start_serial_thread()
 //=============================================================================
 static void *serial_thread_func(void *arg)
 {
-	//assume soundfile not null
 	int need_exit = 0;
 
 _init:
+
 	fprintf(stderr,"CTRL+c to quit\n");
 
 //	fprintf(stderr,"serial_thread_func() start\n");
@@ -584,13 +584,17 @@ _init:
 //				need_exit = transfer_byte(comfd, STDIN_FILENO, 0);
 
 				char c;
-			        int ret=1;
-
-				while (ret == 0 && errno != EINTR);
-			        {
+				int ret;
+				do
+				{
 					ret = read(comfd, &c, 1);
 					jack_ringbuffer_write(rb,&c,1);
 //					fprintf(stderr,"!%d ",c);
+				} while (ret < 0 && errno == EINTR);
+				if(ret != 1)
+				{
+					fprintf(stderr, "\n\rnothing to read. probably serial device disconnected.\n\r");
+					need_exit=-2;
 				}
 			}
 		}
@@ -601,7 +605,7 @@ _init:
 	tcsetattr(STDIN_FILENO,TCSANOW,&oldkey);
 
 	usleep(1000000);
-	need_exit = 0;
+	need_exit=0;
 	goto _init;
 
 _done:
