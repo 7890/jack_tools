@@ -74,6 +74,7 @@ MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI_, MySettings);
 #define LED 13
 void setup()
 {
+  Serial.begin(115200);
   pinMode(LED, OUTPUT);
   MIDI_.setHandleNoteOn(handleNoteOn); //attach handler
   MIDI_.setHandleNoteOff(handleNoteOff);
@@ -84,18 +85,26 @@ void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, HIGH); //turn on LED
   //sendRealTime (MidiType inType)
+
+// !!! indicating msg size in bytes. this is a bit odd.
+  Serial.write(0x01);
   MIDI_.sendRealTime(midi::Start); //start
   //sendPitchBend (int inPitchValue, Channel inChannel)
-  //MIDI_.sendPitchBend (1234, 8); //doesn't work (?)
+  Serial.write(0x03);
+  MIDI_.sendPitchBend (1234, 8);
+  Serial.write(0x03);
   MIDI_.sendNoteOn(42, 127, 1); // Send a Note (pitch 42, velo 127 on channel 1)
 }
 void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, LOW); //turn off LED
   //MIDI.sendControlChange (DataByte inControlNumber, DataByte inControlValue, Channel inChannel)
+  Serial.write(0x03);
   MIDI_.sendControlChange (25, 31, 1); //send back
   //sendProgramChange (DataByte inProgramNumber, Channel inChannel)
+  Serial.write(0x02);
   MIDI_.sendProgramChange (16, 8);
+  Serial.write(0x03);
   MIDI_.sendNoteOff(42, 0, 1); // Stop the note
 }
 void loop() //main loop
@@ -105,6 +114,8 @@ void loop() //main loop
 */
 
 /*
+http://www.midi.org/techspecs/midimessages.php
+
 https://ccrma.stanford.edu/~craig/articles/linuxmidi/misc/essenmidi.html
 MIDI commands and data are distinguished according to the most significant bit of the byte. 
 If there is a zero in the top bit, then the byte is a data byte, and if there is a one 
@@ -682,54 +693,31 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	//parse bytestream here to single MIDI messages (one / two / n bytes packages)
 
-	//something with pitchbend is still fishy
+	//something is still fishy
 
 	int pos=0; //!!!! timing wrong, all messages at start of period
+	int msg_len=0;
+
 	while(jack_ringbuffer_read_space(rb)>0)
 	{
-		int msg_len=0;
 		char c;
-		//peek read one byte
+		//read one byte
 		jack_ringbuffer_peek(rb,&c,1);
+		msg_len=(int)c;
 
-		if((c & 0xF0)==0xF0)
+		if(msg_len>3)
 		{
-//			fprintf(stderr,"1 ");
-			msg_len=1;
-		}
-
-
-		else if(
-			(c & 0xC0)==0xC0
-			|| (c & 0xD0)==0xD0
-		)
-		{
-			msg_len=2;
-		}
-
-		else if(
-			(c & 0x80)==0x80
-			|| (c & 0x90)==0x90
-			|| (c & 0xA0)==0xA0
-			|| (c & 0xB0)==0xB0
-			|| (c & 0xE0)==0xE0
-
-		)
-		{
-			msg_len=3;
-		}
-		else
-		{
-			//drop!
-			fprintf(stderr,"DROP\n");
+			//this is not a size byte. skip it
 			jack_ringbuffer_read_advance(rb,1);
-			break;
+			continue;
 		}
 
-		//if enough bytes for whole MIDI event available
-		if(jack_ringbuffer_read_space(rb)>=msg_len && msg_len>0)
-		{
+//		fprintf(stderr,"\n\rmsg length %d ",msg_len);
 
+		if(jack_ringbuffer_read_space(rb)>msg_len+1)
+		{
+			//skip size byte
+			jack_ringbuffer_read_advance(rb,1);
 			void *buf;
 			buf=malloc(msg_len);
 			//read it
@@ -742,8 +730,6 @@ static int process(jack_nframes_t nframes, void *arg)
 		}
 		else
 		{
-//			fprintf(stderr,"not yet enough data ");
-			//do in next cycle
 			break;
 		}
 	}
