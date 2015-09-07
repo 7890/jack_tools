@@ -49,7 +49,8 @@ int main(int argc, char *argv[])
 		(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
 	{
 		printf("connect JACK client that sends MIDI on/off events\n\n");
-		printf("syntax: jack_midi_heartbeat\n\n");
+		printf("syntax: jack_midi_heartbeat <interval in samples>\n\n");
+		printf("default value: 24000\n\n");
 		printf("jack_midi_heartbeat source at https://github.com/7890/jack_tools\n\n");
 		return(0);
 	}
