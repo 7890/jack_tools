@@ -12,10 +12,10 @@ gcc -o jack_tty tty.c `pkg-config --libs liblo` `pkg-config --libs jack`
 -bytes/MIDI event buffers sent to jack_tty MIDI input are sent to device
 -bytes read from the serial device are testwise interpreted as signed int (-128 to 127)
  to create a signal on the audio output port
--bytes read from the serial device are testwise put to JACK MIDI (as 3-byte messages only, no parsing!!)
+-bytes read from the serial device are testwise put to JACK MIDI
 
 -a serial device could send and read MIDI data
--received MIDI bytes would need to be portioned in order to be forwarded to JACK MIDI (now: 3 bytes fixed for test)
+-received MIDI bytes need to be portioned in order to be forwarded to JACK MIDI (1,2,3 or n bytes per MIDI event)
 
 -a serial device can also simply send and receive bytes with a custom meaning
  triggering anything (i.e. send MIDI, shape audio output, send to OSC event etc.) *inside* JACK
@@ -56,13 +56,8 @@ void loop()
 //example code for a serial MIDI device (copy to Arduino IDE)
 //-receives note on and off messages on any channel
 //-toggles LED according to note on/off
-//-sends back MIDI control change for every received note off message
+//-sends back several MIDI messages on note on/off
 //(this program does not do anything meaningful and serves only as a test)
-//LED indication on arduino (UNO)
-// L13   TX  RX
-// x         x    received note on, L13 on
-//       x   x    recieved note off, L13 off, send back control change
-// x         x    repeat (on again)
 //see jack_midi_heartbeat as a note on/off deliverer
 
 //https://github.com/FortySevenEffects/arduino_midi_library/
@@ -88,18 +83,100 @@ void setup()
 void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, HIGH); //turn on LED
+  //sendRealTime (MidiType inType)
+  MIDI_.sendRealTime(midi::Start); //start
+  //sendPitchBend (int inPitchValue, Channel inChannel)
+  MIDI_.sendPitchBend (44, 1);
 }
 void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, LOW); //turn off LED
   //MIDI.sendControlChange (DataByte inControlNumber, DataByte inControlValue, Channel inChannel)
   MIDI_.sendControlChange (25, 31, 1); //send back
+  //sendProgramChange (DataByte inProgramNumber, Channel inChannel)
+  MIDI_.sendProgramChange (33, 1);
 }
 void loop() //main loop
 {
   MIDI_.read();
 }
 */
+
+/*
+https://ccrma.stanford.edu/~craig/articles/linuxmidi/misc/essenmidi.html
+MIDI commands and data are distinguished according to the most significant bit of the byte. 
+If there is a zero in the top bit, then the byte is a data byte, and if there is a one 
+in the top bit, then the byte is a command byte. Here is how they are separated: 
+
+    decimal     hexadecimal          binary
+=======================================================
+DATA bytes:
+       0               0          00000000
+     ...             ...               ...
+     127              7F          01111111
+
+COMMAND bytes:
+     128              80          10000000
+     ...             ...               ...
+     255              FF          11111111
+
+Furthermore, command bytes are split into half. The most significant half contains the 
+actual MIDI command, and the second half contains the MIDI channel for which the command 
+is for. For example, 0x91 is the note-on command for the second MIDI channel. the 9 
+digit is the actual command for note-on and the digit 1 specifies the second channel 
+(the first channel being 0). The 0xF0 set of commands do not follow this convention. 
+
+   0x80     Note Off
+   0x90     Note On
+   0xA0     Aftertouch
+   0xB0     Continuous controller
+   0xC0     Patch change
+   0xD0     Channel Pressure
+   0xE0     Pitch bend
+   0xF0     (non-musical commands)
+
+The messages from 0x80 to 0xEF are called Channel Messages because the second four bits 
+of the command specify which channel the message affects. 
+The messages from 0xF0 to 0xFF are called System Messages; they do not affect any particular channel. 
+
+A MIDI command plus its MIDI data parameters to be called a MIDI message. 
+
+.----------------------------------------------------------------------------------------.
+|The minimum size of a MIDI message is 1 byte (one command byte and no parameter bytes). |
+|The maximum size of a MIDI message (not considering 0xF0 commands) is three bytes .     |
+-----------------------------------------------------------------------------------------.
+
+A MIDI message always starts with a command byte. Here is a table of the MIDI messages 
+that are possible in the MIDI protocol: 
+
+Command Meaning 		# parameters 	param 1 	param 2
+0x80 	Note-off 		2 		key 		velocity
+0x90 	Note-on 		2 		key 		veolcity
+0xA0 	Aftertouch 		2 		key 		touch
+0xB0 	Continuous controller 	2 		controller # 	controller value
+0xC0 	Patch change 		2 		instrument # 	
+0xD0 	Channel Pressure 	1 		pressure
+0xE0 	Pitch bend 		2 		lsb (7 bits) 	msb (7 bits)
+0xF0 	(non-musical commands) 			
+
+Command Meaning 				# param
+0xF0 	start of system exclusive message 	variable
+0xF1 	MIDI Time Code Quarter Frame (Sys Common)
+0xF2 	Song Position Pointer (Sys Common)
+0xF3 	Song Select (Sys Common)
+0xF4 	???
+0xF5 	???
+0xF6 	Tune Request (Sys Common)
+0xF7 	end of system exclusive message 	0
+0xF8 	Timing Clock (Sys Realtime) 
+0xFA 	Start (Sys Realtime)
+0xFB 	Continue (Sys Realtime)
+0xFC 	Stop (Sys Realtime)	
+0xFD 	???
+0xFE 	Active Sensing (Sys Realtime)
+0xFF 	System Reset (Sys Realtime)	
+*/
+
 
 //tty.c uses (altered) parts of com.c, see below
 //to retrieve original com.c from this file:
@@ -211,6 +288,11 @@ static int serial_thread_initialized=0;
 //serial byte value
 static int current_value=0;
 static float output_value=0;
+
+//bit masks to determine length of MIDI event from first byte
+static short MASK_3= 0x80 | 0x90 | 0xA0 | 0xB0 | 0xC0 | 0xE0; //3 bytes
+static short MASK_2= 0xD0; //2 bytes
+static short MASK_1= 0xF0; //1 byte
 
 //===================================================================
 int main(int argc, char *argv[])
@@ -494,21 +576,13 @@ _init:
 //				need_exit = transfer_byte(comfd, STDIN_FILENO, 0);
 
 				char c;
-			        int ret;
-			        do
+			        int ret=1;
+
+				while (ret == 0 && errno != EINTR);
 			        {
-			                ret = read(comfd, &c, 1);
-			        } while (ret < 0 && errno == EINTR);
-			        if(ret == 1)
-			        {
-					current_value=(int)c;
-//					fprintf(stderr,"! %d",c);
+					ret = read(comfd, &c, 1);
 					jack_ringbuffer_write(rb,&c,1);
-				}
-				else
-				{
-					fprintf(stderr, "\n\rnothing to read. probably serial device disconnected.\n\r");
-					need_exit=-2;
+//					fprintf(stderr,"!%d ",c);
 				}
 			}
 		}
@@ -598,9 +672,8 @@ static int process(jack_nframes_t nframes, void *arg)
 	}
 
 	//put MIDI bytes from serial to JACK
-	//!!!!!!!!! for now, assume every MIDI message is 3 bytes !!!!!!!! good for note on/off, control change etc.
-	//should parse bytestream here to single MIDI messages (one / two / n bytes packages)
-	int pos=0; //!!!! timing wrong, all messages at start of period
+/*
+	//old approach. only good for 3 byte messages (any other count will disturb the flow)
 	while(jack_ringbuffer_read_space(rb)>=3)
 	{
 		void *buf;
@@ -608,7 +681,62 @@ static int process(jack_nframes_t nframes, void *arg)
 		jack_ringbuffer_read(rb,buf,3);
 		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,3);
 	}
-//	fprintf(stderr,"\n\rcan read after %lu\n",jack_ringbuffer_read_space(rb));
+*/
+
+	//parse bytestream here to single MIDI messages (one / two / n bytes packages)
+
+	int pos=0; //!!!! timing wrong, all messages at start of period
+	while(jack_ringbuffer_read_space(rb)>0)
+	{
+		int msg_len=0;
+		char c;
+		//peek read one byte
+		jack_ringbuffer_peek(rb,&c,1);
+
+		if((c & MASK_1) == MASK_1)
+		{
+//			fprintf(stderr,"1 ");
+			msg_len=1;
+		}
+
+		else if((c & MASK_2) == MASK_2)
+		{
+//			fprintf(stderr,"2 ");
+			msg_len=2;
+		}
+		else if((c & MASK_3) > 0x00)
+		{
+//			fprintf(stderr,"3 ");
+			msg_len=3;
+		}
+		else
+		{
+			//drop!
+//			jack_ringbuffer_read_advance(rb,1);
+			break;
+		}
+
+		//if enough bytes for whole MIDI event available
+		if(jack_ringbuffer_read_space(rb)>=msg_len && msg_len>0)
+		{
+
+			void *buf;
+			buf=malloc(msg_len);
+			//read it
+			jack_ringbuffer_read(rb,buf,msg_len);
+
+//			fprintf(stderr,"= %d %s",msg_len,(char*)buf);
+
+			//put to JACK MIDI out
+			jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,msg_len);
+		}
+		else
+		{
+//			fprintf(stderr,"not yet enough data ");
+			//do in next cycle
+			break;
+		}
+	}
 
 	//fill audio buffers
 	//set value using last received serial byte
