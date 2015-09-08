@@ -367,8 +367,6 @@ int main(int argc, char *argv[])
 		usleep(500);
 	}
 
-	rb=jack_ringbuffer_create(100000);
-
 	//jack_options_t options=JackNullOption;
 	jack_options_t options=JackNoStartServer;
 	jack_status_t status;
@@ -401,6 +399,8 @@ int main(int argc, char *argv[])
 			fprintf(stderr,"connected to JACK.\n\r");
 		}
 	}
+
+	rb=jack_ringbuffer_create( 3000 * jack_get_buffer_size(client) );
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
