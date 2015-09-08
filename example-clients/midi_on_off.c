@@ -270,4 +270,52 @@ static int process(jack_nframes_t nframes, void *arg)
 	return 0;
 }//end process()
 
+/*
+//similar on / off toggle sketch for arduino
+
+//example code for a serial MIDI device (copy to Arduino IDE)
+//-receives note on and off messages on any channel
+//-toggles LED according to note on/off
+//-sends back toggled MIDI messages
+//  on->off, off->on
+//(this program does not do anything meaningful and serves only as a test)
+//see jack_midi_heartbeat as a note on/off deliverer
+
+//https://github.com/FortySevenEffects/arduino_midi_library/
+//http://arduinomidilib.fortyseveneffects.com/index.html
+#include <MIDI.h>
+struct MySettings : public midi::DefaultSettings
+{
+  static const long BaudRate = 115200;
+  static const bool UseRunningStatus = false;
+};
+MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI_, MySettings);
+#define LED 13
+void setup()
+{
+  Serial.begin(115200);
+  pinMode(LED, OUTPUT);
+  MIDI_.setHandleNoteOn(handleNoteOn);
+  MIDI_.setHandleNoteOff(handleNoteOff);
+  MIDI_.begin(MIDI_CHANNEL_OMNI);
+  MIDI_.turnThruOff();
+}
+void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
+{
+  digitalWrite(LED, HIGH);
+  Serial.write(0x03);
+  MIDI_.sendNoteOff(inNote,inVelocity,inChannel);
+}
+void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
+{
+  digitalWrite(LED, LOW);
+  Serial.write(0x03);
+  MIDI_.sendNoteOn(inNote,inVelocity,inChannel);  
+}
+void loop()
+{
+  MIDI_.read();
+}
+*/
+
 //EOF
