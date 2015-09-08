@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 	printf("<jack_xlsp version=\"%d\" >\n",version);
 
 	//generic JACK info
-	printf("<server frame_time=\"%lu\">\n",jack_frame_time(client));
+	printf("<server frame_time=\"%" PRId64 "\">\n",(uint64_t)jack_frame_time(client));
 		printf("<sample_rate>%d</sample_rate>\n",(int)jack_get_sample_rate(client));
 		printf("<period_size>%d</period_size>\n",(int)jack_get_buffer_size(client));
 		printf("<cpu_load>%f</cpu_load>\n",jack_cpu_load(client)/100);
