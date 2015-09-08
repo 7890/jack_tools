@@ -1,6 +1,6 @@
 CC ?= gcc
-CFLAGS ?= `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
-CFLAGS_JACK_ONLY ?= `pkg-config --libs --cflags jack` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
+CFLAGS ?= -Ofast `pkg-config --libs --cflags jack liblo` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
+CFLAGS_JACK_ONLY ?= -Ofast `pkg-config --libs --cflags jack` -D_GNU_SOURCE -lm -Wno-deprecated-declarations
 
 CFLAGS_METADATA ?= -DHAS_JACK_METADATA_API
 #CFLAGS_METADATA = 
@@ -39,6 +39,7 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_tty tty.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_midi_heartbeat midi_heartbeat.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_midi_on_off midi_on_off.c $(CFLAGS)
 
 #########
 #	$(CC) -o $(BLD)/jack_gen $(SRC)/gen.c $(CFLAGS) $(CFLAGS_METADATA)
