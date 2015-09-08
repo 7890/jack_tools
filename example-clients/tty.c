@@ -367,7 +367,7 @@ int main(int argc, char *argv[])
 		usleep(500);
 	}
 
-	rb=jack_ringbuffer_create(10000);
+	rb=jack_ringbuffer_create(100000);
 
 	//jack_options_t options=JackNullOption;
 	jack_options_t options=JackNoStartServer;
@@ -737,6 +737,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		{
 			break;
 		}
+		pos++; //assume less midi events than period has samples
 	}
 
 	//fill audio buffers
