@@ -40,6 +40,7 @@ int is_on=0;
 
 int velocity_counter=0;
 int pitch_counter=0;
+int channel_counter=0;
 
 //===================================================================
 int main(int argc, char *argv[])
@@ -183,19 +184,19 @@ static void jack_error(const char* err)
 }
 
 //===================================================================
-static void send_midi(int number,int ison,int velocity,int pos)
+static void send_midi(int channel,int pitch,int ison,int velocity,int pos)
 {
 	jack_midi_data_t *buffer;
 	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
 		buffer[2] = velocity,
-		buffer[1] = number;
+		buffer[1] = pitch;
 	if(ison)
 	{
-		buffer[0] = 0x90;       /* note on */
+		buffer[0] = (0x90 | channel);       /* note on */
 	}
 	else
 	{
-		buffer[0] = 0x80;       /* note off */
+		buffer[0] = (0x80 | channel);       /* note off */
 	}
 }
 
@@ -224,7 +225,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		if(frame_counter % frames_between_on_off == 0)
 		{
 			fprintf(stderr,".");
-			send_midi(pitch_counter,is_on,velocity_counter,k);
+			send_midi(channel_counter,pitch_counter,is_on,velocity_counter,k);
 			if(is_on)
 			{
 				o1[k]=0.8;
@@ -243,6 +244,11 @@ static int process(jack_nframes_t nframes, void *arg)
 				if(pitch_counter>127)
 				{
 					pitch_counter=0;
+					channel_counter++;
+					if(channel_counter>16)
+					{
+						channel_counter=0;
+					}
 				}
 			}
 		}
