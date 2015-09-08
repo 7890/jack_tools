@@ -292,7 +292,7 @@ static int output_port_count=1;
 static int process_enabled=0;
 static int connection_to_jack_down=1;
 
-//disk thread
+//serial thread
 static pthread_t serial_thread={0};
 static pthread_mutex_t serial_thread_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
@@ -549,10 +549,10 @@ _init:
 	//only wait the first time
 	if(!serial_thread_initialized)
 	{
-		//all setup for req_buffer_from_serial_thread
+		//all setup for start_serial_thread
 		serial_thread_initialized=1;
 
-		//===wait here until data requested via req_buffer_from_serial_thread
+		//===wait here until started
 		pthread_cond_wait (&ok_to_read, &serial_thread_lock);
 	}
 
@@ -589,6 +589,7 @@ _init:
 				{
 					ret = read(comfd, &c, 1);
 					jack_ringbuffer_write(rb,&c,1);
+					current_value=(int)c;
 //					fprintf(stderr,"!%d ",c);
 				} while (ret < 0 && errno == EINTR);
 				if(ret != 1)
@@ -678,7 +679,7 @@ static int process(jack_nframes_t nframes, void *arg)
 			{
 //				fprintf(stderr,"MIDI> #%d len %lu\n\r",msgCount,event.size);//,event.buffer);
 				//write to serial
-				write(comfd,(void*)event.buffer,event.size);
+				int x=write(comfd,(void*)event.buffer,event.size);
 			}
 		}
 	}
