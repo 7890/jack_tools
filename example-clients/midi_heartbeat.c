@@ -39,6 +39,7 @@ uint64_t frame_counter;
 int is_on=0;
 
 int velocity_counter=0;
+int pitch_counter=0;
 
 //===================================================================
 int main(int argc, char *argv[])
@@ -223,7 +224,7 @@ static int process(jack_nframes_t nframes, void *arg)
 		if(frame_counter % frames_between_on_off == 0)
 		{
 			fprintf(stderr,".");
-			send_midi(42,is_on,velocity_counter,k);
+			send_midi(pitch_counter,is_on,velocity_counter,k);
 			if(is_on)
 			{
 				o1[k]=0.8;
@@ -238,6 +239,11 @@ static int process(jack_nframes_t nframes, void *arg)
 			if(velocity_counter>127)
 			{
 				velocity_counter=0;
+				pitch_counter++;
+				if(pitch_counter>127)
+				{
+					pitch_counter=0;
+				}
 			}
 		}
 		frame_counter++;
