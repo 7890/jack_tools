@@ -38,6 +38,17 @@ static int connection_to_jack_down=1;
 uint64_t midi_events_received=0;
 uint64_t midi_events_sent=0;
 
+uint64_t midi_on_events_received=0;
+uint64_t midi_off_events_received=0;
+
+uint64_t midi_on_events_sent=0;
+uint64_t midi_off_events_sent=0;
+
+#define MODE_PASSTHRU 0     //forward input to output (any midi event)
+#define MODE_TOGGLE 1       //toggle input (on->off, off->on) and forward
+
+static int mode=MODE_TOGGLE;
+
 //===================================================================
 int main(int argc, char *argv[])
 {
@@ -187,42 +198,74 @@ static int process(jack_nframes_t nframes, void *arg)
 
 				int pos=0; //!! all events at pos 0 in cycle
 
+				midi_events_received++;
+
 				uint8_t type = event.buffer[0] & 0xf0;
 				uint8_t channel = event.buffer[0] & 0xf;
 
 				//if note on, send note off and vice versa
-				if(type == 0x80) //on
+				if(type == 0x80) //off
 				{
-					midi_events_received++;
+					midi_off_events_received++;
 					//fprintf(stderr,"X");
 
-					//use data from event, only toggle to off
 					jack_midi_data_t *buffer;
 					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
 					buffer[2] = event.buffer[2],
 					buffer[1] = event.buffer[1];
-					buffer[0] = 0x80 | (event.buffer[0] & 0xf); //on + channel
+
+					if(mode==MODE_PASSTHRU)
+					{
+						buffer[0] = event.buffer[0];
+						midi_off_events_sent++;
+					}
+					else if(mode==MODE_TOGGLE)
+					{
+						buffer[0] = 0x90 | (event.buffer[0] & 0xf); //on + channel
+						midi_on_events_sent++;
+					}
 					midi_events_sent++;
 				}
-				else if(type == 0x90) //off
+				else if(type == 0x90) //on
 				{
-					midi_events_received++;
+					midi_on_events_received++;
 					//fprintf(stderr,"_");
-
-					//use data from event, only toggle to on
 					jack_midi_data_t *buffer;
 					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
 					buffer[2] = event.buffer[2],
 					buffer[1] = event.buffer[1];
-					buffer[0] = 0x90 | (event.buffer[0] & 0xf); //off + channel
+
+					if(mode==MODE_PASSTHRU)
+					{
+						buffer[0] = event.buffer[0];
+						midi_on_events_sent++;
+					}
+					else if(mode==MODE_TOGGLE)
+					{
+						buffer[0] = 0x80 | (event.buffer[0] & 0xf); //off + channel
+						midi_off_events_sent++;
+					}
+
+					midi_events_sent++;
+				}
+				else if(mode==MODE_PASSTHRU)
+				{
+					jack_midi_data_t *buffer;
+					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
+					buffer[2] = event.buffer[2],
+					buffer[1] = event.buffer[1];
+					buffer[0] = event.buffer[0];
 					midi_events_sent++;
 				}
 			}
 		}
 	}//end while has MIDI messages
 
-	fprintf(stderr,"\r                                \rin %" PRId64 " out %" PRId64 ""
-		,midi_events_received,midi_events_sent);
+	fprintf(stderr,"\r                                                                 \rin %" PRId64 " on %" PRId64 " off %" PRId64 " out %" PRId64 " on %" PRId64 " off %" PRId64 ""
+		,midi_events_received
+		,midi_on_events_received,midi_on_events_sent
+		,midi_events_sent
+		,midi_off_events_received,midi_off_events_sent);
 
 	return 0;
 }//end process()
