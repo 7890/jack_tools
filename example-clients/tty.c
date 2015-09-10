@@ -54,60 +54,25 @@ void loop()
 
 /*
 //example code for a serial MIDI device (copy to Arduino IDE)
-//-receives note on and off messages on any channel
-//-toggles LED according to note on/off
-//-sends back several MIDI messages on note on/off
+//echo midi messages (thru) -> for testing midi byte stream (ship JACK midi events, get JACK MIDI events)
 //(this program does not do anything meaningful and serves only as a test)
 //see jack_midi_heartbeat as a note on/off deliverer
 
 //https://github.com/FortySevenEffects/arduino_midi_library/
 //http://arduinomidilib.fortyseveneffects.com/index.html
 #include <MIDI.h>
-//MIDI_CREATE_DEFAULT_INSTANCE();
-//override default settings
 struct MySettings : public midi::DefaultSettings
 {
-  static const long BaudRate = 115200; //31250; //since this is not a regular MIDI device, use max baudrate
-  static const bool UseRunningStatus = false; //JACK MIDI is "normalized"
+  static const long BaudRate = 115200;
+  static const bool UseRunningStatus = false;
 };
 MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI_, MySettings);
-#define LED 13
 void setup()
 {
-  Serial.begin(115200);
-  pinMode(LED, OUTPUT);
-  MIDI_.setHandleNoteOn(handleNoteOn); //attach handler
-  MIDI_.setHandleNoteOff(handleNoteOff);
-  MIDI_.begin(MIDI_CHANNEL_OMNI); //listen on all channels
-  MIDI_.turnThruOff(); //don't echo back received MIDI events
+  MIDI_.begin(MIDI_CHANNEL_OMNI);
+  MIDI_.turnThruOn();
 }
-void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
-{
-  digitalWrite(LED, HIGH); //turn on LED
-  //sendRealTime (MidiType inType)
-
-// !!! indicating msg size in bytes. this is a bit odd.
-  Serial.write(0x01);
-  MIDI_.sendRealTime(midi::Start); //start
-  //sendPitchBend (int inPitchValue, Channel inChannel)
-  Serial.write(0x03);
-  MIDI_.sendPitchBend (1234, 8);
-  Serial.write(0x03);
-  MIDI_.sendNoteOn(42, 127, 1); // Send a Note (pitch 42, velo 127 on channel 1)
-}
-void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
-{
-  digitalWrite(LED, LOW); //turn off LED
-  //MIDI.sendControlChange (DataByte inControlNumber, DataByte inControlValue, Channel inChannel)
-  Serial.write(0x03);
-  MIDI_.sendControlChange (25, 31, 1); //send back
-  //sendProgramChange (DataByte inProgramNumber, Channel inChannel)
-  Serial.write(0x02);
-  MIDI_.sendProgramChange (16, 8);
-  Serial.write(0x03);
-  MIDI_.sendNoteOff(42, 0, 1); // Stop the note
-}
-void loop() //main loop
+void loop()
 {
   MIDI_.read();
 }
@@ -685,32 +650,44 @@ static int process(jack_nframes_t nframes, void *arg)
 	}
 
 	//put MIDI bytes from serial to JACK
-/*
-	//old approach. only good for 3 byte messages (any other count will disturb the flow)
-	while(jack_ringbuffer_read_space(rb)>=3)
-	{
-		void *buf;
-		buf=malloc(3);
-		jack_ringbuffer_read(rb,buf,3);
-		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,3);
-	}
-*/
-
-	//parse bytestream here to single MIDI messages (one / two / n bytes packages)
-
-	//something is still fishy
 
 	int pos=0; //!!!! timing wrong, all messages at start of period
 	int msg_len=0;
 
 	while(jack_ringbuffer_read_space(rb)>0)
 	{
+		msg_len=0;
 		char c;
 		//read one byte
 		jack_ringbuffer_peek(rb,&c,1);
-		msg_len=(int)c;
 
-		if(msg_len>3)
+		uint8_t type = c & 0xf0;
+
+		if(type == 0x80 //off
+			|| type == 0x90 //on
+			|| type == 0xA0 //at
+			|| type == 0xB0 //ctrl
+			|| type == 0xE0 //pb
+		)
+		{
+			msg_len=3;
+		}
+		else if(type == 0xC0 //pc
+			|| type == 0xD0 //cp
+		)
+		{
+			msg_len=2;
+		}
+		else if(type == 0xF0) //rt
+		{
+			msg_len=1;
+		}
+		else
+		{
+			//
+		}
+
+		if(msg_len==0)
 		{
 			//this is not a size byte. skip it
 			jack_ringbuffer_read_advance(rb,1);
@@ -721,8 +698,6 @@ static int process(jack_nframes_t nframes, void *arg)
 
 		if(jack_ringbuffer_read_space(rb)>msg_len+1)
 		{
-			//skip size byte
-			jack_ringbuffer_read_advance(rb,1);
 			void *buf;
 			buf=malloc(msg_len);
 			//read it

@@ -293,7 +293,6 @@ MIDI_CREATE_CUSTOM_INSTANCE(HardwareSerial, Serial, MIDI_, MySettings);
 #define LED 13
 void setup()
 {
-  Serial.begin(115200);
   pinMode(LED, OUTPUT);
   MIDI_.setHandleNoteOn(handleNoteOn);
   MIDI_.setHandleNoteOff(handleNoteOff);
@@ -303,13 +302,11 @@ void setup()
 void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, HIGH);
-  Serial.write(0x03);
   MIDI_.sendNoteOff(inNote,inVelocity,inChannel);
 }
 void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, LOW);
-  Serial.write(0x03);
   MIDI_.sendNoteOn(inNote,inVelocity,inChannel);  
 }
 void loop()
