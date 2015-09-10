@@ -696,7 +696,7 @@ static int process(jack_nframes_t nframes, void *arg)
 
 //		fprintf(stderr,"\n\rmsg length %d ",msg_len);
 
-		if(jack_ringbuffer_read_space(rb)>msg_len+1)
+		if(jack_ringbuffer_read_space(rb)>=msg_len)
 		{
 			void *buf;
 			buf=malloc(msg_len);
