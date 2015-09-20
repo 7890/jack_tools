@@ -196,6 +196,7 @@ Command Meaning 				# param
 #include <jack/jack.h>
 #include <jack/ringbuffer.h>
 #include <jack/midiport.h>
+#include <lo/lo.h>
 #include <termios.h>
 #include <sys/signal.h>
 #include <sys/types.h>
@@ -634,13 +635,66 @@ static int process(jack_nframes_t nframes, void *arg)
 		r = jack_midi_event_get (&event, buffer_in_midi, i);
 		if (r == 0)
 		{
-			//check if midi data, skip if other
+			//check if osc midi
 			if(*event.buffer=='/')
 			{
-				fprintf(stderr,"OSC> #%d len %lu\n\r",msgCount,event.size);
-				//do stuff here
-			}
-			else
+				char* path;
+				char* types;
+
+				path=lo_get_path(event.buffer,event.size);
+
+				int result;
+				//some magic happens here
+				lo_message msg = lo_message_deserialise(event.buffer, event.size, &result);
+
+				types=lo_message_get_types(msg);
+				lo_arg **argv = lo_message_get_argv(msg);
+				int argc=lo_message_get_argc(msg);
+
+//				fprintf(stdout,"\n\rosc message (%i) size: %lu argc: %d path: %s\r",i+1,event.size,lo_message_get_argc(msg),path);
+
+				if(!strcmp(path,"/midi"))
+				{
+					if(argc>3)
+					{
+						return;
+					}
+
+					int pos=i;///////
+					jack_midi_data_t *buffer;
+
+					//176: b0 (cc on channel 0)
+					//oscsend localhost 3344 /midi iii 176 40 1
+
+					if(argc==1 && !strcmp(types,"i"))
+					{
+						buffer=malloc(1);
+						buffer[0]=argv[0]->i;
+						int x=write(comfd,(void*)buffer,argc);
+					}
+					else if(argc==2 && !strcmp(types,"ii"))
+					{
+						buffer=malloc(2);
+						buffer[0]=argv[0]->i;
+						buffer[1]=argv[1]->i;
+						int x=write(comfd,(void*)buffer,argc);
+					}
+					else if(argc==3 && !strcmp(types,"iii"))
+					{
+						buffer=malloc(3);
+						buffer[0]=argv[0]->i;
+						buffer[1]=argv[1]->i;
+						buffer[2]=argv[2]->i;
+						int x=write(comfd,(void*)buffer,argc);
+					}
+					if(argc==1 && !strcmp(types,"b"))
+					{
+						fprintf(stderr,"\r\nsysex midi (blob) not implemented.\n");
+					}
+				}//end /midi message
+				lo_message_free(msg);
+			}//end if osc message
+			else //assume "normal" midi
 			{
 //				fprintf(stderr,"MIDI> #%d len %lu\n\r",msgCount,event.size);//,event.buffer);
 				//write to serial
