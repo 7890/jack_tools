@@ -43,7 +43,7 @@ static jack_client_t *client;
 static int connection_to_jack_down=1;
 int64_t xrun_counter=0;
 static jack_transport_state_t transport_state=-1;
-static transport_state_prev=-2; //provocate notification at start
+static jack_transport_state_t transport_state_prev=-2; //provocate notification at start
 
 //default port to send OSC messages from (my port)
 static const char* osc_my_server_port="6677";
