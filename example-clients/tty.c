@@ -657,7 +657,7 @@ static int process(jack_nframes_t nframes, void *arg)
 				{
 					if(argc>3)
 					{
-						return;
+						return 0;
 					}
 
 					int pos=i;///////
