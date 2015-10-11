@@ -97,7 +97,7 @@ uninstall:
 	@echo "---------"
 	@echo ""
 	@echo "jack_osc_bridge_in, jack_osc_bridge_out, jack_osc_filter"
-	@echo "jack_gen
+	@echo "jack_gen"
 	@echo ""
 	@echo "INSTALLDIR: $(INSTALLDIR)"
 	@echo ""
