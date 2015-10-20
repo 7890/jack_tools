@@ -54,9 +54,17 @@ zita_resampler:
 
 jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/kb_control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 	@echo "checking prerequisites..."
-	which $(CC) \
-	&& which pkg-config \
-	&& pkg-config --exists jack sndfile opus opusfile vorbis vorbisfile ogg flac libmpg123
+	which $(CC)
+	which pkg-config
+	pkg-config --exists jack
+	pkg-config --exists sndfile
+	pkg-config --exists opus
+	pkg-config --exists opusfile
+	pkg-config --exists vorbis
+	pkg-config --exists vorbisfile
+	pkg-config --exists ogg
+	pkg-config --exists flac
+	pkg-config --exists libmpg123
 	@echo "ok."
 
 	mkdir -p $(BUILD)
@@ -68,15 +76,23 @@ jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/ja
 #	@echo $(STATIC_LIBS)
 
 	echo "checking prerequisites..."
-	which zcat \
-	&& which pkg-config \
-	&& which xxd \
-	&& which groff \
-	&& which sed \
-	&& which strip \
-	&& which readelf \
-	&& which du \
-	&& pkg-config --exists jack sndfile opus opusfile vorbis vorbisfile ogg flac libmpg123
+	which zcat
+	which pkg-config
+	which xxd
+	which groff
+	which sed
+	which strip
+	which readelf
+	which du
+	pkg-config --exists jack
+	pkg-config --exists sndfile
+	pkg-config --exists opus
+	pkg-config --exists opusfile
+	pkg-config --exists vorbis
+	pkg-config --exists vorbisfile
+	pkg-config --exists ogg
+	pkg-config --exists flac
+	pkg-config --exists libmpg123
 	@echo "ok."
 
 	#create built-in man page
