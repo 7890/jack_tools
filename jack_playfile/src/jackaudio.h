@@ -42,8 +42,9 @@ static void jack_activate_client();
 static void jack_connect_output_ports();
 static void jack_fill_output_buffers_zero();
 static void jack_register_callbacks();
+static int jack_xrun_handler(void *);
 static void jack_close_down();
-static void jack_shutdown_handler (void *arg);
+static void jack_shutdown_handler(void *arg);
 
 static const char **ports;
 
@@ -219,7 +220,8 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	{
 		jack->transport_state = jack_transport_query(jack->client, NULL);
 
-		if (jack->transport_state == JackTransportStarting || jack->transport_state == JackTransportRolling)
+		//if(jack->transport_state == JackTransportStarting || 
+		if(jack->transport_state == JackTransportRolling)
 		{
 			is_playing=1;
 		} 
@@ -593,6 +595,13 @@ static void jack_register_callbacks()
 	//register hook to know when JACK shuts down or the connection 
 	//was lost (i.e. client zombified)
 	jack_on_shutdown(jack->client, jack_shutdown_handler, 0);
+	jack_set_xrun_callback(jack->client, jack_xrun_handler, NULL);
+}
+
+//=============================================================================
+static int jack_xrun_handler(void *)
+{
+	fprintf(stderr,"!!!!XRUN\n");
 }
 
 //=============================================================================
