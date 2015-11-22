@@ -29,13 +29,10 @@
 #endif
 
 //combine some files, order matters..
-#include "config.h"
 #include "sndin.h"
-#include "control.h"
 #include "kb_control.h"
 #include "resampler.h"
 #include "jackaudio.h"
-#include "jack_playfile.h"
 #include "playlist.h"
 
 static const float version=0.85;
