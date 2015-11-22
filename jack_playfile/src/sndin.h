@@ -147,7 +147,7 @@ static uint64_t total_frames_read_from_file=0;
 //in disk thread, detect if 'frame_count' was read from file
 static int all_frames_read=0;
 
-static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info);
+static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet);
 static sf_count_t sin_seek(sf_count_t offset, int whence);
 static void sin_close();
 
@@ -174,7 +174,7 @@ int closing_file_in_progress=0;
 
 //return 0 on error, 1 on success
 //=============================================================================
-static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
+static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 {
 	is_opus=0;
 	is_ogg_=0;
@@ -207,7 +207,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 		{
 			sf_close(soundfile);
 
-			ogg_file_  = fopen(fileuri,"r");
+			ogg_file_ = fopen(fileuri,"r");
 			ov_open(ogg_file_,&soundfile_vorbis,NULL,0);
 			is_ogg_=1;
 		}
@@ -242,7 +242,11 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 				,MPG123_ENC_FLOAT_32
 			);
 
+			//suppress error messages
+			mpg123_param(soundfile_123, MPG123_FLAGS, MPG123_QUIET, 0);
+
 			int ret = mpg123_open(soundfile_123, fileuri);
+
 			if(ret == MPG123_OK)
 			{
 				long rate;
@@ -254,7 +258,10 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 
 				if(format==0)
 				{
-					fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
+					if(!quiet)
+					{
+						fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
+					}
 					return 0;
 				}
 
@@ -278,7 +285,10 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info)
 			}
 			else 
 			{
-				fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
+				if(!quiet)
+				{
+					fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
+				}
 				return 0;
 			}
 		}//end try mpg123
