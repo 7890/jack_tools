@@ -21,6 +21,9 @@
 //tb/150612+
 // ----------------------------------------------------------------------------
 
+#ifndef playlist_H_INC
+#define playlist_H_INC
+
 #include <string>
 #include <vector>
 
@@ -198,4 +201,5 @@ static int check_file(const char *f)
 	return 1;
 }
 
+#endif
 //EOF
