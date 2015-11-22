@@ -24,6 +24,7 @@
 #ifndef playlist_H_INC
 #define playlist_H_INC
 
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@ static char *playlist_file;
 static int current_playlist_index=0;
 static int no_more_files_to_play=0;
 
+using std::ifstream;
 using std::vector;
 using std::string;
 vector<string> files_to_play;
@@ -97,25 +99,18 @@ static int create_playlist_vector_from_args(int argc, char *argv[])
 //=============================================================================
 static int create_playlist_vector_from_file()
 {
-	FILE *fp = fopen(playlist_file,"r");
-	if(fp==NULL)
+	ifstream ifs(playlist_file);
+	string line;
+
+	while ( std::getline(ifs, line) )
 	{
-		return 0;
-	}
-
-	char *line = NULL;
-	size_t size;
-
-	while (getline(&line, &size, fp) != -1) 
-        {
-		//remove trailing newline
-		size_t ln = strlen(line) - 1;
-
-		//ignore empty line
-		if(ln<=0)
+		if (line.empty())
 		{
 			continue;
 		}
+
+		//remove trailing newline
+		size_t ln = strlen(line.c_str()) - 1;
 /*
 Windows   Linux     Mac
 \r\n      \n        \r
@@ -125,14 +120,11 @@ Windows   Linux     Mac
 			line[ln] = '\0';
 		}
 
-		if(check_file(line))
+		if(check_file(line.c_str()))
 		{
 			files_to_play.push_back(line);
 		}
 	}
-
-
-	fclose(fp);
 
 	fprintf(stderr,"%d files in playlist vector\n",(int)files_to_play.size());
 
