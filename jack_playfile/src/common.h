@@ -36,8 +36,9 @@
 #include "resampler.h"
 #include "jackaudio.h"
 #include "jack_playfile.h"
+#include "playlist.h"
 
-static const float version=0.84;
+static const float version=0.85;
 
 static void print_main_help();
 static void print_manpage();
@@ -63,6 +64,8 @@ static struct option long_options[] =
 	{"chcount",	required_argument,	0, 'C'},
 
 	{"samplerate",	required_argument,	0, 'S'},
+
+	{"file",	required_argument,	0, 'F'},
 
 	{"nocontrol",	no_argument,  0,	'D'},
 	{"noresampling",no_argument,  0,	'R'},
@@ -96,6 +99,7 @@ static void print_main_help()
 
 	fprintf (stdout, "  -h, --help                Display this text and quit\n");
 	fprintf (stdout, "  -V, --version             Show program version and quit\n");
+	fprintf (stdout, "  -F, --file                Get files to play from playlist file\n");
 	fprintf (stdout, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stdout, "  -s, --sname <string>      JACK server name  (\"default\") \n");
 	fprintf (stdout, "  -N, --noconnect           Don't connect JACK ports\n");

@@ -51,12 +51,6 @@ static uint64_t frames_to_seek_type=SEEK_CUR; //or SEEK_SET
 //use to signal next file, resulting in partial init (not a full JACK client shutdown/register)
 static int prepare_for_next_file=0;
 
-//when requesting prev file, limit to first found valid file index
-static int first_valid_file_optind=0;
-
-//how many (potentially loadable) files on command line
-static int number_of_files_in_argc=0;
-
 //signal to decrement index for next file
 static int prev_file_requested=0;
 
@@ -74,7 +68,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:NEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:F:NEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -141,6 +135,11 @@ int main(int argc, char *argv[])
 				custom_file_sample_rate=atoi(optarg);
 				break;
 
+			case 'F':
+				read_from_playlist=1;
+				playlist_file=optarg;
+				break;
+
 			case 'N':
 				jack->autoconnect_ports=0;
 				break;
@@ -204,36 +203,16 @@ int main(int argc, char *argv[])
 		 } //end switch op
 	}//end while(1) parse args
 
-	//remaining non optional parameters must be at least one file
-	if(argc-optind<1)
-	{
-		//print_header();
-		fprintf(stderr, "Wrong arguments, see --help.\n");
-		exit(1);
-	}
-
-	first_valid_file_optind=optind;
-	number_of_files_in_argc=argc-first_valid_file_optind;
-
-	//jack_playfile /tmp/a.x /tmp/*.wav
-	//try open file(s) until success
-	while(argc-optind>0 && !open_init_file(argv[optind]))
-	{
-		fprintf(stderr,"\n\n");
-		optind++;
-		first_valid_file_optind=optind;
-		number_of_files_in_argc=argc-first_valid_file_optind;
-	}
-	//no more arguments are left and no file could be opened
-	if(argc-optind<1)
+	if(!create_playlist(argc,argv))
 	{
 		exit(1);
 	}
 
-	first_valid_file_optind=optind;
-	number_of_files_in_argc=argc-first_valid_file_optind;
-
-//	fprintf(stderr,"# first valid index: %d files on command line: %d \n",first_valid_file_optind,number_of_files_in_argc);
+	if(!open_init_file_from_playlist())
+	{
+		fprintf(stderr,"/!\\ no valid files in playlist file\n");
+		exit(1);
+	}
 
 	//if no explicit channel count is known (chcount 0), the first file in a possible row of files
 	//sets the chcount for all following files
@@ -369,8 +348,7 @@ _main_loop:
 		{
 			shutdown_in_progress_signalled=1;
 
-			//no more file args left
-			if(argc-optind<1)
+			if(no_more_files_to_play)
 			{
 				//effectively shutdown
 				signal_handler(42);
@@ -480,18 +458,11 @@ _start_all_over:
 	{
 		sin_close();
 		fprintf(stderr,"\n\n");
-		//if more file args, try open until success
 
-		//increment or decrement optindex (i.e. prev file requested=decrement)
-		set_optind();
+		set_playlist_index(prev_file_requested);
+		prev_file_requested=0;
 
-		while(argc-optind>0 && !open_init_file(argv[optind]))
-		{
-			fprintf(stderr,"\n\n");
-			//optind++;
-			set_optind();
-		}
-		if(argc-optind<1)
+		if(!open_init_file_from_playlist())
 		{
 			shutdown_in_progress=1;
 		}
@@ -503,21 +474,6 @@ _start_all_over:
 }//end main
 
 //=============================================================================
-static void set_optind()
-{
-	if(prev_file_requested)
-	{
-		optind--;
-		optind=MAX(optind,first_valid_file_optind);
-		prev_file_requested=0;
-	}
-	else
-	{
-		optind++;
-	}
-}
-
-//=============================================================================
 static int open_init_file(const char *f)
 {
 //	fprintf(stderr,"open_init_file %s\n",f);
@@ -526,7 +482,7 @@ static int open_init_file(const char *f)
 
 	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
 
-	if(!(sin_open(filename,&sf_info_generic)))
+	if(!(sin_open(filename,&sf_info_generic,0)))
 	{
 		sin_close();
 		return 0;
@@ -547,8 +503,8 @@ static int open_init_file(const char *f)
 	file_size_bytes = st.st_size;
 
 	fprintf(stderr,"file #%4d/%4d: %s\n"
-		,1+(optind-first_valid_file_optind)
-		,number_of_files_in_argc
+		,1+current_playlist_index
+		,(int)files_to_play.size()
 		,filename);
 
 	if(is_verbose)

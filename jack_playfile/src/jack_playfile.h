@@ -26,7 +26,6 @@
 
 //================================================================
 int main(int argc, char *argv[]);
-static void set_optind();
 static int open_init_file(const char *f);
 
 static int disk_read_frames();
