@@ -24,8 +24,6 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
-
 static int read_from_playlist=0;
 static char *playlist_file;
 static int current_playlist_index=0;
