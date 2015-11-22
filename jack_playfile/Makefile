@@ -44,7 +44,6 @@ zita_resampler:
 	&& which tar
 	@echo "ok."
 
-	mkdir -p $(BUILD)
 	cp $(ARCHIVE)/zita-resampler-1.3.0.tar.bz2 $(BUILD)/ \
 	&& cd $(BUILD)/ \
 	&& bunzip2 -f zita-resampler-1.3.0.tar.bz2 \
@@ -68,7 +67,6 @@ jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SR
 	pkg-config --exists libmpg123
 	@echo "ok."
 
-	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG -Wno-deprecated-declarations
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -Ibuild/zita-resampler-1.3.0/libs/ `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -ldl -lmpg123

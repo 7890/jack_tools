@@ -6,7 +6,7 @@ BUILD_BIN = /home/winbuild/win-stack-w32/bin
 
 PKG_CONFIG_PATH=$(BUILD_LIB)/pkgconfig/
 
-CFLAGS ?= -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA -Wno-write-strings -Wno-pointer-arith
+CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -Wno-write-strings -Wno-pointer-arith -O3
 
 SRC = src
 BUILD = build
@@ -14,10 +14,11 @@ ARCHIVE = archive
 
 INSTALLPATH=/usr/local/bin/
 
+$(shell mkdir -p $(BUILD))
+
 all:	jack_playfile
 
 zita_resampler:
-	mkdir -p $(BUILD)
 	cp $(ARCHIVE)/zita-resampler-1.3.0.tar.bz2 $(BUILD)/ \
 	&& cd $(BUILD)/ \
 	&& bunzip2 -f zita-resampler-1.3.0.tar.bz2 \
@@ -35,7 +36,6 @@ zita_resampler:
 #cp -r zita-resampler ${PREFIX}/include
 
 mpg123_fake:
-	mkdir -p $(BUILD)
 	cp $(ARCHIVE)/win32/mpg123-1.22.0-x86.zip $(BUILD)/ \
 	&& cd $(BUILD)/ \
 	&& unzip -oq mpg123-1.22.0-x86.zip \
@@ -44,7 +44,6 @@ mpg123_fake:
 	&& cp mpg123-1.22.0-x86/libmpg123-0.dll $(BUILD_BIN)/
 
 jack_playfile: zita_resampler mpg123_fake $(SRC)/jack_playfile.c $(SRC)/weak_libjack.c $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
-	mkdir -p $(BUILD)
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -lmpg123
