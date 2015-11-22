@@ -259,8 +259,9 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 				struct mpg123_frameinfo mp3info;
 				mpg123_info(soundfile_123, &mp3info);
 
-				if(format==0)
+				if(format==0 || mpg123_length(soundfile_123)<=0)
 				{
+					mpg123_delete(soundfile_123);
 					if(!quiet)
 					{
 						fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
@@ -288,6 +289,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 			}
 			else 
 			{
+				mpg123_delete(soundfile_123);
 				if(!quiet)
 				{
 					fprintf (stderr, "/!\\ cannot open file \"%s\"\n", fileuri);
