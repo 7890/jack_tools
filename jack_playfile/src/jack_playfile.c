@@ -1125,8 +1125,7 @@ static void ctrl_pause()
 //=============================================================================
 static void ctrl_quit()
 {
-	///tmp
-	optind=100000; //dont use next file arg if any
+	no_more_files_to_play=1;
 	loop_enabled=0; //prepare seek
 	pause_at_end=0;
 	is_idling_at_end=0;
