@@ -47,7 +47,7 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
 
-This document refers to 'jack_playfile' version 0.84.
+This document refers to 'jack_playfile' version 0.85.
 
 OPTIONS
 -------
@@ -55,7 +55,11 @@ OPTIONS
 	Display help and quit.
 
 *-V, --version* (w/o argument)::
-	Display version and quit.
+	Display version and quit. Static builds of jack_playfile will also show the versions of the invovled audio libraries.
+
+*-F, --file* (string)::
+	Get files to play from playlist file. One audio file per line (full path, unescaped). 
+	If a playlist file is given, command line file arguments are not allowed and vice versa.
 
 *-n, --name* (string)::
 	JACK client name.
@@ -184,7 +188,21 @@ Of course all the shell filename expansion mechanisms can be used, so that
 
 will play all files matching the patterns.
 
-If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+Attention: reading file arguments from STDIN will only work if keyboard control is off!
+
+	#THIS WILL FAIL
+	$ ls -1 *.wav | ... | while read line; do jack_playfile "$line"; done
+
+	#SHOULD WORK
+	$ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; done
+
+However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.
+
+	$ ls -1 *.wav | ... > /tmp/pl.txt; jack_playfile -F /tmp/pl.txt
+
+A playlist file is just a list of audio files, one per line. Filenames must not be escaped.
+
+If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control < and > will browse through the list of files. If a file can't be played, the next 
 file will be tried until there is a valid file or no more files left to try.
 
@@ -254,7 +272,7 @@ EXAMPLES
 
 Example output of 'jack_playfile' using option -v:
 
-	file:        audio.wav  (#1/1)
+	file #   1/  1: audio .wav
 	size:        57274264 bytes (57.27 MB)
 	format:      Microsoft WAV format (little endian)
 		     Signed 16 bit data (0x00010002)
@@ -270,6 +288,7 @@ Example output of 'jack_playfile' using option -v:
 	JACK cycles per second: 375.00
 	JACK output data rate: 384000.0 bytes/s (0.38 MB/s)
 	total byte out_to_in ratio: 2.176871
+	play range:      00:05:24.684
 	resampler out_to_in ratio: 1.088435
 	autoconnect: jack_playfile-01:output_1 -> firewire_pcm:000a9200d6012385_MainOut 1L_out
 	autoconnect: jack_playfile-01:output_2 -> firewire_pcm:000a9200d6012385_MainOut 2R_out
@@ -396,7 +415,7 @@ PROGRAM LIFE CYCLE
 
 7) Eventually resume operation if JACK available
 
-8) Eventually play next or previous file in args list
+8) Eventually play next or previous file in args list or given playlist file
 
 9) Release resources and quit nicely if all done or quit was requested
 
@@ -509,7 +528,7 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Mon Aug 24 20:01:33 CEST 2015
+Last Update: Sun Nov 22 16:09:51 CET 2015
 
 COPYING
 -------

@@ -830,7 +830,7 @@ This plugin collection is a good starting point: <a href="https://github.com/x42
 <div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
-<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.84.</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.85.</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -850,7 +850,16 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </dt>
 <dd>
 <p>
-        Display version and quit.
+        Display version and quit. Static builds of jack_playfile will also show the versions of the invovled audio libraries.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-F, --file</strong> (string)
+</dt>
+<dd>
+<p>
+        Get files to play from playlist file. One audio file per line (full path, unescaped).
+        If a playlist file is given, command line file arguments are not allowed and vice versa.
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1090,7 +1099,24 @@ and if <em>"</em> is part of the filename, it needs escaping like <em>\"</em>.</
 <pre><code>$ jack_playfile *.wav 0??.ogg</code></pre>
 </div></div>
 <div class="paragraph"><p>will play all files matching the patterns.</p></div>
-<div class="paragraph"><p>If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+<div class="paragraph"><p>Attention: reading file arguments from STDIN will only work if keyboard control is off!</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>#THIS WILL FAIL
+$ ls -1 *.wav | ... | while read line; do jack_playfile "$line"; done</code></pre>
+</div></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>#SHOULD WORK
+$ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; done</code></pre>
+</div></div>
+<div class="paragraph"><p>However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ ls -1 *.wav | ... &gt; /tmp/pl.txt; jack_playfile -F /tmp/pl.txt</code></pre>
+</div></div>
+<div class="paragraph"><p>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</p></div>
+<div class="paragraph"><p>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
 file will be tried until there is a valid file or no more files left to try.</p></div>
 </div>
@@ -1349,7 +1375,7 @@ Play RIFF wave file:
 <div class="paragraph"><p>Example output of <em>jack_playfile</em> using option -v:</p></div>
 <div class="literalblock">
 <div class="content">
-<pre><code>file:        audio.wav  (#1/1)
+<pre><code>file #   1/  1: audio .wav
 size:        57274264 bytes (57.27 MB)
 format:      Microsoft WAV format (little endian)
              Signed 16 bit data (0x00010002)
@@ -1365,6 +1391,7 @@ JACK period size: 128 frames
 JACK cycles per second: 375.00
 JACK output data rate: 384000.0 bytes/s (0.38 MB/s)
 total byte out_to_in ratio: 2.176871
+play range:      00:05:24.684
 resampler out_to_in ratio: 1.088435
 autoconnect: jack_playfile-01:output_1 -&gt; firewire_pcm:000a9200d6012385_MainOut 1L_out
 autoconnect: jack_playfile-01:output_2 -&gt; firewire_pcm:000a9200d6012385_MainOut 2R_out
@@ -1566,7 +1593,7 @@ Shutting down
 <div class="paragraph"><p>5) Start operation based on playback settings (paused, muted etc.)</p></div>
 <div class="paragraph"><p>6) Eventually stop operation if JACK away</p></div>
 <div class="paragraph"><p>7) Eventually resume operation if JACK available</p></div>
-<div class="paragraph"><p>8) Eventually play next or previous file in args list</p></div>
+<div class="paragraph"><p>8) Eventually play next or previous file in args list or given playlist file</p></div>
 <div class="paragraph"><p>9) Release resources and quit nicely if all done or quit was requested</p></div>
 <div class="paragraph"><p>The diagram below is not "pure" in any way. It should show some statuses and possible program flows.
 Unexpected errors that could happen anywhere aren&#8217;t graphed.
@@ -1746,7 +1773,7 @@ libogg - <a href="http://xiph.org/ogg/">http://xiph.org/ogg/</a>
 <h2 id="_authors">AUTHORS</h2>
 <div class="sectionbody">
 <div class="paragraph"><p>Thomas Brand &lt;<a href="mailto:tom@trellis.ch">tom@trellis.ch</a>&gt;</p></div>
-<div class="paragraph"><p>Last Update: Mon Aug 24 20:01:33 CEST 2015</p></div>
+<div class="paragraph"><p>Last Update: Sun Nov 22 16:09:51 CET 2015</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -1760,7 +1787,7 @@ granted under the terms of the GNU General Public License (GPL).</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-08-24 20:08:54 CEST
+Last updated 2015-11-22 16:17:25 CET
 </div>
 </div>
 </body>

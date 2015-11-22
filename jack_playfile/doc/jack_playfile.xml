@@ -98,7 +98,7 @@ This plugin collection is a good starting point: <ulink url="https://github.com/
 <simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
-<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.84.</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.85.</simpara>
 </refsect1>
 <refsect1 id="_options">
 <title>OPTIONS</title>
@@ -119,7 +119,18 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </term>
 <listitem>
 <simpara>
-        Display version and quit.
+        Display version and quit. Static builds of jack_playfile will also show the versions of the invovled audio libraries.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-F, --file</emphasis> (string)
+</term>
+<listitem>
+<simpara>
+        Get files to play from playlist file. One audio file per line (full path, unescaped).
+        If a playlist file is given, command line file arguments are not allowed and vice versa.
 </simpara>
 </listitem>
 </varlistentry>
@@ -398,7 +409,15 @@ and if <emphasis>"</emphasis> is part of the filename, it needs escaping like <e
 <simpara>Of course all the shell filename expansion mechanisms can be used, so that</simpara>
 <literallayout class="monospaced">$ jack_playfile *.wav 0??.ogg</literallayout>
 <simpara>will play all files matching the patterns.</simpara>
-<simpara>If multiple files are available as arguments, they will be played in a row without recreating or reconnecting JACK ports.
+<simpara>Attention: reading file arguments from STDIN will only work if keyboard control is off!</simpara>
+<literallayout class="monospaced">#THIS WILL FAIL
+$ ls -1 *.wav | ... | while read line; do jack_playfile "$line"; done</literallayout>
+<literallayout class="monospaced">#SHOULD WORK
+$ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; done</literallayout>
+<simpara>However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.</simpara>
+<literallayout class="monospaced">$ ls -1 *.wav | ... &gt; /tmp/pl.txt; jack_playfile -F /tmp/pl.txt</literallayout>
+<simpara>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</simpara>
+<simpara>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
 file will be tried until there is a valid file or no more files left to try.</simpara>
 </refsect1>
@@ -687,7 +706,7 @@ Play RIFF wave file:
 </listitem>
 </itemizedlist>
 <simpara>Example output of <emphasis>jack_playfile</emphasis> using option -v:</simpara>
-<literallayout class="monospaced">file:        audio.wav  (#1/1)
+<literallayout class="monospaced">file #   1/  1: audio .wav
 size:        57274264 bytes (57.27 MB)
 format:      Microsoft WAV format (little endian)
              Signed 16 bit data (0x00010002)
@@ -703,6 +722,7 @@ JACK period size: 128 frames
 JACK cycles per second: 375.00
 JACK output data rate: 384000.0 bytes/s (0.38 MB/s)
 total byte out_to_in ratio: 2.176871
+play range:      00:05:24.684
 resampler out_to_in ratio: 1.088435
 autoconnect: jack_playfile-01:output_1 -&gt; firewire_pcm:000a9200d6012385_MainOut 1L_out
 autoconnect: jack_playfile-01:output_2 -&gt; firewire_pcm:000a9200d6012385_MainOut 2R_out
@@ -870,7 +890,7 @@ Shutting down
 <simpara>5) Start operation based on playback settings (paused, muted etc.)</simpara>
 <simpara>6) Eventually stop operation if JACK away</simpara>
 <simpara>7) Eventually resume operation if JACK available</simpara>
-<simpara>8) Eventually play next or previous file in args list</simpara>
+<simpara>8) Eventually play next or previous file in args list or given playlist file</simpara>
 <simpara>9) Release resources and quit nicely if all done or quit was requested</simpara>
 <simpara>The diagram below is not "pure" in any way. It should show some statuses and possible program flows.
 Unexpected errors that could happen anywhere aren&#8217;t graphed.
@@ -1013,7 +1033,7 @@ libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
 <refsect1 id="_authors">
 <title>AUTHORS</title>
 <simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
-<simpara>Last Update: Mon Aug 24 20:01:33 CEST 2015</simpara>
+<simpara>Last Update: Sun Nov 22 16:09:51 CET 2015</simpara>
 </refsect1>
 <refsect1 id="_copying">
 <title>COPYING</title>
