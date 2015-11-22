@@ -85,14 +85,22 @@ static int create_playlist(int argc, char *argv[])
 //=============================================================================
 static int create_playlist_vector_from_args(int argc, char *argv[])
 {
+	fprintf(stderr,"parsing arguments");
+
 	while(argc-optind>0)
 	{
+		if(is_verbose)
+		{
+			fprintf(stderr,".");
+		}
 		if(check_file(argv[optind]))
 		{
 			files_to_play.push_back(argv[optind]);
 		}
 		optind++;
 	}
+
+	fprintf(stderr,"\n%d usable audio files in playlist\n",(int)files_to_play.size());
 	return 1;
 }
 
@@ -102,6 +110,8 @@ static int create_playlist_vector_from_file()
 	ifstream ifs(playlist_file);
 	string line;
 
+	fprintf(stderr,"parsing playlist");
+
 	while ( std::getline(ifs, line) )
 	{
 		if (line.empty())
@@ -109,14 +119,19 @@ static int create_playlist_vector_from_file()
 			continue;
 		}
 
+		if(is_verbose)
+		{
+			fprintf(stderr,".");
+		}
 		if(check_file(line.c_str()))
 		{
 			files_to_play.push_back(line);
 		}
 	}
 
-	fprintf(stderr,"%d files in playlist vector\n",(int)files_to_play.size());
+	fprintf(stderr,"\n%d usable audio files in playlist\n",(int)files_to_play.size());
 
+	ifs.close();
 	return 1;
 }
 
@@ -170,7 +185,6 @@ static int check_file(const char *f)
 
 	if(!(sin_open(filename,&sf_info_generic,1)))
 	{
-		sin_close();
 		return 0;
 	}
 
@@ -179,6 +193,7 @@ static int check_file(const char *f)
 		return 0;
 	}
 
+	sin_close();
 	return 1;
 }
 
