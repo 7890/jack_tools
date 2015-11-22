@@ -243,7 +243,10 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 			);
 
 			//suppress error messages
-			mpg123_param(soundfile_123, MPG123_FLAGS, MPG123_QUIET, 0);
+			if(quiet)
+			{
+				mpg123_param(soundfile_123, MPG123_FLAGS, MPG123_QUIET, 0);
+			}
 
 			int ret = mpg123_open(soundfile_123, fileuri);
 
