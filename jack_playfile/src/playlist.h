@@ -109,17 +109,6 @@ static int create_playlist_vector_from_file()
 			continue;
 		}
 
-		//remove trailing newline
-		size_t ln = strlen(line.c_str()) - 1;
-/*
-Windows   Linux     Mac
-\r\n      \n        \r
-*/
-		if (line[ln] == '\n')
-		{
-			line[ln] = '\0';
-		}
-
 		if(check_file(line.c_str()))
 		{
 			files_to_play.push_back(line);
