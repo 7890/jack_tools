@@ -1,0 +1,34 @@
+source file inclusion tree
+==========================
+
+    manpage.data.h
+    |
+    |       build_info.data.h 
+    |       |
+    manpage.h (if static build)
+       V
+
+                              jack/*
+                  weak_libjack.h
+                  |
+    sndfile.h     |
+    opusfile.h    config.h
+    vorbisfile.h  |   |  |          control.h
+    mpg123.h      |   |  |          |
+            sndin.h   |  kb_control.h
+               V      |       V
+                      |
+                 buffers.h
+                  |      |
+jack_playfile.h   |      |
+          |       |      resampler.h---zita-resampler/resampler.h
+          |       |          V
+          jackaudio.h
+              V
+
+                  playlist.h
+           V      |
+           common.h
+              |
+        jack_playfile.c
+
