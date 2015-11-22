@@ -1,6 +1,5 @@
 CC = g++
-CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -Wno-write-strings -Wno-pointer-arith
-#-DNO_JACK_METADATA -w
+CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -Wno-write-strings -Wno-pointer-arith -O3
 
 #http://www.cprogramdevelop.com/4787258/
 
@@ -31,6 +30,8 @@ STATIC_LIBS = $(LIB_OPUSFILE_A) $(STATIC_LIBS_DISTRO) $(STATIC_LIBS_LOCAL)
 
 #-l:$(DISTRO_LIBS_DIR)/libdl.a
 #-l:$(DISTRO_LIBS_DIR)/libpthread.a
+
+$(shell mkdir -p $(BUILD))
 
 default: jack_playfile
 
@@ -68,7 +69,7 @@ jack_playfile: zita_resampler $(SRC)/jack_playfile.c $(SRC)/jack_playfile.h $(SR
 	@echo "ok."
 
 	mkdir -p $(BUILD)
-	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
+	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG -Wno-deprecated-declarations
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -Ibuild/zita-resampler-1.3.0/libs/ `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -o jack_playfile $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -ldl -lmpg123
 
@@ -101,7 +102,7 @@ jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/ja
 	> $(BUILD)/manpage.data.h \
 	&& rm -f jack_playfile_man_dump
 
-	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
+	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG -Wno-deprecated-declarations
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -DSTATIC_BUILD=1 `pkg-config --cflags --libs sndfile opusfile`
 	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) $(STATIC_LIBS) -ldl -lpthread
 
@@ -149,27 +150,28 @@ build_info:
 	&& which xxd
 	@echo "ok."
 
-	(echo   -n "build date    " \
+	(echo   -n "build date        " \
 	&& echo "`date`" \
-	&& echo -n "git master    " \
+	&& echo -n "git master        " \
 	&& git show-ref master | head -1 \
-	&& echo -n "cc            " \
+	&& echo -n "cc                " \
 	&& $(CC) --version | head -1 \
-	&& echo -n "libsndfile    " \
+	&& echo -n "libsndfile        " \
 	&& pkg-config --modversion sndfile \
-	&& echo -n "libopus       " \
+	&& echo -n "libopus           " \
 	&& pkg-config --modversion opus \
-	&& echo -n "libopusfile   " \
+	&& echo -n "libopusfile       " \
 	&& pkg-config --modversion opusfile \
-	&& echo -n "libvorbisfile " \
+	&& echo -n "libvorbisfile     " \
 	&& pkg-config --modversion vorbisfile \
-	&& echo -n "libogg        " \
+	&& echo -n "libogg            " \
 	&& pkg-config --modversion ogg \
-	&& echo -n "libflac       " \
+	&& echo -n "libflac           " \
 	&& pkg-config --modversion flac \
-	&& echo -n "libmpg123     " \
+	&& echo -n "libmpg123         " \
 	&& pkg-config --modversion libmpg123 \
-	&& echo -n "buildhost     " \
+	&& echo "libzita-resampler 1.3.0" \
+	&& echo -n "buildhost         " \
 	&& uname -a) > build_info_dump \
 	&& xxd -i build_info_dump | sed 's/};/,0x00};\/\//g' | sed 's/;$$/+1;/g' \
 	> $(BUILD)/build_info.data.h \
