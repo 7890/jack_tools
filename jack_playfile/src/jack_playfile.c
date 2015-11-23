@@ -203,15 +203,28 @@ int main(int argc, char *argv[])
 		 } //end switch op
 	}//end while(1) parse args
 
+	//handle ctrl+c
+	signal(SIGTERM, signal_handler);
+	signal(SIGINT, signal_handler);
+
+	if(keyboard_control_enabled)
+	{
+		init_key_codes();
+		//now set raw to read key hits
+		set_terminal_raw();
+	}
+
 	if(!create_playlist(argc,argv))
 	{
-		exit(1);
+		//clean up / reset and quit
+		signal_handler(44);
 	}
 
 	if(!open_init_file_from_playlist())
 	{
 		fprintf(stderr,"/!\\ no valid files in playlist file\n");
-		exit(1);
+		//clean up / reset and quit
+		signal_handler(44);
 	}
 
 	//if no explicit channel count is known (chcount 0), the first file in a possible row of files
@@ -309,17 +322,6 @@ while(true)
 
 		jack_activate_client();
 		jack_connect_output_ports();
-
-		//handle ctrl+c
-		signal(SIGTERM, signal_handler);
-		signal(SIGINT, signal_handler);
-
-		if(keyboard_control_enabled)
-		{
-			init_key_codes();
-			//now set raw to read key hits
-			set_terminal_raw();
-		}
 	}
 	prepare_for_next_file=0;
 
@@ -496,7 +498,6 @@ static int open_init_file(const char *f)
 	frame_offset=frame_offset_first;
 	frame_count=frame_count_first;
 	resampling_finished=0;
-
 
 	struct stat st;
 	stat(filename, &st);
@@ -1403,26 +1404,33 @@ static void signal_handler(int sig)
 
 //	fprintf(stderr,"expected frames pushed to JACK (excl. resampler padding): %f\n",(double)(frame_count * out_to_in_sr_ratio) );
 
-	if(sig!=42)
+	if(sig!=42 && sig!=44 && is_verbose)
 	{
-//		fprintf(stderr, "terminate signal %d received\n",sig);
+		fprintf(stderr, "terminate signal %d received\n",sig);
 	}
 
 	jack_close_down();
 
 	sin_close();
 //	fprintf(stderr,"soundfile closed\n");
-	if(is_mpg123)
-	{
-		mpg123_exit();
-	}
+	mpg123_exit();
 
 	free_ringbuffers();
 
 	reset_terminal();
 
 	fprintf(stderr,"jack_playfile done.\n");
-	exit(0);
+
+	fprintf(stderr,"%s",turn_on_cursor_seq);
+
+	if(sig==44)
+	{
+		exit(1);
+	}
+	else
+	{
+		exit(0);
+	}
 }//end signal_handler()
 
 //EOF
