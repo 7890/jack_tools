@@ -425,8 +425,8 @@ static void sin_close()
 	{
 		if(soundfile_123!=NULL)
 		{
-			mpg123_delete(soundfile_123);
 			mpg123_close(soundfile_123);
+			mpg123_delete(soundfile_123);
 			soundfile_123=NULL;
 		}
 	}
