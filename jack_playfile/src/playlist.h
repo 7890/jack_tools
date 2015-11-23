@@ -85,22 +85,21 @@ static int create_playlist(int argc, char *argv[])
 //=============================================================================
 static int create_playlist_vector_from_args(int argc, char *argv[])
 {
-	fprintf(stderr,"parsing arguments");
-
+	fprintf(stderr,"%s",turn_off_cursor_seq);
+	int test_no=1;
 	while(argc-optind>0)
 	{
-		if(is_verbose)
-		{
-			fprintf(stderr,".");
-		}
+		fprintf(stderr,"\r%s\rparsing arguments file # %d",clear_to_eol_seq,test_no);
 		if(check_file(argv[optind]))
 		{
 			files_to_play.push_back(argv[optind]);
 		}
 		optind++;
+		test_no++;
 	}
 
-	fprintf(stderr,"\n%d usable audio files in playlist\n",(int)files_to_play.size());
+	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
+	fprintf(stderr,"%s",turn_on_cursor_seq);
 	return 1;
 }
 
@@ -110,8 +109,8 @@ static int create_playlist_vector_from_file()
 	ifstream ifs(playlist_file);
 	string line;
 
-	fprintf(stderr,"parsing playlist");
-
+	fprintf(stderr,"%s",turn_off_cursor_seq);
+	int test_no=1;
 	while ( std::getline(ifs, line) )
 	{
 		if (line.empty())
@@ -119,18 +118,18 @@ static int create_playlist_vector_from_file()
 			continue;
 		}
 
-		if(is_verbose)
-		{
-			fprintf(stderr,".");
-		}
+		fprintf(stderr,"\r%s\rparsing playlist file # %d",clear_to_eol_seq,test_no);
+
 		if(check_file(line.c_str()))
 		{
 			files_to_play.push_back(line);
 		}
+
+		test_no++;
 	}
 
-	fprintf(stderr,"\n%d usable audio files in playlist\n",(int)files_to_play.size());
-
+	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
+	fprintf(stderr,"%s",turn_on_cursor_seq);
 	ifs.close();
 	return 1;
 }
@@ -180,10 +179,9 @@ static void set_playlist_index(int prev)
 //=============================================================================
 static int check_file(const char *f)
 {
-	filename=f;
 	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
 
-	if(!(sin_open(filename,&sf_info_generic,1)))
+	if(!(sin_open(f,&sf_info_generic,1)))
 	{
 		return 0;
 	}
