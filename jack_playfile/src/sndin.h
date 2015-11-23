@@ -148,6 +148,7 @@ static uint64_t total_frames_read_from_file=0;
 static int all_frames_read=0;
 
 static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet);
+static int check_if_mp3_file(const char *filename);
 static sf_count_t sin_seek(sf_count_t offset, int whence);
 static void sin_close();
 
@@ -232,6 +233,12 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 		else
 		{
 			//try mp3
+			if(!check_if_mp3_file(fileuri))
+			{
+				mpg123_delete(soundfile_123);
+				return 0;
+			}
+
 			mpg123_init();
 			soundfile_123=mpg123_new(NULL, NULL);
 
@@ -247,9 +254,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 			{
 				mpg123_param(soundfile_123, MPG123_FLAGS, MPG123_QUIET, 0);
 			}
-
 			int ret = mpg123_open(soundfile_123, fileuri);
-
 			if(ret == MPG123_OK)
 			{
 				long rate;
@@ -302,6 +307,49 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 	//matching format found
 	return 1;
 }//end sin_open
+
+//rough test if file could be of type mp3
+//return 0 on error, 1 on success
+//=============================================================================
+static int check_if_mp3_file(const char *filename)
+{
+        FILE *f=NULL;
+        f=fopen(filename, "rb");
+        if(f==NULL)
+        {
+                return 0;
+        }
+
+	unsigned char bytes_pattern[2]={0xff,0xfb};
+	unsigned char bytes_pattern_with_id3[3]={0x49,0x44,0x33};
+
+	unsigned char bytes_header[3];
+
+        size_t size=fread(bytes_header, 1, 3, f);
+
+        if(size<3)
+        {
+		fclose(f);
+                return 0;
+        }
+
+	if(bytes_header[0] == bytes_pattern[0] 
+		&& bytes_header[1] == bytes_pattern[1])
+	{
+		fclose(f);
+		return 1;
+	}
+	else if(bytes_header[0] == bytes_pattern_with_id3[0] 
+		&& bytes_header[1] == bytes_pattern_with_id3[1]
+		&& bytes_header[2] == bytes_pattern_with_id3[2]
+	)
+	{
+		fclose(f);
+		return 1;
+	}
+        fclose(f);
+        return 0;
+}
 
 //=============================================================================
 static sf_count_t sin_seek(sf_count_t offset, int whence)
@@ -377,6 +425,7 @@ static void sin_close()
 	{
 		if(soundfile_123!=NULL)
 		{
+			mpg123_delete(soundfile_123);
 			mpg123_close(soundfile_123);
 			soundfile_123=NULL;
 		}
