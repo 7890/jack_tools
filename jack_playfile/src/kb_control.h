@@ -581,9 +581,6 @@ static void reset_terminal()
 #ifndef WIN32
 	//reset terminal to original settings
 	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
-
-	//turn on cursor
-	fprintf(stderr,"%s",turn_on_cursor_seq);
 #endif
 }
 
