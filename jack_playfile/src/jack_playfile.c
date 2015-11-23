@@ -490,6 +490,12 @@ static int open_init_file(const char *f)
 		return 0;
 	}
 
+	//"kill" thread
+	pthread_mutex_unlock(&disk_thread_lock);
+	pthread_cond_signal(&ok_to_read);
+	pthread_join(disk_thread, NULL);
+	pthread_cancel(disk_thread);
+
 	//reset some variables
 	disk_thread_initialized=0;
 	all_frames_read=0;
@@ -908,13 +914,12 @@ done:
 //	sf_close_();//close in shutdown handler
 
 	pthread_mutex_unlock (&disk_thread_lock);
+        pthread_join(disk_thread, NULL);
+        pthread_cancel(disk_thread);
+
 //	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
 
-//	pthread_cond_signal(&ok_to_read);
-//	pthread_join(disk_thread, NULL);
-
 	disk_thread_finished=1;
-
 	return 0;
 }//end disk_thread_func()
 
