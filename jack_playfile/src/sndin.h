@@ -70,6 +70,7 @@ MP3:
 #define SNDIN_H_INC
 
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include <sndfile.h>
 #include <opusfile.h>
@@ -181,6 +182,25 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 	is_ogg_=0;
 	is_mpg123=0;
 	is_flac_=0;
+
+        struct stat st;
+        stat(fileuri, &st);
+/*
+           S_IFSOCK   0140000   socket
+           S_IFLNK    0120000   symbolic link
+           S_IFREG    0100000   regular file
+           S_IFBLK    0060000   block device
+           S_IFDIR    0040000   directory
+           S_IFCHR    0020000   character device
+           S_IFIFO    0010000   FIFO
+*/
+        //ignore if not a regular file or a symbolic link
+        if((st.st_mode & S_IFMT) != S_IFREG
+                && (st.st_mode & S_IFMT) != S_IFLNK
+        )
+        {
+                return 0;
+        }
 
 	memset (&sf_info_sndfile, 0, sizeof (sf_info_sndfile)) ;
 	/*
