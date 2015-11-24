@@ -830,7 +830,7 @@ This plugin collection is a good starting point: <a href="https://github.com/x42
 <div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
-<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.85.</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.86.</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -860,6 +860,7 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <p>
         Get files to play from playlist file. One audio file per line (full path, unescaped).
         If a playlist file is given, command line file arguments are not allowed and vice versa.
+        See also --dump.
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1068,6 +1069,17 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </p>
 </dd>
 <dt class="hdlist1">
+<strong>-d, --dump</strong> (w/o argument)
+</dt>
+<dd>
+<p>
+        Print usable files (audio files that <em>jack_playfile</em> could possibly play).
+        This applies to files found either in the playlist (--file) or files given as command line arguments.
+        <em>jack_playfile</em> will quit (and not play anything) after all files were printed to stdout.
+        All other options are ignored (except --file).
+</p>
+</dd>
+<dt class="hdlist1">
 <strong>-v, --verbose</strong> (w/o argument)
 </dt>
 <dd>
@@ -1113,9 +1125,22 @@ $ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; don
 <div class="paragraph"><p>However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.</p></div>
 <div class="literalblock">
 <div class="content">
-<pre><code>$ ls -1 *.wav | ... &gt; /tmp/pl.txt; jack_playfile -F /tmp/pl.txt</code></pre>
+<pre><code>$ ls -1 *.wav | ... &gt; pl.txt; jack_playfile --file pl.txt</code></pre>
 </div></div>
 <div class="paragraph"><p>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</p></div>
+<div class="paragraph"><p><em>jack_playfile</em> can check which of the files could possibly be played, without playing anything.
+This is done by trying to open (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
+<em>jack_playfile</em> will quit afer all files are tested. A scenario is to find all audio files from a list of mixed type files:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ find $PWD/. &gt;files.txt; jack_playfile --file files.txt --dump &gt;audio_files.txt</code></pre>
+</div></div>
+<div class="paragraph"><p>Please note that using the environment variable <em>$PWD</em> will make the list more robust (i.e. to play it from another path) since every file in the list is relative to root (<em>/</em>).</p></div>
+<div class="paragraph"><p>In the following example, <em>a.txt</em> will be sorted out:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile --dump a.wav a.txt a.ogg</code></pre>
+</div></div>
 <div class="paragraph"><p>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
 file will be tried until there is a valid file or no more files left to try.</p></div>
@@ -1787,7 +1812,7 @@ granted under the terms of the GNU General Public License (GPL).</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-11-22 16:17:25 CET
+Last updated 2015-11-24 01:58:40 CET
 </div>
 </div>
 </body>

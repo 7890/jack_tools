@@ -98,7 +98,7 @@ This plugin collection is a good starting point: <ulink url="https://github.com/
 <simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
-<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.85.</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.86.</simpara>
 </refsect1>
 <refsect1 id="_options">
 <title>OPTIONS</title>
@@ -131,6 +131,7 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <simpara>
         Get files to play from playlist file. One audio file per line (full path, unescaped).
         If a playlist file is given, command line file arguments are not allowed and vice versa.
+        See also --dump.
 </simpara>
 </listitem>
 </varlistentry>
@@ -381,6 +382,19 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </varlistentry>
 <varlistentry>
 <term>
+<emphasis role="strong">-d, --dump</emphasis> (w/o argument)
+</term>
+<listitem>
+<simpara>
+        Print usable files (audio files that <emphasis>jack_playfile</emphasis> could possibly play).
+        This applies to files found either in the playlist (--file) or files given as command line arguments.
+        <emphasis>jack_playfile</emphasis> will quit (and not play anything) after all files were printed to stdout.
+        All other options are ignored (except --file).
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
 <emphasis role="strong">-v, --verbose</emphasis> (w/o argument)
 </term>
 <listitem>
@@ -415,8 +429,15 @@ $ ls -1 *.wav | ... | while read line; do jack_playfile "$line"; done</literalla
 <literallayout class="monospaced">#SHOULD WORK
 $ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; done</literallayout>
 <simpara>However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.</simpara>
-<literallayout class="monospaced">$ ls -1 *.wav | ... &gt; /tmp/pl.txt; jack_playfile -F /tmp/pl.txt</literallayout>
+<literallayout class="monospaced">$ ls -1 *.wav | ... &gt; pl.txt; jack_playfile --file pl.txt</literallayout>
 <simpara>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</simpara>
+<simpara><emphasis>jack_playfile</emphasis> can check which of the files could possibly be played, without playing anything.
+This is done by trying to open (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
+<emphasis>jack_playfile</emphasis> will quit afer all files are tested. A scenario is to find all audio files from a list of mixed type files:</simpara>
+<literallayout class="monospaced">$ find $PWD/. &gt;files.txt; jack_playfile --file files.txt --dump &gt;audio_files.txt</literallayout>
+<simpara>Please note that using the environment variable <emphasis>$PWD</emphasis> will make the list more robust (i.e. to play it from another path) since every file in the list is relative to root (<emphasis>/</emphasis>).</simpara>
+<simpara>In the following example, <emphasis>a.txt</emphasis> will be sorted out:</simpara>
+<literallayout class="monospaced">$ jack_playfile --dump a.wav a.txt a.ogg</literallayout>
 <simpara>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
 file will be tried until there is a valid file or no more files left to try.</simpara>
