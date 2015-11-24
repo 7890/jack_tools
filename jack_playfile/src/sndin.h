@@ -320,8 +320,18 @@ static int check_if_mp3_file(const char *filename)
                 return 0;
         }
 
-	unsigned char bytes_pattern[2]={0xff,0xfb};
-	unsigned char bytes_pattern_with_id3[3]={0x49,0x44,0x33};
+/*
+http://git.cgsecurity.org/cgit/testdisk/tree/src/file_mp3.c
+static const unsigned char mpeg1_L3_header1[2]= {0xFF, 0xFA};
+static const unsigned char mpeg1_L3_header2[2]= {0xFF, 0xFB};
+static const unsigned char mpeg2_L3_header1[2]= {0xFF, 0xF2};
+static const unsigned char mpeg2_L3_header2[2]= {0xFF, 0xF3};
+static const unsigned char mpeg25_L3_header1[2]={0xFF, 0xE2};
+static const unsigned char mpeg25_L3_header2[2]={0xFF, 0xE3};
+*/
+
+//	unsigned char bytes_pattern[2]={0xFF,0xFB};
+	unsigned char bytes_pattern_with_id3[3]={0x49,0x44,0x33}; //ID3
 
 	unsigned char bytes_header[3];
 
@@ -333,19 +343,28 @@ static int check_if_mp3_file(const char *filename)
                 return 0;
         }
 
-	if(bytes_header[0] == bytes_pattern[0] 
-		&& bytes_header[1] == bytes_pattern[1])
-	{
-		fclose(f);
-		return 1;
-	}
-	else if(bytes_header[0] == bytes_pattern_with_id3[0] 
+	if(bytes_header[0] == bytes_pattern_with_id3[0]
 		&& bytes_header[1] == bytes_pattern_with_id3[1]
 		&& bytes_header[2] == bytes_pattern_with_id3[2]
 	)
 	{
 		fclose(f);
 		return 1;
+	}
+	else if(bytes_header[0] == 0xFF)
+	{
+		if(bytes_header[1] == 0xFA
+			|| bytes_header[1] == 0xFA
+			|| bytes_header[1] == 0xFB
+			|| bytes_header[1] == 0xF2
+			|| bytes_header[1] == 0xF3
+			|| bytes_header[1] == 0xE2
+			|| bytes_header[1] == 0xE3
+		)
+		{
+			fclose(f);
+			return 1;
+		}
 	}
         fclose(f);
         return 0;
