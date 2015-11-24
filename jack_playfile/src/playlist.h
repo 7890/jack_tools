@@ -88,7 +88,7 @@ static int create_playlist_vector_from_args(int argc, char *argv[], int dump)
 	int test_no=1;
 	while(argc-optind>0)
 	{
-		fprintf(stderr,"\r%s\rparsing arguments file # %d",clear_to_eol_seq,test_no);
+		fprintf(stderr,"\r%s\rparsing arguments file # %d ",clear_to_eol_seq,test_no);
 		if(check_file(argv[optind]))
 		{
 			if(!dump)
