@@ -28,7 +28,6 @@
 #include <string>
 #include <vector>
 
-static int read_from_playlist=0;
 static char *playlist_file;
 static int current_playlist_index=0;
 static int no_more_files_to_play=0;
@@ -38,18 +37,18 @@ using std::vector;
 using std::string;
 vector<string> files_to_play;
 
-static int create_playlist(int argc, char *argv[]);
-static int create_playlist_vector_from_args(int argc, char *argv[]);
-static int create_playlist_vector_from_file();
+static int create_playlist(int argc, char *argv[], int from_playlist, int dump);
+static int create_playlist_vector_from_args(int argc, char *argv[], int dump);
+static int create_playlist_vector_from_file(int dump);
 static int open_init_file_from_playlist();
 static void set_playlist_index(int prev);
 static int check_file(const char *f);
 
 //wrapper to create playlist (vector of file uri strings) from file or from argv
 //=============================================================================
-static int create_playlist(int argc, char *argv[])
+static int create_playlist(int argc, char *argv[], int from_playlist, int dump)
 {
-	if(!read_from_playlist)
+	if(!from_playlist)
 	{
 		//remaining non optional parameters must be at least one file
 		if(argc-optind<1)
@@ -59,7 +58,7 @@ static int create_playlist(int argc, char *argv[])
 			return 0;
 		}
 
-		if(!create_playlist_vector_from_args(argc,argv))
+		if(!create_playlist_vector_from_args(argc,argv,dump))
 		{
 			fprintf(stderr,"/!\\ could not create playlist\n");
 			return 0;
@@ -73,7 +72,7 @@ static int create_playlist(int argc, char *argv[])
 			return 0;
 		}
 
-		if(!create_playlist_vector_from_file())
+		if(!create_playlist_vector_from_file(dump))
 		{
 			fprintf(stderr,"/!\\ could not create playlist\n");
 			return 0;
@@ -83,7 +82,7 @@ static int create_playlist(int argc, char *argv[])
 }
 
 //=============================================================================
-static int create_playlist_vector_from_args(int argc, char *argv[])
+static int create_playlist_vector_from_args(int argc, char *argv[], int dump)
 {
 	fprintf(stderr,"%s",turn_off_cursor_seq);
 	int test_no=1;
@@ -92,7 +91,15 @@ static int create_playlist_vector_from_args(int argc, char *argv[])
 		fprintf(stderr,"\r%s\rparsing arguments file # %d",clear_to_eol_seq,test_no);
 		if(check_file(argv[optind]))
 		{
-			files_to_play.push_back(argv[optind]);
+			if(!dump)
+			{
+				files_to_play.push_back(argv[optind]);
+			}
+			else
+			{
+				fprintf(stdout,"%s\n",argv[optind]);
+				fflush(stdout);
+			}
 		}
 		optind++;
 		test_no++;
@@ -104,7 +111,7 @@ static int create_playlist_vector_from_args(int argc, char *argv[])
 }
 
 //=============================================================================
-static int create_playlist_vector_from_file()
+static int create_playlist_vector_from_file(int dump)
 {
 	ifstream ifs(playlist_file);
 	string line;
@@ -118,11 +125,19 @@ static int create_playlist_vector_from_file()
 			continue;
 		}
 
-		fprintf(stderr,"\r%s\rparsing playlist file # %d",clear_to_eol_seq,test_no);
+		fprintf(stderr,"\r%s\rparsing playlist file # %d ",clear_to_eol_seq,test_no);
 
 		if(check_file(line.c_str()))
 		{
-			files_to_play.push_back(line);
+			if(!dump)
+			{
+				files_to_play.push_back(line);
+			}
+			else
+			{
+				fprintf(stdout,"%s\n",line.c_str());
+				fflush(stdout);
+			}
 		}
 
 		test_no++;

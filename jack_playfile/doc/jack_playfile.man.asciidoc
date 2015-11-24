@@ -47,7 +47,7 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
 
-This document refers to 'jack_playfile' version 0.85.
+This document refers to 'jack_playfile' version 0.86.
 
 OPTIONS
 -------
@@ -60,6 +60,7 @@ OPTIONS
 *-F, --file* (string)::
 	Get files to play from playlist file. One audio file per line (full path, unescaped). 
 	If a playlist file is given, command line file arguments are not allowed and vice versa.
+	See also --dump.
 
 *-n, --name* (string)::
 	JACK client name.
@@ -166,6 +167,12 @@ OPTIONS
 	a following 4-channel file can still play all its 4 channels through the available JACK output ports.
 	*Default:* All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports 'jack_playfile' will have.
 
+*-d, --dump* (w/o argument)::
+	Print usable files (audio files that 'jack_playfile' could possibly play).
+	This applies to files found either in the playlist (--file) or files given as command line arguments.
+	'jack_playfile' will quit (and not play anything) after all files were printed to stdout.
+	All other options are ignored (except --file).
+
 *-v, --verbose* (w/o argument)::
 	Display more information about loaded audio files and JACK properties.
 
@@ -198,9 +205,21 @@ Attention: reading file arguments from STDIN will only work if keyboard control 
 
 However the option to provide a playlist file can be used to achieve a similar operation with enabled keyboard control.
 
-	$ ls -1 *.wav | ... > /tmp/pl.txt; jack_playfile -F /tmp/pl.txt
+	$ ls -1 *.wav | ... > pl.txt; jack_playfile --file pl.txt
 
 A playlist file is just a list of audio files, one per line. Filenames must not be escaped.
+
+'jack_playfile' can check which of the files could possibly be played, without playing anything.
+This is done by trying to open (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
+'jack_playfile' will quit afer all files are tested. A scenario is to find all audio files from a list of mixed type files:
+
+	$ find $PWD/. >files.txt; jack_playfile --file files.txt --dump >audio_files.txt
+
+Please note that using the environment variable '$PWD' will make the list more robust (i.e. to play it from another path) since every file in the list is relative to root ('/').
+
+In the following example, 'a.txt' will be sorted out:
+
+	$ jack_playfile --dump a.wav a.txt a.ogg
 
 If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control < and > will browse through the list of files. If a file can't be played, the next 

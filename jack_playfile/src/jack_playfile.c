@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:F:NEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:F:dNEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -138,6 +138,10 @@ int main(int argc, char *argv[])
 			case 'F':
 				read_from_playlist=1;
 				playlist_file=optarg;
+				break;
+
+			case 'd':
+				dump_usable_files=1;
 				break;
 
 			case 'N':
@@ -214,10 +218,15 @@ int main(int argc, char *argv[])
 		set_terminal_raw();
 	}
 
-	if(!create_playlist(argc,argv))
+	if(!create_playlist(argc,argv,read_from_playlist,dump_usable_files))
 	{
 		//clean up / reset and quit
 		signal_handler(44);
+	}
+	//all done
+	if(dump_usable_files)
+	{
+		signal_handler(42);
 	}
 
 	if(!open_init_file_from_playlist())

@@ -35,7 +35,7 @@
 #include "jackaudio.h"
 #include "playlist.h"
 
-static const float version=0.85;
+static const float version=0.86;
 
 static void print_main_help();
 static void print_manpage();
@@ -63,6 +63,7 @@ static struct option long_options[] =
 	{"samplerate",	required_argument,	0, 'S'},
 
 	{"file",	required_argument,	0, 'F'},
+	{"dump",	no_argument,  0,	'd'},
 
 	{"nocontrol",	no_argument,  0,	'D'},
 	{"noresampling",no_argument,  0,	'R'},
@@ -96,7 +97,7 @@ static void print_main_help()
 
 	fprintf (stdout, "  -h, --help                Display this text and quit\n");
 	fprintf (stdout, "  -V, --version             Show program version and quit\n");
-	fprintf (stdout, "  -F, --file                Get files to play from playlist file\n");
+	fprintf (stdout, "  -F, --file <string>       Get files to play from playlist file\n");
 	fprintf (stdout, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stdout, "  -s, --sname <string>      JACK server name  (\"default\") \n");
 	fprintf (stdout, "  -N, --noconnect           Don't connect JACK ports\n");
@@ -116,7 +117,8 @@ static void print_main_help()
 	fprintf (stdout, "  -o, --offset <integer>    Frame offset:  (0)\n");
 	fprintf (stdout, "  -c, --count <integer>     Frame count:  (all)\n");
 	fprintf (stdout, "  -O, --choffset <integer>  Channel offset:  (0)\n");
-	fprintf (stdout, "  -C, --chcount <integer>   Channel count:  (all) \n\n");
+	fprintf (stdout, "  -C, --chcount <integer>   Channel count:  (all)\n");
+	fprintf (stdout, "  -d, --dump                Print usable files to stdout and quit\n");
 	fprintf (stdout, "  -v, --verbose             Show more info about file, JACK\n");
 	fprintf (stdout, "  -L, --libs                Show license and library info\n\n");
 

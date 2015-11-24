@@ -155,5 +155,11 @@ static float out_to_in_byte_ratio=0;
 //if set to 1, print more information while startup
 static float is_verbose=0;
 
+//if set to 1, get files to play from given file, one song per line
+static int read_from_playlist=0;
+
+//if set to 1, dump usable files in playlist or args to stdout and quit
+static int dump_usable_files=0;
+
 #endif
 //EOF
