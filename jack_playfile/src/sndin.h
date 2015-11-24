@@ -235,7 +235,6 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 			//try mp3
 			if(!check_if_mp3_file(fileuri))
 			{
-				mpg123_delete(soundfile_123);
 				return 0;
 			}
 
