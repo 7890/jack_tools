@@ -146,21 +146,21 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  q                  quit\n\n");
 
 	fprintf(stderr,"prompt:\n\n");
-	fprintf(stderr,"|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070) A  \n");
-	fprintf(stderr,"^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^ ^ \n");
-	fprintf(stderr,"1           2345  6 7   8     9     10    9 11           12 13\n\n");
+	fprintf(stderr,"|| paused   JMALP  S rel 0.001       943.1  (00:15:43.070)  \n");
+	fprintf(stderr,"^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^\n");
+	fprintf(stderr,"1           23456  7 8   9     10    11   10 12           13\n\n");
 	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
 	fprintf(stderr,"  2): JACK transport on/off 'J' or ' '\n");
 	fprintf(stderr,"  3): mute on/off 'M' or ' '\n");
-	fprintf(stderr,"  4): loop on/off 'L' or ' '\n");
-	fprintf(stderr,"  5): pause at end on/off 'P' or ' '\n");
-	fprintf(stderr,"  6): time and seek in seconds 'S' or frames 'F'\n");
-	fprintf(stderr,"  7): time indication 'rel' to frame_offset or 'abs'\n");
-	fprintf(stderr,"  8): seek step size in seconds or frames\n");
-	fprintf(stderr,"  9): time elapsed ' ' or remaining '-'\n");
-	fprintf(stderr," 10): time in seconds or frames\n");
-	fprintf(stderr," 11): time in HMS.millis\n");
-	fprintf(stderr," 12): amplification status 'A', '!' (clipping) or ' ' (no amp.)\n");
+	fprintf(stderr,"  4): amplification status 'A', '!' (clipping) or ' ' (no amp.)\n");
+	fprintf(stderr,"  5): loop on/off 'L' or ' '\n");
+	fprintf(stderr,"  6): pause at end on/off 'P' or ' '\n");
+	fprintf(stderr,"  7): time and seek in seconds 'S' or frames 'F'\n");
+	fprintf(stderr,"  8): time indication 'rel' to frame_offset or 'abs'\n");
+	fprintf(stderr,"  9): seek step size in seconds or frames\n");
+	fprintf(stderr," 10): time elapsed ' ' or remaining '-'\n");
+	fprintf(stderr," 11): time in seconds or frames\n");
+	fprintf(stderr," 12): time in HMS.millis\n");
 	fprintf(stderr," 13): keyboard input indication (i.e. seek)\n\n");
 
 	//need command to print current props (file, offset etc)

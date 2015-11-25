@@ -424,6 +424,20 @@ _main_loop:
 				fprintf(stderr," ");
 			}
 
+			if(jack->clipping_detected)
+			{
+				fprintf(stderr,"!");
+				jack->clipping_detected=0;
+			}
+			else if(jack->volume_amplification_decibel!=0)
+			{
+				fprintf(stderr,"A");
+			}
+			else
+			{
+				fprintf(stderr," ");
+			}
+
 			if(loop_enabled)
 			{
 				fprintf(stderr,"L");
@@ -443,20 +457,6 @@ _main_loop:
 			}
 
 			print_clock();
-
-			if(jack->clipping_detected)
-			{
-				fprintf(stderr,"! ");
-				jack->clipping_detected=0;
-			}
-			else if(jack->volume_amplification_decibel!=0)
-			{
-				fprintf(stderr,"A ");
-			}
-			else
-			{
-				fprintf(stderr,"  ");
-			}
 
 			handle_key_hits();
 		}//end if keyboard_control_enabled
@@ -1428,20 +1428,22 @@ static void deinterleave()
 
 				float f1=*( (float*)(data_resampled_interleaved + bytepos_frame) );
 
-				if(is_muted)
-				{
-					f1=0;
-				}
-				else if(jack->volume_coefficient!=1.0)
+				if(jack->volume_coefficient!=1.0)
 				{
 						//apply amplification to change volume
 						//===
 						f1*=jack->volume_coefficient;
 				}
 
+				//show clipping even if muted
 				if(f1>=1 && !jack->clipping_detected)
 				{
 					jack->clipping_detected=1;
+				}
+
+				if(is_muted)
+				{
+					f1=0;
 				}
 
 				//put to ringbuffer
