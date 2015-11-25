@@ -75,6 +75,15 @@ static int KEY_C=0;
 static int KEY_P=0;
 static int KEY_ENTER=0;
 static int KEY_0=0;
+static int KEY_1=0;
+static int KEY_2=0;
+static int KEY_3=0;
+static int KEY_4=0;
+static int KEY_5=0;
+static int KEY_6=0;
+static int KEY_7=0;
+static int KEY_8=0;
+static int KEY_9=0;
 static int KEY_J=0;
 static int KEY_LT=0; //<
 static int KEY_GT=0; //>
@@ -110,8 +119,8 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  enter              play\n");
 	fprintf(stderr,"  arrow left         seek one step backward\n");
 	fprintf(stderr,"  arrow right        seek one step forward\n");
-	fprintf(stderr,"  arrow up           increment seek step size\n");
-	fprintf(stderr,"  arrow down         decrement seek step size\n");
+	fprintf(stderr,"  arrow up           increase seek step size\n");
+	fprintf(stderr,"  arrow down         decrease seek step size\n");
 	fprintf(stderr,"  home               seek to start\n");
 	fprintf(stderr,"  0                  seek to start and pause\n");
 	fprintf(stderr,"  backspace          seek to start and play\n");
@@ -123,6 +132,9 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  page up            load previous file\n");
 	fprintf(stderr,"  page down          load next file\n");
 #endif
+	fprintf(stderr,"  1                  reset volume (zero amplification)\n");
+	fprintf(stderr,"  2                  decrease volume\n");
+	fprintf(stderr,"  3                  increase volume\n");
 	fprintf(stderr,"  m                  toggle mute on/off*\n");
 	fprintf(stderr,"  l                  toggle loop on/off*\n");
 	fprintf(stderr,"  p                  toggle pause at end on/off*\n");
@@ -134,9 +146,9 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  q                  quit\n\n");
 
 	fprintf(stderr,"prompt:\n\n");
-	fprintf(stderr,"|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)   \n");
-	fprintf(stderr,"^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^ \n");
-	fprintf(stderr,"1           2345  6 7   8     9     10    9 11            12\n\n");
+	fprintf(stderr,"|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070) A  \n");
+	fprintf(stderr,"^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^ ^ \n");
+	fprintf(stderr,"1           2345  6 7   8     9     10    9 11           12 13\n\n");
 	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
 	fprintf(stderr,"  2): JACK transport on/off 'J' or ' '\n");
 	fprintf(stderr,"  3): mute on/off 'M' or ' '\n");
@@ -148,7 +160,8 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  9): time elapsed ' ' or remaining '-'\n");
 	fprintf(stderr," 10): time in seconds or frames\n");
 	fprintf(stderr," 11): time in HMS.millis\n");
-	fprintf(stderr," 12): keyboard input indication (i.e. seek)\n\n");
+	fprintf(stderr," 12): amplification status 'A', '!' (clipping) or ' ' (no amp.)\n");
+	fprintf(stderr," 13): keyboard input indication (i.e. seek)\n\n");
 
 	//need command to print current props (file, offset etc)
 }//end print_keyboard_shortcuts()
@@ -322,7 +335,24 @@ static void handle_key_hits()
 		ctrl_load_next_file();
 		fprintf(stderr,"next file");
 	}
-
+	//'2' decrement volume
+	else if(rawkey==KEY_2)
+	{
+		ctrl_decrement_volume();
+		fprintf(stderr,"%.1f dBFS",jack->volume_amplification_decibel);
+	}
+	//'3' decrement volume
+	else if(rawkey==KEY_3)
+	{
+		ctrl_increment_volume();
+		fprintf(stderr,"%.1f dBFS",jack->volume_amplification_decibel);
+	}
+	//'1' reset volume
+	else if(rawkey==KEY_1)
+	{
+		ctrl_reset_volume();
+		fprintf(stderr,"volume reset");
+	}
 #ifndef WIN32
 		fprintf(stderr,"%s",clear_to_eol_seq);
 #else
@@ -491,7 +521,7 @@ static void set_terminal_raw()
 	tcsetattr( STDIN_FILENO, TCSANOW, &settings );
 
 	//turn off cursor
-	fprintf(stderr,"%s",turn_off_cursor_seq);//
+	//fprintf(stderr,"%s",turn_off_cursor_seq);//now in jack_playfile.c
 
 	//in shutdown signal handler
 	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
@@ -628,6 +658,15 @@ static void init_key_codes()
 	KEY_P=112;
 	KEY_ENTER=10;
 	KEY_0=48;
+	KEY_1=49;
+	KEY_2=50;
+	KEY_3=51;
+	KEY_4=52;
+	KEY_5=53;
+	KEY_6=54;
+	KEY_7=55;
+	KEY_8=56;
+	KEY_9=57;
 	KEY_J=106;
 	KEY_LT=60;
 	KEY_GT=62;
@@ -652,6 +691,15 @@ static void init_key_codes()
 	KEY_P=80;
 	KEY_ENTER=13;
 	KEY_0=48;
+	KEY_1=49;
+	KEY_2=50;
+	KEY_3=51;
+	KEY_4=52;
+	KEY_5=53;
+	KEY_6=54;
+	KEY_7=55;
+	KEY_8=56;
+	KEY_9=57;
 	KEY_J=74;
 	KEY_LT=33;//hack
 	KEY_GT=34;//hack

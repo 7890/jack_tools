@@ -236,6 +236,12 @@ int main(int argc, char *argv[])
 		signal_handler(44);
 	}
 
+	if(keyboard_control_enabled)
+	{
+		//turn off cursor
+		fprintf(stderr,"%s",turn_off_cursor_seq);
+	}
+
 	//if no explicit channel count is known (chcount 0), the first file in a possible row of files
 	//sets the chcount for all following files
 	if(channel_count==0)
@@ -426,6 +432,7 @@ _main_loop:
 			{
 				fprintf(stderr," ");
 			}
+
 			if(pause_at_end)
 			{
 				fprintf(stderr,"P  ");
@@ -436,6 +443,20 @@ _main_loop:
 			}
 
 			print_clock();
+
+			if(jack->clipping_detected)
+			{
+				fprintf(stderr,"! ");
+				jack->clipping_detected=0;
+			}
+			else if(jack->volume_amplification_decibel!=0)
+			{
+				fprintf(stderr,"A ");
+			}
+			else
+			{
+				fprintf(stderr,"  ");
+			}
 
 			handle_key_hits();
 		}//end if keyboard_control_enabled
@@ -1286,6 +1307,74 @@ static void ctrl_load_next_file()
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
+/*
+Equations in log base 10:
+linear-to-db(x) = log(x) * 20
+db-to-linear(x) = 10^(x / 20)
+*/
+//=============================================================================
+static void ctrl_decrement_volume()
+{
+	float db_step=0;
+	float db_amp=jack->volume_amplification_decibel;
+
+	if(db_amp <= -120)
+	{
+		db_amp=-INFINITY;
+	}
+
+	else if(db_amp <= -60)
+	{
+		db_amp-=6;
+	}
+	else if(db_amp <= -18)
+	{
+		db_amp-=1;
+	}
+	else
+	{
+		db_amp-=0.5;
+	}
+	jack->volume_amplification_decibel=db_amp;
+	jack->volume_coefficient=pow( 10, ( jack->volume_amplification_decibel / 20 ) );
+	//fprintf(stderr,"\ncoeff: %f amp db: %f\n",jack->volume_coefficient,jack->volume_amplification_decibel);
+}
+
+//=============================================================================
+static void ctrl_increment_volume()
+{
+	float db_step=0;
+	float db_amp=jack->volume_amplification_decibel;
+
+	if(db_amp < -120)
+	{
+		db_amp=-120;
+	}
+	else if(db_amp < -60)
+	{
+		db_amp+=6;
+	}
+	else if(db_amp < -18)
+	{
+		db_amp+=1;
+	}
+	else
+	{
+		db_amp+=0.5;
+	}
+	jack->volume_amplification_decibel=MIN(6,db_amp);
+	jack->volume_coefficient=pow( 10, ( jack->volume_amplification_decibel / 20 ) );
+	//fprintf(stderr,"\ncoeff: %f amp db: %f\n",jack->volume_coefficient,jack->volume_amplification_decibel);
+}
+
+//=============================================================================
+static void ctrl_reset_volume()
+{
+	jack->volume_amplification_decibel=0;
+	jack->volume_coefficient=1;
+	//fprintf(stderr,"\ncoeff: %f amp db: %f\n",jack->volume_coefficient,jack->volume_amplification_decibel);
+}
+
 //=============================================================================
 //end ctrl_*
 //=============================================================================
@@ -1339,12 +1428,20 @@ static void deinterleave()
 
 				float f1=*( (float*)(data_resampled_interleaved + bytepos_frame) );
 
-				//===
-				//f1*=0.5;
-
 				if(is_muted)
 				{
 					f1=0;
+				}
+				else if(jack->volume_coefficient!=1.0)
+				{
+						//apply amplification to change volume
+						//===
+						f1*=jack->volume_coefficient;
+				}
+
+				if(f1>=1 && !jack->clipping_detected)
+				{
+					jack->clipping_detected=1;
 				}
 
 				//put to ringbuffer

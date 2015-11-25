@@ -82,6 +82,10 @@ static void init_jack_struct()
 	jack->try_reconnect=1;
 	jack->autoconnect_ports=1;
 	jack->use_transport=0;
+
+	jack->volume_coefficient=1.0;
+	jack->volume_amplification_decibel=0.0;
+	jack->clipping_detected=0;
 }//end init_jack_struct()
 
 //=============================================================================

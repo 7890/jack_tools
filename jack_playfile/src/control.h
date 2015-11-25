@@ -69,6 +69,10 @@ static void ctrl_jack_transport_off();
 static void ctrl_load_prev_file();
 static void ctrl_load_next_file();
 
+static void ctrl_decrement_volume();
+static void ctrl_increment_volume();
+static void ctrl_reset_volume();
+
 static void set_seconds_from_exponent();
 static void set_frames_from_exponent();
 static void increment_seek_step_size();

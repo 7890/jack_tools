@@ -67,6 +67,10 @@ typedef struct
 	int try_reconnect; //wait for JACK if not available, try reconnect if was shutdown
 	int autoconnect_ports; //connect output ports to available physical system:playback ports 
 	int use_transport; //set and follow JACK transport
+
+	float volume_coefficient; //0 - 2
+	float volume_amplification_decibel; //-INF - 6 dBFS
+	int clipping_detected; //if sample value >=1, checked in jack_playfile.c deinterleave()
 } JackServer;
 
 static JackServer *jack;
