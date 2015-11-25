@@ -35,7 +35,7 @@
 #include "jackaudio.h"
 #include "playlist.h"
 
-static const float version=0.86;
+static const float version=0.87;
 
 static void print_main_help();
 static void print_manpage();
