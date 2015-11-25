@@ -152,7 +152,7 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"  1): status playing '>', paused '||' or seeking '...'\n");
 	fprintf(stderr,"  2): JACK transport on/off 'J' or ' '\n");
 	fprintf(stderr,"  3): mute on/off 'M' or ' '\n");
-	fprintf(stderr,"  4): amplification status 'A', '!' (clipping) or ' ' (no amp.)\n");
+	fprintf(stderr,"  4): amplification 'A', '!' (clipping) or ' ' (no amp.)\n");
 	fprintf(stderr,"  5): loop on/off 'L' or ' '\n");
 	fprintf(stderr,"  6): pause at end on/off 'P' or ' '\n");
 	fprintf(stderr,"  7): time and seek in seconds 'S' or frames 'F'\n");
