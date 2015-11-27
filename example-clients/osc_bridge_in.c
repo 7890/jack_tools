@@ -5,10 +5,12 @@
 #include <unistd.h>
 #include <assert.h>
 #include <jack/jack.h>
-#include <jack/ringbuffer.h>
+//#include <jack/ringbuffer.h>
 #include "meta/jackey.h"
 #include "meta/jack_osc.h"
 #include <lo/lo.h>
+
+#include "rb.h"
 
 //tb/140112/140421/140509/140512
 //receive osc messages from any osc sender and feed it into the jack ecosystem as osc events
@@ -30,7 +32,7 @@ char const * client_name;
 
 void* buffer_out;
 
-jack_ringbuffer_t *rb;
+rb_t *rb;
 lo_server_thread lo_st;
 
 char * default_port="3344";
@@ -59,7 +61,7 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 	size_t size;
 	void* msg_ptr=lo_message_serialise(data,path,NULL,&size);
 
-	size_t can_write=jack_ringbuffer_write_space(rb);
+	size_t can_write=rb_can_write(rb);
 	//printf("size %lu (+%lu bytes delim) can write %lu\n",size,sizeof(size_t),can_write);
 
 	jack_nframes_t frames_since_cycle_start=jack_frames_since_cycle_start(client);
@@ -69,11 +71,11 @@ int default_msg_handler(const char *path, const char *types, lo_arg **argv, int 
 	if(size+sizeof(jack_nframes_t)+sizeof(size_t)<=can_write)
 	{
 		//write position in cycle as samples since start of cycle
-		int cnt=jack_ringbuffer_write(rb, (char*) &frames_since_cycle_start, sizeof(jack_nframes_t));
+		int cnt=rb_write(rb, (char*) &frames_since_cycle_start, sizeof(jack_nframes_t));
 		//write size of message
-		cnt=jack_ringbuffer_write(rb, (char*) &size, sizeof(size_t));
+		cnt=rb_write(rb, (char*) &size, sizeof(size_t));
 		//write message
-		cnt+=jack_ringbuffer_write(rb, (void *) msg_ptr, size );
+		cnt+=rb_write(rb, (void *) msg_ptr, size );
 		//printf("%i\n",cnt);
 		printf("+");
 	}
@@ -105,22 +107,22 @@ static int process(jack_nframes_t frames, void *arg)
 
 	jack_osc_clear_buffer(buffer_out);
 
-	while(jack_ringbuffer_read_space(rb)>sizeof(jack_nframes_t)+sizeof(size_t))
+	while(rb_can_read(rb)>sizeof(jack_nframes_t)+sizeof(size_t))
 	{	
-		//size_t can_read = jack_ringbuffer_read_space(rb);
+		//size_t can_read = rb_can_read(rb);
 		//printf("can read %lu\n",can_read);
 
 		jack_nframes_t pos;
-		jack_ringbuffer_read (rb, (char*) &pos, sizeof(jack_nframes_t));
+		rb_read (rb, (char*) &pos, sizeof(jack_nframes_t));
 
 		size_t msg_size;
-		jack_ringbuffer_read (rb, (char*) &msg_size, sizeof(size_t));
+		rb_read (rb, (char*) &msg_size, sizeof(size_t));
 		//printf("msg_size %lu\n",msg_size);
 
 		void* buffer = malloc(msg_size);
 
 		//read message from ringbuffer to msg_buffer
-		jack_ringbuffer_read (rb, (void *)buffer, msg_size);
+		rb_read (rb, (void *)buffer, msg_size);
 /*
 		char* path=lo_get_path(buffer,msg_size);
 		printf("path %s\n",path);
@@ -200,7 +202,7 @@ int main(int argc, char* argv[])
 	signal(SIGHUP, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	rb=jack_ringbuffer_create (100000);
+	rb=rb_new (100000);
 
 	if(argc>1)
 	{
