@@ -29,6 +29,7 @@
 #endif
 
 //combine some files, order matters..
+#include "rb.h"
 #include "sndin.h"
 #include "kb_control.h"
 #include "resampler.h"

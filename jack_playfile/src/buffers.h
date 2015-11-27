@@ -28,14 +28,14 @@
 
 //ringbuffers
 //read from file, write to rb_interleaved (in case of resampling)
-static jack_ringbuffer_t *rb_interleaved=NULL;
+static rb_t *rb_interleaved=NULL;
 
 //read from file, write (directly) to rb_resampled_interleaved (in case of no resampling), rb_interleaved unused/skipped
 //read from rb_interleaved, resample and write to rb_resampled_interleaved (in case of resampling)
-static jack_ringbuffer_t *rb_resampled_interleaved=NULL;
+static rb_t *rb_resampled_interleaved=NULL;
 
 //read from rb_resampled_interleaved, write to rb_deinterleaved
-static jack_ringbuffer_t *rb_deinterleaved=NULL;
+static rb_t *rb_deinterleaved=NULL;
 
 //read from rb_deinterleaved, write to jack output buffers in JACK process()
 
@@ -54,15 +54,15 @@ static void setup_ringbuffers()
 
 	if(rb_interleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_interleaved);
+		rb_free(rb_interleaved);
 	}
 	if(rb_resampled_interleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_resampled_interleaved);
+		rb_free(rb_resampled_interleaved);
 	}
 	if(rb_deinterleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_deinterleaved);
+		rb_free(rb_deinterleaved);
 	}
 
 	int size_multiplier=50;
@@ -70,9 +70,9 @@ static void setup_ringbuffers()
 	int rb_resampled_interleaved_size_bytes	=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
 	int rb_deinterleaved_size_bytes		=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
 
-	rb_interleaved=jack_ringbuffer_create (rb_interleaved_size_bytes);
-	rb_resampled_interleaved=jack_ringbuffer_create (rb_resampled_interleaved_size_bytes);
-	rb_deinterleaved=jack_ringbuffer_create (rb_deinterleaved_size_bytes);
+	rb_interleaved=rb_new (rb_interleaved_size_bytes);
+	rb_resampled_interleaved=rb_new (rb_resampled_interleaved_size_bytes);
+	rb_deinterleaved=rb_new (rb_deinterleaved_size_bytes);
 
 /*
 	fprintf(stderr,"frames: request %d rb_interleaved %d rb_resampled_interleaved %d rb_deinterleaved %d\n"
@@ -90,17 +90,17 @@ static void free_ringbuffers()
 //	fprintf(stderr,"free ringbuffers\n");
 	if(rb_interleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_interleaved);
+		rb_free(rb_interleaved);
 	}
 
 	if(rb_resampled_interleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_resampled_interleaved);
+		rb_free(rb_resampled_interleaved);
 	}
 
 	if(rb_deinterleaved!=NULL)
 	{
-		jack_ringbuffer_free(rb_deinterleaved);
+		rb_free(rb_deinterleaved);
 	}
 }
 
@@ -111,17 +111,17 @@ static void reset_ringbuffers()
 //	fprintf(stderr,"reset ringbuffers\n");
 	if(rb_deinterleaved!=NULL)
 	{
-		jack_ringbuffer_reset(rb_deinterleaved);
+		rb_reset(rb_deinterleaved);
 	}
 
 	if(rb_resampled_interleaved!=NULL)
 	{
-		jack_ringbuffer_reset(rb_resampled_interleaved);
+		rb_reset(rb_resampled_interleaved);
 	}
 
 	if(rb_interleaved!=NULL)
 	{
-		jack_ringbuffer_reset(rb_interleaved);
+		rb_reset(rb_interleaved);
 	}
 	reset_ringbuffers_in_progress=0;
 }

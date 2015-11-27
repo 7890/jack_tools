@@ -330,8 +330,8 @@ while(true)
 
 /*
 		fprintf(stderr,"\ninterleaved buffer %"PRId64" resampled frame buffer %"PRId64" bytes \n"
-			,jack_ringbuffer_read_space(rb_interleaved)
-			,jack_ringbuffer_read_space(rb_resampled_interleaved)
+			,rb_can_read(rb_interleaved)
+			,rb_can_read(rb_resampled_interleaved)
 		);
 */
 
@@ -739,7 +739,7 @@ static int disk_read_frames()
 
 	sf_count_t frames_read_from_file=0;
 
-	jack_ringbuffer_t *rb_to_use;
+	rb_t *rb_to_use;
 
 	if(!is_idling_at_end)
 	{
@@ -754,7 +754,7 @@ static int disk_read_frames()
 			rb_to_use=rb_interleaved;
 		}
 
-		if(jack_ringbuffer_write_space(rb_to_use) < sndfile_request_frames )
+		if(rb_can_write(rb_to_use) < sndfile_request_frames )
 		{
 			fprintf(stderr,"/!\\ not enough space in ringbuffer\n");
 			return 0;
@@ -766,7 +766,7 @@ static int disk_read_frames()
 		frames_read_from_file=read_frames_from_file_to_buffer(frames_read, frames_from_file_buffer);
 
 		//put to the selected ringbuffer
-		jack_ringbuffer_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*channel_count_use_from_file*bytes_per_sample);
+		rb_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*channel_count_use_from_file*bytes_per_sample);
 	}//end if(!is_idling_at_end)
 
 	if(frames_read_from_file>0)
@@ -903,7 +903,7 @@ static void *disk_thread_func(void *arg)
 		//no resampling needed
 		if(out_to_in_sr_ratio==1.0 || !use_resampling)
 		{
-			if(jack_ringbuffer_write_space(rb_resampled_interleaved)
+			if(rb_can_write(rb_resampled_interleaved)
 				< sndfile_request_frames * channel_count_use_from_file * bytes_per_sample )
 			{
 				//===wait here until process() requests to continue
@@ -914,7 +914,7 @@ static void *disk_thread_func(void *arg)
 		}
 		else //if out_to_in_sr_ratio!=1.0
 		{
-			if(jack_ringbuffer_write_space(rb_interleaved)
+			if(rb_can_write(rb_interleaved)
 				< sndfile_request_frames * channel_count_use_from_file * bytes_per_sample )
 			{
 
@@ -985,7 +985,7 @@ static void req_buffer_from_disk_thread()
 
 //	fprintf(stderr,"req_buffer_from_disk_thread()\n");
 
-	if(jack_ringbuffer_write_space(rb_interleaved) 
+	if(rb_can_write(rb_interleaved) 
 		< sndfile_request_frames * channel_count_use_from_file * bytes_per_sample)
 
 	{
@@ -1003,7 +1003,7 @@ static void req_buffer_from_disk_thread()
 	to indicate the error. 
 	*/
 	//if possible to lock the disk_thread_lock mutex
-	if(pthread_mutex_trylock (&disk_thread_lock)==0)
+	if(!pthread_mutex_trylock(&disk_thread_lock))
 	{
 //		fprintf(stderr,"new data from disk thread requested\n");
 		//signal to disk_thread it can start or continue to read
@@ -1384,14 +1384,14 @@ static void deinterleave()
 {
 //	fprintf(stderr,"deinterleave called\n");
 
-	if(all_frames_read && jack_ringbuffer_read_space(rb_resampled_interleaved)==0)
+	if(all_frames_read && !rb_can_read(rb_resampled_interleaved))
 	{
 		//nothing to do
 //		fprintf(stderr,"deinterleave(): disk thread finished and no more data in rb_resampled_interleaved\n");
 		return;
 	}
 
-	int resampled_frames_avail=jack_ringbuffer_read_space(rb_resampled_interleaved)/channel_count_use_from_file/bytes_per_sample;
+	int resampled_frames_avail=rb_can_read(rb_resampled_interleaved)/channel_count_use_from_file/bytes_per_sample;
 
 	//if not limited, deinterleaved block align borked
 	int resampled_frames_use=MIN(resampled_frames_avail,jack->period_frames);
@@ -1401,7 +1401,7 @@ static void deinterleave()
 	if(
 		(resampled_frames_use >= 1)
 			&&
-		(jack_ringbuffer_write_space(rb_deinterleaved) 
+		(rb_can_write(rb_deinterleaved) 
 			>= jack->period_frames * channel_count_use_from_file * bytes_per_sample)
 	)
 	{
@@ -1410,7 +1410,7 @@ static void deinterleave()
 		void *data_resampled_interleaved;
 		data_resampled_interleaved=malloc(resampled_frames_use * channel_count_use_from_file * bytes_per_sample);
 
-		jack_ringbuffer_read(rb_resampled_interleaved
+		rb_read(rb_resampled_interleaved
 			,(char*)data_resampled_interleaved
 			,resampled_frames_use * channel_count_use_from_file * bytes_per_sample);
 
@@ -1447,7 +1447,7 @@ static void deinterleave()
 				}
 
 				//put to ringbuffer
-				jack_ringbuffer_write(rb_deinterleaved
+				rb_write(rb_deinterleaved
 					,(char*)&f1
 					,bytes_per_sample);
 			}//frame
@@ -1461,8 +1461,8 @@ static void deinterleave()
 /*
 		fprintf(stderr,"deinterleave(): no deinterleave action in cycle # %"PRId64". frames resampled read space %d deinterleaved write space %d\n"
 			,jack->process_cycle_count
-			,jack_ringbuffer_read_space(rb_resampled_interleaved) / channel_count_use_from_file / bytes_per_sample
-			,jack_ringbuffer_write_space(rb_deinterleaved) / channel_count_use_from_file / bytes_per_sample );
+			,rb_can_read(rb_resampled_interleaved) / channel_count_use_from_file / bytes_per_sample
+			,rb_can_write(rb_deinterleaved) / channel_count_use_from_file / bytes_per_sample );
 */
 	}
 }//end deinterleave()
@@ -1484,9 +1484,9 @@ static void print_stats()
 		,total_input_frames_resampled
 		,jack->total_frames_pushed_to_jack
 
-		,jack_ringbuffer_read_space(rb_interleaved)		/channel_count_use_from_file/bytes_per_sample
-		,jack_ringbuffer_read_space(rb_resampled_interleaved)	/channel_count_use_from_file/bytes_per_sample
-		,jack_ringbuffer_read_space(rb_deinterleaved)		/channel_count_use_from_file/bytes_per_sample
+		,rb_can_read(rb_interleaved)		/channel_count_use_from_file/bytes_per_sample
+		,rb_can_read(rb_resampled_interleaved)	/channel_count_use_from_file/bytes_per_sample
+		,rb_can_read(rb_deinterleaved)		/channel_count_use_from_file/bytes_per_sample
 
 		,resampling_finished
 		,all_frames_read
@@ -1497,7 +1497,7 @@ static void print_stats()
 /*
 	fprintf(stderr,"proc underruns %"PRId64" interleaved %"PRId64"\n"
 		,jack->process_cycle_underruns
-		,jack_ringbuffer_read_space(rb_interleaved)             /channel_count_use_from_file/bytes_per_sample
+		,rb_can_read(rb_interleaved)             /channel_count_use_from_file/bytes_per_sample
 	);
 */
 }//end print_stats()

@@ -257,7 +257,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 //			seek_frames_in_progress=0;
 //		}
 		//test if already enough data available to play
-		if(jack_ringbuffer_read_space(rb_deinterleaved) 
+		if(rb_can_read(rb_deinterleaved) 
 			>= jack->period_frames * channel_count_use_from_file * bytes_per_sample)
 		{
 			seek_frames_in_progress=0;
@@ -279,9 +279,9 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	}
 
 	if(all_frames_read
-		&& jack_ringbuffer_read_space(rb_interleaved)==0
-		&& jack_ringbuffer_read_space(rb_resampled_interleaved)==0
-		&& jack_ringbuffer_read_space(rb_deinterleaved)==0)
+		&& !rb_can_read(rb_interleaved)
+		&& !rb_can_read(rb_resampled_interleaved)
+		&& !rb_can_read(rb_deinterleaved))
 	{
 //		fprintf(stderr,"process(): all frames read and no more data in rb_interleaved, rb_resampled_interleaved, rb_deinterleaved\n");
 //		fprintf(stderr,"process(): shutdown condition 1 met\n");
@@ -296,7 +296,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	jack->process_cycle_count++;
 
 	//normal operation
-	if(jack_ringbuffer_read_space(rb_deinterleaved) 
+	if(rb_can_read(rb_deinterleaved) 
 		>= jack->period_frames * channel_count_use_from_file * bytes_per_sample)
 	{
 //		fprintf(stderr,"process(): normal output to JACK buffers in cycle %" PRId64 "\n",jack->process_cycle_count);
@@ -308,7 +308,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 			if(i<channel_count_use_from_file)
 			{
 				//put samples from ringbuffer to JACK output buffer
-				jack_ringbuffer_read(rb_deinterleaved
+				rb_read(rb_deinterleaved
 					,(char*)o1
 					,jack->period_frames * bytes_per_sample);
 			}
@@ -341,9 +341,9 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	}
 
 	//partial data left
-	else if(all_frames_read && jack_ringbuffer_read_space(rb_deinterleaved)>0)
+	else if(all_frames_read && rb_can_read(rb_deinterleaved)>0)
 	{
-		int remaining_frames=jack_ringbuffer_read_space(rb_deinterleaved)/channel_count_use_from_file/bytes_per_sample;
+		int remaining_frames=rb_can_read(rb_deinterleaved)/channel_count_use_from_file/bytes_per_sample;
 //		fprintf(stderr,"process(): partial data, remaining frames in db_deinterleaved:  %d\n", remaining_frames);
 
 		//use what's available
@@ -355,7 +355,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 			if(i<channel_count_use_from_file)
 			{
 				//put samples from ringbuffer to JACK output buffer
-				jack_ringbuffer_read(rb_deinterleaved
+				rb_read(rb_deinterleaved
 					,(char*)o1
 					,remaining_frames * bytes_per_sample);
 			}
@@ -405,7 +405,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 		last_cycle_was_zeroed_out=0;
 
 //		fprintf(stderr,"process(): rb_deinterleaved can read after last samples (expected 0) %d\n"
-//			,jack_ringbuffer_read_space(rb_deinterleaved));
+//			,rb_can_read(rb_deinterleaved));
 
 		//other logic will detect shutdown condition met to clear buffers
 		return 0;
