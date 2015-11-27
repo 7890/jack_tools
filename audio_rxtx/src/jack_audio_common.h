@@ -10,10 +10,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. bla.
 */
 
-#include "weak_libjack.h"
-
 #ifndef JACK_AUDIO_COMMON_H_INCLUDED
 #define JACK_AUDIO_COMMON_H_INCLUDED
+
+#include "weak_libjack.h"
 
 //jack_audio_common.h
 

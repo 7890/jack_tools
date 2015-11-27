@@ -26,6 +26,8 @@
 #include "jack_audio_common.h"
 #include "jack_audio_receive.h"
 
+#include "rb.h"
+
 //tb/130427/131206//131211//131216/131229/150523
 //gcc -o jack_audio_receiver jack_audio_receiver.c `pkg-config --cflags --libs jack liblo`
 
@@ -36,9 +38,9 @@
 //http://www.gnu.org/software/libc/manual/html_node/Getopt-Long-Option-Example.html
 
 //between incoming osc messages and jack process() callbacks
-jack_ringbuffer_t *rb;
+rb_t *rb;
 
-jack_ringbuffer_t *rb_helper;
+rb_t *rb_helper;
 
 //will be updated according to blob count in messages
 int input_port_count=2; //can't know yet
@@ -527,9 +529,9 @@ int main(int argc, char *argv[])
 
 	//====================================
 	//main ringbuffer osc blobs -> jack output
-	rb=jack_ringbuffer_create(rb_size);
+	rb=rb_new(rb_size);
 	//helper ringbuffer: used when remote period size < local period size
-	rb_helper=jack_ringbuffer_create(rb_size);
+	rb_helper=rb_new(rb_size);
 
 	if(rb==NULL)
 	{
@@ -722,7 +724,7 @@ int process(jack_nframes_t nframes, void *arg)
 	{
 		//if no data for this cycle(all channels) 
 		//is available(!), fill buffers with 0 or re-use old buffers and return
-		if(jack_ringbuffer_read_space(rb) < port_count * bytes_per_sample*nframes)
+		if(rb_can_read(rb) < port_count * bytes_per_sample*nframes)
 		{
 			int i;
 			for(i=0; i < output_port_count; i++)
@@ -802,12 +804,12 @@ int process(jack_nframes_t nframes, void *arg)
 			//32 bit float
 			if(bytes_per_sample==4)
 			{
-				jack_ringbuffer_read(rb, (char*)o1, bytes_per_sample*nframes);
+				rb_read(rb, (char*)o1, bytes_per_sample*nframes);
 			}
 			//16 bit pcm
 			else
 			{
-				jack_ringbuffer_read(rb, (char*)o1_16, bytes_per_sample*nframes);
+				rb_read(rb, (char*)o1_16, bytes_per_sample*nframes);
 
 				int x;
 				for(x=0;x<nframes;x++)
@@ -834,7 +836,7 @@ int process(jack_nframes_t nframes, void *arg)
 			uint64_t drop_bytes_count=requested_drop_count
 				*port_count*period_size*bytes_per_sample;
 
-			jack_ringbuffer_read_advance(rb,drop_bytes_count);
+			rb_advance_read_pointer(rb,drop_bytes_count);
 
 			requested_drop_count=0;
 			multi_channel_drop_counter=0;
@@ -942,7 +944,7 @@ int process(jack_nframes_t nframes, void *arg)
 //================================================================
 void print_info()
 {
-	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
+	uint64_t can_read_count=rb_can_read(rb);
 
 	char* offset_string;
 	if(channel_offset>0)
@@ -1279,7 +1281,7 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 		//option --rebuff
 		if(rebuffer_on_restart==1)
 		{
-			uint64_t can_read_count=jack_ringbuffer_read_space(rb);
+			uint64_t can_read_count=rb_can_read(rb);
 			pre_buffer_counter=fmax(0,(float)can_read_count/(float)bytes_per_sample/(float)period_size/(float)port_count);
 			//start buffering
 			process_enabled=0;
@@ -1404,7 +1406,7 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 	int mc_period_bytes=period_size*bytes_per_sample*port_count;
 
 	//check if a whole mc period can be written to the ringbuffer
-	uint64_t can_write_count=jack_ringbuffer_write_space(rb);
+	uint64_t can_write_count=rb_can_write(rb);
 	if(can_write_count < mc_period_bytes)
 	{
 			buffer_overflow_counter++;
@@ -1432,7 +1434,7 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 			//write to ringbuffer
 			//==========================================
 			//int cnt=
-			jack_ringbuffer_write(rb, (void *) data, 
+			rb_write(rb, (void *) data, 
 				period_size*bytes_per_sample);
 		}
 		pre_buffer_counter++;
@@ -1450,21 +1452,21 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 			//write to temporary ringbuffer until there is enough data
 			//==========================================
 			//int cnt=
-			jack_ringbuffer_write(rb_helper, (void *) data, 
+			rb_write(rb_helper, (void *) data, 
 				remote_period_size*bytes_per_sample);
 		}
 
 		//if enough data collected for one larger multichannel period
 
-		while(jack_ringbuffer_read_space(rb_helper)	>=mc_period_bytes
-		&& jack_ringbuffer_write_space(rb)		>=mc_period_bytes)
+		while(rb_can_read(rb_helper)	>=mc_period_bytes
+		&& rb_can_write(rb)		>=mc_period_bytes)
 		{
 			//transfer from helper to main ringbuffer
 			unsigned char* data;
 			data=malloc(				mc_period_bytes);
 			//store orig pointer
 			unsigned char* orig_data=data;
-			jack_ringbuffer_read(rb_helper,data,	mc_period_bytes);
+			rb_read(rb_helper,data,	mc_period_bytes);
 
 			for(i=0;i < port_count;i++)
 			{
@@ -1479,7 +1481,7 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 
 					//write one channel snipped (remote_period_size) to main buffer
 					//int w=
-					jack_ringbuffer_write(rb,(void *)data,remote_period_size*bytes_per_sample);
+					rb_write(rb,(void *)data,remote_period_size*bytes_per_sample);
 				}
 			}
 			data=orig_data;
@@ -1507,7 +1509,7 @@ int osc_audio_handler(const char *path, const char *types, lo_arg **argv, int ar
 				data+=k*period_size*bytes_per_sample;
 
 				//int cnt=
-				jack_ringbuffer_write(rb, (void *) data, 
+				rb_write(rb, (void *) data, 
 					period_size*bytes_per_sample);
 			}
 			pre_buffer_counter++;
@@ -1557,12 +1559,12 @@ int osc_buffer_handler(const char *path, const char *types, lo_arg **argv, int a
 
 		max_buffer_size=max_buffer_periods;
 
-		rb=jack_ringbuffer_create(rb_size);
+		rb=rb_new(rb_size);
 		// /buffer is experimental, it can segfault
 	}
 
 	//current size
-	uint64_t can_read_count=jack_ringbuffer_read_space(rb);
+	uint64_t can_read_count=rb_can_read(rb);
 	uint64_t can_read_periods_count=can_read_count/port_count/period_size/bytes_per_sample;
 
 	if(pre_buffer_periods>can_read_periods_count)
@@ -1617,8 +1619,8 @@ void osc_error_handler(int num, const char *msg, const char *path)
 
 		jack_client_close(client);
 		//lo_server_thread_free(lo_st);
-		jack_ringbuffer_free(rb);
-		jack_ringbuffer_free(rb_helper);
+		rb_free(rb);
+		rb_free(rb_helper);
 		fprintf(stderr," done.\n");
 
 		exit(1);
@@ -1666,8 +1668,8 @@ static void signal_handler(int sig)
 
 	jack_client_close(client);
 //      lo_server_thread_free(lo_st);
-	jack_ringbuffer_free(rb);
-	jack_ringbuffer_free(rb_helper);
+	rb_free(rb);
+	rb_free(rb_helper);
 
 	fprintf(stderr," done.\n");
 
