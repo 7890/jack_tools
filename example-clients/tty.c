@@ -194,7 +194,7 @@ Command Meaning 				# param
 #include <string.h>
 #include <stdlib.h>
 #include <jack/jack.h>
-#include <jack/ringbuffer.h>
+//#include <jack/ringbuffer.h>
 #include <jack/midiport.h>
 #include <lo/lo.h>
 #include <termios.h>
@@ -202,6 +202,8 @@ Command Meaning 				# param
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+
+#include "rb.h"
 
 int main(int argc, char *argv[]);
 static void setup_serial_thread();
@@ -223,7 +225,7 @@ typedef struct {char *name; int flag; } speed_spec;
 static char *devicename = "/dev/ttyUSB0";
 //char *devicename = "/dev/ttyACM0";
 
-static jack_ringbuffer_t *rb=NULL;
+static rb_t *rb=NULL;
 
 speed_spec speeds[] =
 {
@@ -366,7 +368,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	rb=jack_ringbuffer_create( 3000 * jack_get_buffer_size(client) );
+	rb=rb_new( 3000 * jack_get_buffer_size(client) );
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
@@ -554,7 +556,7 @@ _init:
 				do
 				{
 					ret = read(comfd, &c, 1);
-					jack_ringbuffer_write(rb,&c,1);
+					rb_write(rb,&c,1);
 					current_value=(int)c;
 //					fprintf(stderr,"!%d ",c);
 				} while (ret < 0 && errno == EINTR);
@@ -708,12 +710,12 @@ static int process(jack_nframes_t nframes, void *arg)
 	int pos=0; //!!!! timing wrong, all messages at start of period
 	int msg_len=0;
 
-	while(jack_ringbuffer_read_space(rb)>0)
+	while(rb_can_read(rb)>0)
 	{
 		msg_len=0;
 		char c;
 		//read one byte
-		jack_ringbuffer_peek(rb,&c,1);
+		rb_peek(rb,&c,1);
 
 		uint8_t type = c & 0xf0;
 
@@ -744,18 +746,18 @@ static int process(jack_nframes_t nframes, void *arg)
 		if(msg_len==0)
 		{
 			//this is not a size byte. skip it
-			jack_ringbuffer_read_advance(rb,1);
+			rb_advance_read_pointer(rb,1);
 			continue;
 		}
 
 //		fprintf(stderr,"\n\rmsg length %d ",msg_len);
 
-		if(jack_ringbuffer_read_space(rb)>=msg_len)
+		if(rb_can_read(rb)>=msg_len)
 		{
 			void *buf;
 			buf=malloc(msg_len);
 			//read it
-			jack_ringbuffer_read(rb,buf,msg_len);
+			rb_read(rb,buf,msg_len);
 
 //			fprintf(stderr,"= %d %s",msg_len,(char*)buf);
 
