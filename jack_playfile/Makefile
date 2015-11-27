@@ -175,7 +175,7 @@ build_info:
 	> $(BUILD)/build_info.data.h \
 	&& rm -f build_info_dump
 
-install: jack_playfile
+install:
 	install -m755 jack_playfile $(DESTDIR)$(INSTALLDIR)/
 #	install -m755 jack_playfile_static $(DESTDIR)$(INSTALLDIR)/
 	install -m644 $(DOC)/jack_playfile.1.gz $(DESTDIR)$(MANDIR)/
