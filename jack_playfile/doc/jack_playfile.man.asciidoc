@@ -252,9 +252,9 @@ KEYBOARD SHORTCUTS
 *end*:: 		Seek to end
 *< less than*::		Load previous file
 *> greater than*::	Load next file
-*1*			reset volume (zero amplification)
-*2*			decrease volume
-*3*			increase volume
+*1*::			Reset volume (zero amplification)
+*2*::			Decrease volume
+*3*::			Increase volume
 *m*::			Toggle mute on/off*
 *l*::			Toggle loop on/off*
 *p*::			Toggle pause at end on/off*
