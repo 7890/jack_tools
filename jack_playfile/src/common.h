@@ -36,7 +36,7 @@
 #include "jackaudio.h"
 #include "playlist.h"
 
-static const float version=0.87;
+static const float version=0.88;
 
 static void print_main_help();
 static void print_manpage();
@@ -63,6 +63,8 @@ static struct option long_options[] =
 
 	{"samplerate",	required_argument,	0, 'S'},
 
+	{"amplify",	required_argument,	0, 'A'},
+
 	{"file",	required_argument,	0, 'F'},
 	{"dump",	no_argument,  0,	'd'},
 
@@ -80,8 +82,6 @@ static struct option long_options[] =
 	{"noclock",	no_argument,  0,	'k'},
 	{"pae",		no_argument,  0,	'e'},
 	{"transport",	no_argument,  0,	'j'},
-
-
 
 	{"verbose",	no_argument,  0,	'v'},
 	{"libs",	no_argument,  0,	'L'},
@@ -106,6 +106,7 @@ static void print_main_help()
 	fprintf (stdout, "  -D, --nocontrol           Disable keyboard control\n");
 	fprintf (stdout, "  -R, --noresampling        Disable resampling\n");
 	fprintf (stdout, "  -S, --samplerate          Override file sample rate (affects pitch & tempo)\n");
+	fprintf (stdout, "  -A, --amplify             Amplifcation in dB (Volume):  (0.0)\n");
 	fprintf (stdout, "  -p, --paused              Start paused\n");
 	fprintf (stdout, "  -m, --muted               Start muted \n");
 	fprintf (stdout, "  -l, --loop                Enable loop \n");
@@ -120,10 +121,10 @@ static void print_main_help()
 	fprintf (stdout, "  -O, --choffset <integer>  Channel offset:  (0)\n");
 	fprintf (stdout, "  -C, --chcount <integer>   Channel count:  (all)\n");
 	fprintf (stdout, "  -d, --dump                Print usable files to stdout and quit\n");
-	fprintf (stdout, "  -v, --verbose             Show more info about file, JACK\n");
+	fprintf (stdout, "  -v, --verbose             Show more info about files, JACK settings\n");
 	fprintf (stdout, "  -L, --libs                Show license and library info\n\n");
 
-	fprintf (stdout, "Example: jack_playfile --remaining --count 44100 --loop music.opus\n");
+	fprintf (stdout, "Example: jack_playfile song.wav\n");
 	fprintf (stdout, "More infos in manual page. http://github.com/7890/jack_tools/\n\n");
 
 #ifdef STATIC_BUILD

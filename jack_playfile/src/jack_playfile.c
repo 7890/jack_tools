@@ -68,7 +68,7 @@ int main(int argc, char *argv[])
 		//getopt_long stores the option index here
 		int option_index=0;
 
-		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:F:dNEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:A:F:dNEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -133,6 +133,11 @@ int main(int argc, char *argv[])
 
 			case 'S':
 				custom_file_sample_rate=atoi(optarg);
+				break;
+
+			case 'A':
+				jack->volume_amplification_decibel=MIN(6, atof(optarg) );
+				jack->volume_coefficient=pow( 10, ( jack->volume_amplification_decibel / 20 ) );
 				break;
 
 			case 'F':
@@ -231,7 +236,7 @@ int main(int argc, char *argv[])
 
 	if(!open_init_file_from_playlist())
 	{
-		fprintf(stderr,"/!\\ no valid files in playlist file\n");
+		fprintf(stderr,"/!\\ no valid files in playlist\n");
 		//clean up / reset and quit
 		signal_handler(44);
 	}
@@ -674,7 +679,7 @@ static int open_init_file(const char *f)
 
 	if(is_verbose)
 	{
-		fprintf(stderr,"playing frames offset, count, end: %"PRId64" %"PRId64" %"PRId64"\n"
+		fprintf(stderr,"playing frames (offset count end): %"PRId64" %"PRId64" %"PRId64"\n"
 			,frame_offset
 			,frame_count
 			,MIN(sf_info_generic.frames,frame_offset+frame_count));
@@ -689,10 +694,14 @@ static int open_init_file(const char *f)
 
 	if(is_verbose)
 	{
-		fprintf(stderr,"playing channels offset, count, end, file: %d %d %d\n"
+		fprintf(stderr,"playing channels (offset count last): %d %d %d\n"
 			,channel_offset
 			,channel_count_use_from_file
 			,channel_offset+channel_count_use_from_file);
+
+		fprintf(stderr,"amplification: %.1f dB (%.3f)\n"
+			,jack->volume_amplification_decibel
+			,jack->volume_coefficient);
 	}
 
 	//initial seek
