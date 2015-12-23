@@ -204,7 +204,7 @@ static void resample()
 			}
 
 			//advance - remaining inp_count!
-			rb_advance_read_pointer(rb_interleaved
+			rb_advance_read_index(rb_interleaved
 				,(sndfile_request_frames-R.inp_count) * channel_count_use_from_file * bytes_per_sample);
 
 			total_input_frames_resampled+=(sndfile_request_frames-R.inp_count);
