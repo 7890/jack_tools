@@ -15,6 +15,8 @@ SRC = .
 BLD = build
 DOC = doc
 
+RBURL = https://raw.githubusercontent.com/7890/csnip/master/rb/rb.h
+
 default: compile
 
 compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SRC)/gen.c
@@ -37,7 +39,7 @@ compile: $(SRC)/osc_bridge_in.c $(SRC)/osc_bridge_out.c $(SRC)/osc_filter.c $(SR
 
 	$(CC) -o $(BLD)/jack_xlsp xlsp.c $(CFLAGS_JACK_ONLY)
 	$(CC) -o $(BLD)/jack_oscev oscev.c $(CFLAGS)
-	$(CC) -o $(BLD)/jack_tty tty.c $(CFLAGS)
+	$(CC) -o $(BLD)/jack_tty tty.c $(CFLAGS) `pkg-config --libs --cflags uuid` -lrt -DRB_DEFAULT_USE_SHM=1
 	$(CC) -o $(BLD)/jack_midi_heartbeat midi_heartbeat.c $(CFLAGS)
 	$(CC) -o $(BLD)/jack_midi_on_off midi_on_off.c $(CFLAGS)
 
@@ -87,6 +89,8 @@ install:
 	install -m755 $(BLD)/jack_osc_filter $(DESTDIR)$(INSTALLDIR)/
 	install -m755 $(BLD)/jack_gen $(DESTDIR)$(INSTALLDIR)/
 
+	install -m755 $(BLD)/jack_tty $(DESTDIR)$(INSTALLDIR)/
+
 	@echo ""
 	@echo "done!"
 	@echo ""
@@ -114,8 +118,21 @@ uninstall:
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_osc_filter
 	rm -f $(DESTDIR)$(INSTALLDIR)/jack_gen
 
+	rm -f $(DESTDIR)$(INSTALLDIR)/jack_tty
+
 	@echo ""
 	@echo "done."
 	@echo ""
+
+update_rb:
+	@echo "checking prerequisites..."
+	which wget
+	@echo "ok."
+
+	@echo "updating rb.h with $(RBURL)?"
+	@echo "/!\\ THIS WILL REPLACE ANY LOCAL MODIFICATIONS IN rb.h"
+	@read a
+	wget -O $(SRC)/rb.h $(RBURL)
+	@echo "now make."
 
 .PHONY: clean install uninstall
