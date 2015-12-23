@@ -187,7 +187,7 @@ update_rb:
 	wget -O $(SRC)/rb.h $(RBURL)
 	@echo "now make."
 
-install: jack_playfile
+install:
 	install -m755 jack_playfile $(DESTDIR)$(INSTALLDIR)/
 #	install -m755 jack_playfile_static $(DESTDIR)$(INSTALLDIR)/
 	install -m644 $(DOC)/jack_playfile.1.gz $(DESTDIR)$(MANDIR)/
