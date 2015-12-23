@@ -821,16 +821,17 @@ MP3 supports a maximum of two channels (no "MP3 Surround" support).
 </li>
 </ul></div>
 <div class="paragraph"><p>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</p></div>
-<div class="paragraph"><p><em>jack_playfile</em> can read and play local audio files only. There is currently no support for playlists or handling of song meta data.
-No DSP other than optional resampling is applied to the audio signal.
-To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with <em>jack_playfile</em>.
+<div class="paragraph"><p>Limitations:</p></div>
+<div class="paragraph"><p><em>jack_playfile</em> can read and play local audio files only. There is currently no support for standard playlists or extended metadata.
+No DSP except optional resampling and amplification is applied to the audio signal.
+To meter the signal and apply equalization look out for corresponding JACK clients to chain with <em>jack_playfile</em>.
 This plugin collection is a good starting point: <a href="https://github.com/x42/x42-plugins">https://github.com/x42/x42-plugins</a></p></div>
 <div class="paragraph"><p>The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.</p></div>
 <div class="paragraph"><p><strong>THIS PROGRAM COMES WITHOUT ANY WARRANTY</strong></p></div>
 <div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
-<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.86.</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.88.</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -850,7 +851,7 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </dt>
 <dd>
 <p>
-        Display version and quit. Static builds of jack_playfile will also show the versions of the invovled audio libraries.
+        Display version and quit. Static builds of <em>jack_playfile</em> will also show the versions of the invovled audio libraries.
 </p>
 </dd>
 <dt class="hdlist1">
@@ -934,6 +935,16 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         Not every given SR for overriding the file sample rate is possible. Odd values etc. will not work.
         The zita-resampler documentation says: The Resampler class performs resampling at a fixed ratio F_out / F_in which is required to be greater than 1/16 and be reducible to the form b / a with a, b integer and b less than 1000. This includes all the <em>standard</em> ratios, e.g. 96000 / 44100 = 320 / 147. These restrictions allow for a more efficient implementation.
         <strong>Default:</strong> Use original file sample rate.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-A, --amplify</strong> (float)
+</dt>
+<dd>
+<p>
+        Set initial playback volume. Amplify the signal by the given value in decibel [dB]. A value of 0 corresponds to zero amplification (=original volume).
+        Values are limited to maximal +6.0 dB. The amplification can be changed during playback using the appropriate control keys (if control is enabled).
+        <strong>Default:</strong> 0.0 dB
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1129,7 +1140,7 @@ $ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; don
 </div></div>
 <div class="paragraph"><p>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</p></div>
 <div class="paragraph"><p><em>jack_playfile</em> can check which of the files could possibly be played, without playing anything.
-This is done by trying to open (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
+This is done by trying to open and read (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
 <em>jack_playfile</em> will quit afer all files are tested. A scenario is to find all audio files from a list of mixed type files:</p></div>
 <div class="literalblock">
 <div class="content">
@@ -1267,6 +1278,9 @@ Load previous file
 <dd>
 <p>
 Load next file
+<strong>1</strong>                     reset volume (zero amplification)
+<strong>2</strong>                     decrease volume
+<strong>3</strong>                     increase volume
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1409,8 +1423,9 @@ sample rate: 44100
 channels:    2
 data rate:   176400.0 bytes/s (0.18 MB/s)
 frame_count set to 14318555 (all available frames)
-playing frames offset, count, end: 0 14318555 14318555
-playing channels offset, count, end, file: 0 2 2
+playing frames (offset count end): 0 14318555 14318555
+playing channels (offset count last): 0 2 2
+amplification: 0.0 dB (1.000)
 JACK sample rate: 48000
 JACK period size: 128 frames
 JACK cycles per second: 375.00
@@ -1444,24 +1459,25 @@ data_rate: Bytes to read from file per second to satisfy constant flow to JACK o
 <div class="paragraph"><p>Legend (example prompt):</p></div>
 <div class="literalblock">
 <div class="content">
-<pre><code>|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)
-^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^
-1           2345  6 7   8     9     10    9 11            12</code></pre>
+<pre><code>|| paused   JMALP  S rel 0.001       943.1  (00:15:43.070)
+^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^
+1           23456  7 8   9     10    11   10 12           13</code></pre>
 </div></div>
 <div class="literalblock">
 <div class="content">
 <pre><code> 1): status playing '&gt;', paused '||' or seeking '...'
  2): JACK transport on/off 'J' or ' '
  3): mute on/off 'M' or ' '
- 4): loop on/off 'L' or ' '
- 5): pause at end on/off 'P' or ' '
- 6): time and seek in seconds 'S' or frames 'F'
- 7): time indication 'rel' to frame_offset or 'abs'
- 8): seek step size in seconds or frames
- 9): time elapsed ' ' or remaining '-'
-10): time in seconds or frames
-11): time in HMS.millis
-12): keyboard input indication (i.e. seek)</code></pre>
+ 4): amplification 'A', '!' (clipping) or ' ' (no amp.)
+ 5): loop on/off 'L' or ' '
+ 6): pause at end on/off 'P' or ' '
+ 7): time and seek in seconds 'S' or frames 'F'
+ 8): time indication 'rel' to frame_offset or 'abs'
+ 9): seek step size in seconds or frames
+10): time elapsed ' ' or remaining '-'
+11): time in seconds or frames
+12): time in HMS.millis
+13): keyboard input indication (i.e. seek)</code></pre>
 </div></div>
 <div class="ulist"><ul>
 <li>
@@ -1561,7 +1577,7 @@ Starting JACK with dummy backend, server name "virtual"
 </li>
 <li>
 <p>
-Telling jack_playfile to use JACK server "virtual"
+Telling <em>jack_playfile</em> to use JACK server "virtual"
 </p>
 <div class="literalblock">
 <div class="content">
@@ -1611,7 +1627,7 @@ Shutting down
 <div class="sectionbody">
 <div class="paragraph"><p><em>jack_playfile</em> procedure (simplified):</p></div>
 <div class="paragraph"><p>0) Initializing, starting up with given parameters</p></div>
-<div class="paragraph"><p>1) Trying to open given file with several decoders, quit on fail</p></div>
+<div class="paragraph"><p>1) Trying to open given file(s) with several decoders, building an internal list of playable files</p></div>
 <div class="paragraph"><p>2) Check if JACK libraries are available on host, quit on fail</p></div>
 <div class="paragraph"><p>3) Eventually wait for JACK server to become available</p></div>
 <div class="paragraph"><p>4) Register JACK client, register ports, optionally connect ports, quit on fail</p></div>
@@ -1798,7 +1814,7 @@ libogg - <a href="http://xiph.org/ogg/">http://xiph.org/ogg/</a>
 <h2 id="_authors">AUTHORS</h2>
 <div class="sectionbody">
 <div class="paragraph"><p>Thomas Brand &lt;<a href="mailto:tom@trellis.ch">tom@trellis.ch</a>&gt;</p></div>
-<div class="paragraph"><p>Last Update: Sun Nov 22 16:09:51 CET 2015</p></div>
+<div class="paragraph"><p>Last Update: Mon Dec 21 18:40:54 CET 2015</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -1812,7 +1828,7 @@ granted under the terms of the GNU General Public License (GPL).</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-11-24 01:58:40 CET
+Last updated 2015-12-21 19:58:33 CET
 </div>
 </div>
 </body>

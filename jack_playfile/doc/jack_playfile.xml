@@ -89,16 +89,17 @@ MP3 supports a maximum of two channels (no "MP3 Surround" support).
 </listitem>
 </itemizedlist>
 <simpara>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</simpara>
-<simpara><emphasis>jack_playfile</emphasis> can read and play local audio files only. There is currently no support for playlists or handling of song meta data.
-No DSP other than optional resampling is applied to the audio signal.
-To meter the signal, control volume and apply equalization look out for corresponding JACK clients to chain with <emphasis>jack_playfile</emphasis>.
+<simpara>Limitations:</simpara>
+<simpara><emphasis>jack_playfile</emphasis> can read and play local audio files only. There is currently no support for standard playlists or extended metadata.
+No DSP except optional resampling and amplification is applied to the audio signal.
+To meter the signal and apply equalization look out for corresponding JACK clients to chain with <emphasis>jack_playfile</emphasis>.
 This plugin collection is a good starting point: <ulink url="https://github.com/x42/x42-plugins">https://github.com/x42/x42-plugins</ulink></simpara>
 <simpara>The term "frame" refers to samples of multiple channels i.e. one frame includes one sample of every channel.</simpara>
 <simpara><emphasis role="strong">THIS PROGRAM COMES WITHOUT ANY WARRANTY</emphasis></simpara>
 <simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
-<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.86.</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.88.</simpara>
 </refsect1>
 <refsect1 id="_options">
 <title>OPTIONS</title>
@@ -119,7 +120,7 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </term>
 <listitem>
 <simpara>
-        Display version and quit. Static builds of jack_playfile will also show the versions of the invovled audio libraries.
+        Display version and quit. Static builds of <emphasis>jack_playfile</emphasis> will also show the versions of the invovled audio libraries.
 </simpara>
 </listitem>
 </varlistentry>
@@ -219,6 +220,18 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         Not every given SR for overriding the file sample rate is possible. Odd values etc. will not work.
         The zita-resampler documentation says: The Resampler class performs resampling at a fixed ratio F_out / F_in which is required to be greater than 1/16 and be reducible to the form b / a with a, b integer and b less than 1000. This includes all the <emphasis>standard</emphasis> ratios, e.g. 96000 / 44100 = 320 / 147. These restrictions allow for a more efficient implementation.
         <emphasis role="strong">Default:</emphasis> Use original file sample rate.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-A, --amplify</emphasis> (float)
+</term>
+<listitem>
+<simpara>
+        Set initial playback volume. Amplify the signal by the given value in decibel [dB]. A value of 0 corresponds to zero amplification (=original volume).
+        Values are limited to maximal +6.0 dB. The amplification can be changed during playback using the appropriate control keys (if control is enabled).
+        <emphasis role="strong">Default:</emphasis> 0.0 dB
 </simpara>
 </listitem>
 </varlistentry>
@@ -432,7 +445,7 @@ $ ls -1 *.wav | ... | while read line; do jack_playfile --nocontrol "$line"; don
 <literallayout class="monospaced">$ ls -1 *.wav | ... &gt; pl.txt; jack_playfile --file pl.txt</literallayout>
 <simpara>A playlist file is just a list of audio files, one per line. Filenames must not be escaped.</simpara>
 <simpara><emphasis>jack_playfile</emphasis> can check which of the files could possibly be played, without playing anything.
-This is done by trying to open (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
+This is done by trying to open and read (up to a certain degree) every file. If it looks like being an audio file, the filename (and path, equal to provided input) is printed to the screen (stdout).
 <emphasis>jack_playfile</emphasis> will quit afer all files are tested. A scenario is to find all audio files from a list of mixed type files:</simpara>
 <literallayout class="monospaced">$ find $PWD/. &gt;files.txt; jack_playfile --file files.txt --dump &gt;audio_files.txt</literallayout>
 <simpara>Please note that using the environment variable <emphasis>$PWD</emphasis> will make the list more robust (i.e. to play it from another path) since every file in the list is relative to root (<emphasis>/</emphasis>).</simpara>
@@ -587,6 +600,9 @@ Load previous file
 <listitem>
 <simpara>
 Load next file
+<emphasis role="strong">1</emphasis>                     reset volume (zero amplification)
+<emphasis role="strong">2</emphasis>                     decrease volume
+<emphasis role="strong">3</emphasis>                     increase volume
 </simpara>
 </listitem>
 </varlistentry>
@@ -736,8 +752,9 @@ sample rate: 44100
 channels:    2
 data rate:   176400.0 bytes/s (0.18 MB/s)
 frame_count set to 14318555 (all available frames)
-playing frames offset, count, end: 0 14318555 14318555
-playing channels offset, count, end, file: 0 2 2
+playing frames (offset count end): 0 14318555 14318555
+playing channels (offset count last): 0 2 2
+amplification: 0.0 dB (1.000)
 JACK sample rate: 48000
 JACK period size: 128 frames
 JACK cycles per second: 375.00
@@ -768,21 +785,22 @@ data_rate: Bytes to read from file per second to satisfy constant flow to JACK o
 </listitem>
 </itemizedlist>
 <simpara>Legend (example prompt):</simpara>
-<literallayout class="monospaced">|| paused   JMLP  S rel 0.001       943.1  (00:15:43.070)
-^           ^^^^  ^ ^   ^     ^     ^     ^ ^             ^
-1           2345  6 7   8     9     10    9 11            12</literallayout>
+<literallayout class="monospaced">|| paused   JMALP  S rel 0.001       943.1  (00:15:43.070)
+^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^
+1           23456  7 8   9     10    11   10 12           13</literallayout>
 <literallayout class="monospaced"> 1): status playing '&gt;', paused '||' or seeking '...'
  2): JACK transport on/off 'J' or ' '
  3): mute on/off 'M' or ' '
- 4): loop on/off 'L' or ' '
- 5): pause at end on/off 'P' or ' '
- 6): time and seek in seconds 'S' or frames 'F'
- 7): time indication 'rel' to frame_offset or 'abs'
- 8): seek step size in seconds or frames
- 9): time elapsed ' ' or remaining '-'
-10): time in seconds or frames
-11): time in HMS.millis
-12): keyboard input indication (i.e. seek)</literallayout>
+ 4): amplification 'A', '!' (clipping) or ' ' (no amp.)
+ 5): loop on/off 'L' or ' '
+ 6): pause at end on/off 'P' or ' '
+ 7): time and seek in seconds 'S' or frames 'F'
+ 8): time indication 'rel' to frame_offset or 'abs'
+ 9): seek step size in seconds or frames
+10): time elapsed ' ' or remaining '-'
+11): time in seconds or frames
+12): time in HMS.millis
+13): keyboard input indication (i.e. seek)</literallayout>
 <itemizedlist>
 <listitem>
 <simpara>
@@ -861,7 +879,7 @@ Starting JACK with dummy backend, server name "virtual"
 </listitem>
 <listitem>
 <simpara>
-Telling jack_playfile to use JACK server "virtual"
+Telling <emphasis>jack_playfile</emphasis> to use JACK server "virtual"
 </simpara>
 <literallayout class="monospaced">$ jack_playfile --sname virtual audio.ogg</literallayout>
 </listitem>
@@ -904,7 +922,7 @@ Shutting down
 <title>PROGRAM LIFE CYCLE</title>
 <simpara><emphasis>jack_playfile</emphasis> procedure (simplified):</simpara>
 <simpara>0) Initializing, starting up with given parameters</simpara>
-<simpara>1) Trying to open given file with several decoders, quit on fail</simpara>
+<simpara>1) Trying to open given file(s) with several decoders, building an internal list of playable files</simpara>
 <simpara>2) Check if JACK libraries are available on host, quit on fail</simpara>
 <simpara>3) Eventually wait for JACK server to become available</simpara>
 <simpara>4) Register JACK client, register ports, optionally connect ports, quit on fail</simpara>
@@ -1054,7 +1072,7 @@ libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
 <refsect1 id="_authors">
 <title>AUTHORS</title>
 <simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
-<simpara>Last Update: Sun Nov 22 16:09:51 CET 2015</simpara>
+<simpara>Last Update: Mon Dec 21 18:40:54 CET 2015</simpara>
 </refsect1>
 <refsect1 id="_copying">
 <title>COPYING</title>
