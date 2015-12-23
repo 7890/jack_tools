@@ -10,48 +10,16 @@ gcc -o jack_tty tty.c `pkg-config --libs liblo` `pkg-config --libs jack`
 -if the device or JACK is disconnected, reconnection is tried until connected again
 -hitting a key on the keyboard will send byte(s) to the serial device
 -bytes/MIDI event buffers sent to jack_tty MIDI input are sent to device
--bytes read from the serial device are testwise interpreted as signed int (-128 to 127)
- to create a signal on the audio output port
--bytes read from the serial device are testwise put to JACK MIDI
+-bytes read from the serial device are put to JACK MIDI
 
 -a serial device could send and read MIDI data
 -received MIDI bytes need to be portioned in order to be forwarded to JACK MIDI (1,2,3 or n bytes per MIDI event)
 
 -a serial device can also simply send and receive bytes with a custom meaning
- triggering anything (i.e. send MIDI, shape audio output, send to OSC event etc.) *inside* JACK
+ triggering anything
 
 //tb/150903 tom@trellis.ch
 */
-
-/*
-//example code for a serial device (copy to Arduino IDE)
-//-constantly sends bytes (0-255)
-//-toggles LED for each received byte (nothing more done with received byte)
-//(this program does not do anything meaningful and serves only as a test)
-
-#define LED 13
-bool on=true;
-char val=0;
-void setup()
-{
-  pinMode(LED, OUTPUT);
-  digitalWrite(LED,HIGH);  
-  Serial.begin(115200);
-}
-void toggleLED(){on=!on;if(on){digitalWrite(LED,HIGH);}else{digitalWrite(LED,LOW);}}
-void loop()
-{
-  if(Serial.available()>1)
-  {
-    toggleLED();
-    char c=Serial.read();
-  }
-  Serial.print(val);
-  if(val==255){val=0;}else{val++;}
-  delay(1);
-}
-*/
-
 /*
 //example code for a serial MIDI device (copy to Arduino IDE)
 //echo midi messages (thru) -> for testing midi byte stream (ship JACK midi events, get JACK MIDI events)
@@ -80,44 +48,7 @@ void loop()
 
 /*
 http://www.midi.org/techspecs/midimessages.php
-
 https://ccrma.stanford.edu/~craig/articles/linuxmidi/misc/essenmidi.html
-MIDI commands and data are distinguished according to the most significant bit of the byte. 
-If there is a zero in the top bit, then the byte is a data byte, and if there is a one 
-in the top bit, then the byte is a command byte. Here is how they are separated: 
-
-    decimal     hexadecimal          binary
-=======================================================
-DATA bytes:
-       0               0          00000000
-     ...             ...               ...
-     127              7F          01111111
-
-COMMAND bytes:
-     128              80          10000000
-     ...             ...               ...
-     255              FF          11111111
-
-Furthermore, command bytes are split into half. The most significant half contains the 
-actual MIDI command, and the second half contains the MIDI channel for which the command 
-is for. For example, 0x91 is the note-on command for the second MIDI channel. the 9 
-digit is the actual command for note-on and the digit 1 specifies the second channel 
-(the first channel being 0). The 0xF0 set of commands do not follow this convention. 
-
-   0x80     Note Off
-   0x90     Note On
-   0xA0     Aftertouch
-   0xB0     Continuous controller
-   0xC0     Patch change
-   0xD0     Channel Pressure
-   0xE0     Pitch bend
-   0xF0     (non-musical commands)
-
-The messages from 0x80 to 0xEF are called Channel Messages because the second four bits 
-of the command specify which channel the message affects. 
-The messages from 0xF0 to 0xFF are called System Messages; they do not affect any particular channel. 
-
-A MIDI command plus its MIDI data parameters to be called a MIDI message. 
 
 .----------------------------------------------------------------------------------------.
 |The minimum size of a MIDI message is 1 byte (one command byte and no parameter bytes). |
@@ -158,7 +89,7 @@ Command Meaning 				# param
 
 //tty.c uses (altered) parts of com.c, see below
 //to retrieve original com.c from this file:
-//cat tty.c | grep -A100 "/*__com.c" | grep -v "^/\*__com.c$" | grep -v "^*/$" | base64 -d | gunzip -
+//cat tty.c | tail -100 | grep -A100 "/*__com.c" | grep -v "^/\*__com.c$" | grep -v "^*/$" | base64 -d | gunzip -
 /* 
   com.c
   Homepage: http://tinyserial.sourceforge.net
@@ -246,16 +177,11 @@ typedef jack_default_audio_sample_t sample_t;
 
 static jack_client_t *client;
 
-static const char **ports;
-static jack_port_t **ioPortArray;
-
 static jack_port_t* port_in_midi;
 static jack_port_t* port_out_midi;
 
 void* buffer_in_midi;
 void* buffer_out_midi;
-
-static int output_port_count=1;
 
 static int process_enabled=0;
 static int connection_to_jack_down=1;
@@ -265,10 +191,6 @@ static pthread_t serial_thread={0};
 static pthread_mutex_t serial_thread_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
 static int serial_thread_initialized=0;
-
-//serial byte value
-static int current_value=0;
-static float output_value=0;
 
 //===================================================================
 int main(int argc, char *argv[])
@@ -339,9 +261,6 @@ int main(int argc, char *argv[])
 	jack_options_t options=JackNoStartServer;
 	jack_status_t status;
 
-	ioPortArray = (jack_port_t**) calloc(
-		output_port_count * sizeof(jack_port_t*), sizeof(jack_port_t*));
-
 	jack_set_error_function(jack_error);
 
 	//outer loop, wait and reconnect to jack
@@ -368,7 +287,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	rb=rb_new( 3000 * jack_get_buffer_size(client) );
+	//just 100 bytes. this is handy for dumping the ringbuffer.
+	rb=rb_new( 100 );
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
@@ -376,27 +296,6 @@ int main(int argc, char *argv[])
 
 	port_in_midi = jack_port_register (client, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
 	port_out_midi = jack_port_register (client, "out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
-
-	//register each audio output port
-	int port_=0;
-	for (port_=0 ; port_<output_port_count ; port_ ++)
-	{
-		//create port name
-		char* portName;
-		if (asprintf(&portName, "output_%d", (port_+1)) < 0) 
-		{
-			fprintf(stderr, "/!\\ a could not create portname for port %d\n", port_);
-			exit(1);
-		}
-
-		//register the output port
-		ioPortArray[port_] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-		if (ioPortArray[port_] == NULL) 
-		{
-			fprintf(stderr, "/!\\ b could not create output port %d\n", (port_+1));
-			exit(1);
-		}
-	}
 
 	if(jack_activate(client))
 	{
@@ -549,7 +448,6 @@ _init:
 			if(FD_ISSET(comfd, &fds))
 			{
 //				fprintf(stderr,"SERIAL> "); //coming from serial
-//				need_exit = transfer_byte(comfd, STDIN_FILENO, 0);
 
 				char c;
 				int ret;
@@ -557,8 +455,7 @@ _init:
 				{
 					ret = read(comfd, &c, 1);
 					rb_write(rb,&c,1);
-					current_value=(int)c;
-//					fprintf(stderr,"!%d ",c);
+					//current_value=(int)c;
 				} while (ret < 0 && errno == EINTR);
 				if(ret != 1)
 				{
@@ -595,6 +492,9 @@ static void signal_handler(int sig)
 	{
 		jack_client_close(client);
 	}
+
+	rb_free(rb);
+
 	exit(0);
 }
 
@@ -707,90 +607,30 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	//put MIDI bytes from serial to JACK
 
-	int pos=0; //!!!! timing wrong, all messages at start of period
-	int msg_len=0;
+	int pos=0; //!!!! timing wrong
 
-	while(rb_can_read(rb)>0)
+	size_t m_offset=0;
+	size_t m_count=0;
+	while(rb_find_next_midi_message(rb,&m_offset,&m_count))
 	{
-		msg_len=0;
-		char c;
-		//read one byte
-		rb_peek(rb,&c,1);
-
-		uint8_t type = c & 0xf0;
-
-		if(type == 0x80 //off
-			|| type == 0x90 //on
-			|| type == 0xA0 //at
-			|| type == 0xB0 //ctrl
-			|| type == 0xE0 //pb
-		)
-		{
-			msg_len=3;
-		}
-		else if(type == 0xC0 //pc
-			|| type == 0xD0 //cp
-		)
-		{
-			msg_len=2;
-		}
-		else if(type == 0xF0) //rt
-		{
-			msg_len=1;
-		}
-		else
-		{
-			//
-		}
-
-		if(msg_len==0)
-		{
-			//this is not a size byte. skip it
-			rb_advance_read_pointer(rb,1);
-			continue;
-		}
-
-//		fprintf(stderr,"\n\rmsg length %d ",msg_len);
-
-		if(rb_can_read(rb)>=msg_len)
-		{
-			void *buf;
-			buf=malloc(msg_len);
-			//read it
-			rb_read(rb,buf,msg_len);
-
-//			fprintf(stderr,"= %d %s",msg_len,(char*)buf);
-
-			//put to JACK MIDI out
-			jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,msg_len);
-		}
-		else
+		if(m_count<1)
 		{
 			break;
 		}
-		pos++; //assume less midi events than period has samples
-	}
-
-	//fill audio buffers
-	//set value using last received serial byte
-	//(this audio stream will need smoothing depending on the usecase)
-	for(i=0; i<output_port_count; i++)
-	{
-		sample_t *o1;
-		//get output buffer from JACK for that channel
-		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
-
-		//set all samples zero
-		//memset(o1, 0, nframes*4);
-
-		int k=0;
-		for(k=0; k<nframes;k++)
+		if(m_offset>0)
 		{
-			output_value=(float)current_value/127;
-			//fprintf(stderr,"\n\r%f\n\r",output_value);
-
-			o1[k]=output_value;
+			rb_skip(rb,m_offset);
 		}
+		void *buf=malloc(m_count);
+		//read it
+		rb_read(rb,buf,m_count);
+		//put to JACK MIDI out
+		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,m_count);
+
+		free(buf);
+		m_offset=0;
+		m_count=0;
+		pos++; //pseudo timing
 	}
 
 	return 0;
@@ -834,13 +674,7 @@ static int transfer_byte(int from, int to, int is_control)
 				return 0;
 			}
 		}
-/*
-		else
-		{
-			current_value=(int)c;
-			//fprintf(stderr,"\n\r%d\n\r",(int)current_value);
-		}
-*/
+
 		while(write(to, &c, 1) == -1) {
 			if(errno!=EAGAIN && errno!=EINTR) { perror("write failed"); break; }
 		}
