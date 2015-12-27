@@ -600,9 +600,36 @@ Load previous file
 <listitem>
 <simpara>
 Load next file
-<emphasis role="strong">1</emphasis>                     reset volume (zero amplification)
-<emphasis role="strong">2</emphasis>                     decrease volume
-<emphasis role="strong">3</emphasis>                     increase volume
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">1</emphasis>
+</term>
+<listitem>
+<simpara>
+Reset volume (zero amplification)
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">2</emphasis>
+</term>
+<listitem>
+<simpara>
+Decrease volume
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">3</emphasis>
+</term>
+<listitem>
+<simpara>
+Increase volume
 </simpara>
 </listitem>
 </varlistentry>
