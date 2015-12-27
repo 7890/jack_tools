@@ -59,27 +59,30 @@
 extern "C" {
 #endif
 
-#define RB_USE_MLOCK	/**< If defined (without value), provide POSIX memory locking (see rb_mlock(), rb_munlock()). This flag is set by default.
-			     Modify rb.h source file in order to disable the use of the system calls mlock(), munlock(). */
+//#define RB_DISABLE_MLOCK
 
-#define RB_PROVIDE_LOCKS/**< If defined (without value), provide read and write mutex locks. This flag is set by default.
-			     Modify rb.h source file in order to disable the use of the phtread library.
-			     Programs that include "rb.h" with RB_PROVIDE_LOCKS defined need to link with '-lphtread'.
-			     Enabling this doesn't mean read and write operations are locked by default.
-			     A caller can use these methods to wrap read and write operations:
-			     See also rb_try_exclusive_read(), rb_release_read(), rb_try_exclusive_write(), rb_release_write(). */
+/**< If defined (without value), do NOT provide POSIX memory locking (see rb_mlock(), rb_munlock()).*/
 
-#define RB_ENABLE_SHM	/**< If defined (without value), provide shared memory support. This flag is set by default.
-			     Modify rb.h source file in order to disable the use of shared memory (normally found under '/dev/shm/').
-			     Programs that include "rb.h" need to link with '-lrt -luuid'.
-			     See also rb_new_shared(). */
+//#define RB_DISABLE_RW_MUTEX
 
-#ifndef RB_DEFAULT_USE_SHM
-	#define RB_DEFAULT_USE_SHM -1	/**< This option takes a value. It is only relevant if RB_ENABLE_SHM is defined.
-					     If set to -1: rb_new() will use malloc(), in private heap storage.
-					     If set to any other value or none: rb_new() will implicitely use shared memory backed storage.
-					     See also rb_new_shared(). */
-#endif
+/**< If defined (without value), do NOT provide read and write mutex locks.
+Programs that include "rb.h" without setting RB_DISABLE_RW_MUTEX defined need to link with '-lphtread'.
+Not disabling doesn't mean that read and write operations are locked by default.
+A caller can use these methods to wrap read and write operations:
+See also rb_try_exclusive_read(), rb_release_read(), rb_try_exclusive_write(), rb_release_write(). */
+
+//#define RB_DISABLE_SHM
+
+/**< If defined (without value), do NOT provide shared memory support.
+Files created in shared memory can normally be found under '/dev/shm/'.
+Programs that include "rb.h" without setting RB_DISABLE_SHM need to link with '-lrt -luuid'.
+See also rb_new_shared(). */
+
+//#define RB_DEFAULT_USE_SHM
+/**< If defined (without value), rb_new() will implicitely use shared memory backed storage.
+Otherwise rb_new() will use malloc(), in private heap storage.
+See also rb_new_shared(). */
+//#endif
 
 #include <stdlib.h> //malloc, free
 #include <string.h> //memcpy
@@ -88,13 +91,13 @@ extern "C" {
 
 #include <inttypes.h> //uint8_t
 
-#ifdef RB_USE_MLOCK
+#ifndef RB_DISABLE_MLOCK
 	#include <sys/mman.h> //mlock, munlock
 #endif
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	#include <pthread.h> //pthread_mutex_init, pthread_mutex_lock ..
 #endif
-#ifdef RB_ENABLE_SHM
+#ifndef RB_DISABLE_SHM
 	#include <sys/mman.h> //mmap
 	#include <unistd.h> //ftruncate
 	#include <fcntl.h> //constants O_CREAT, ..
@@ -126,12 +129,9 @@ typedef struct
 				      !last_was_write corresponds to read operation accordingly (read pinter advanced). */
   int memory_locked;		/**< \brief Whether or not the buffer is locked to memory (if locked, no virtual memory disk swaps). */
   int in_shared_memory;		/**< \brief Whether or not the buffer is allocated as a file in shared memory (normally found under '/dev/shm'.)*/
-
-#ifdef RB_ENABLE_SHM
   char shm_handle[256];		/**< \brief Name of shared memory file, alphanumeric handle. */
-#endif
 
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
   pthread_mutexattr_t mutex_attributes;
   pthread_mutex_t read_lock;		/**< \brief Mutex lock for mutually exclusive read operations. */
   pthread_mutex_t write_lock;		/**< \brief Mutex lock for mutually exclusive write operations. */
@@ -228,11 +228,10 @@ static inline void rb_print_regions(rb_t *rb);
 //=============================================================================
 static inline rb_t *rb_new(size_t size)
 {
-#ifdef RB_ENABLE_SHM
-	if(RB_DEFAULT_USE_SHM!=-1)
-	{
+#ifndef RB_DISABLE_SHM
+	#ifdef RB_DEFAULT_USE_SHM
 		return rb_new_shared(size);
-	}
+	#endif
 #endif
 	if(size<1) {return NULL;}
 
@@ -252,7 +251,7 @@ static inline rb_t *rb_new(size_t size)
 	rb->memory_locked=0;
 	rb->in_shared_memory=0;
 
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	pthread_mutex_init ( &rb->read_lock, NULL);
 	pthread_mutex_init ( &rb->write_lock, NULL);
 #endif
@@ -288,9 +287,9 @@ static inline rb_t *rb_new(size_t size)
 //=============================================================================
 static inline rb_t *rb_new_shared(size_t size)
 {
-#ifndef RB_ENABLE_SHM
+#ifdef RB_DISABLE_SHM
 	return NULL;
-#endif
+#else
 	if(size<1) {return NULL;}
 
 	rb_t *rb;
@@ -324,13 +323,14 @@ static inline rb_t *rb_new_shared(size_t size)
 	rb->memory_locked=0;
 	rb->in_shared_memory=1;
 
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	pthread_mutexattr_init(&rb->mutex_attributes);
 	pthread_mutexattr_setpshared(&rb->mutex_attributes, PTHREAD_PROCESS_SHARED);
 	pthread_mutex_init(&rb->read_lock, &rb->mutex_attributes);
 	pthread_mutex_init(&rb->write_lock, &rb->mutex_attributes);
 #endif
 	return rb;
+#endif
 }
 
 /**
@@ -358,9 +358,9 @@ static inline rb_t *rb_new_shared(size_t size)
 //=============================================================================
 static inline rb_t *rb_open_shared(const char *shm_handle)
 {
-#ifndef RB_ENABLE_SHM
+#ifdef RB_DISABLE_SHM
 	return NULL;
-#endif
+#else
 	rb_t *rb;
 
 	//create rb_t in shared memory
@@ -393,6 +393,7 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 	fprintf(stderr,"buffer address %lu\n",(unsigned long int)buf_ptr(rb));
 
 	return rb;
+#endif
 }
 
 /**
@@ -406,14 +407,14 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 static inline void rb_free(rb_t *rb)
 {
 	if(rb==NULL) {return;}
-#ifdef RB_USE_MLOCK
+#ifndef RB_DISABLE_MLOCK
 	if(rb->memory_locked)
 	{
 		munlock(rb, sizeof(rb_t) + rb->size);
 	}
 #endif
 	rb->size=0;
-#ifdef RB_ENABLE_SHM
+#ifndef RB_DISABLE_SHM
 	if(rb->in_shared_memory)
 	{
 		shm_unlink(rb->shm_handle);
@@ -437,7 +438,7 @@ static inline void rb_free(rb_t *rb)
 //=============================================================================
 static inline int rb_mlock(rb_t *rb)
 {
-#ifdef RB_USE_MLOCK
+#ifndef RB_DISABLE_MLOCK
 	if(mlock(rb, sizeof(rb_t) + rb->size)) {return 0;}
 	rb->memory_locked=1;
 	return 1;
@@ -460,7 +461,7 @@ static inline int rb_mlock(rb_t *rb)
 //=============================================================================
 static inline int rb_munlock(rb_t *rb)
 {
-#ifdef RB_USE_MLOCK
+#ifndef RB_DISABLE_MLOCK
 	if(munlock(rb, sizeof(rb_t) + rb->size)) {return 0;}
 	rb->memory_locked=0;
 	return 1;
@@ -1445,7 +1446,7 @@ static inline void *buf_ptr(const rb_t *rb)
 //=============================================================================
 static inline int rb_try_exclusive_read(rb_t *rb)
 {
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	if(pthread_mutex_trylock(&rb->read_lock)) {return 0;}
 	else {return 1;}
 #else
@@ -1463,7 +1464,7 @@ static inline int rb_try_exclusive_read(rb_t *rb)
 //=============================================================================
 static inline void rb_release_read(rb_t *rb)
 {
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	pthread_mutex_unlock(&rb->read_lock);
 #endif
 }
@@ -1482,7 +1483,7 @@ static inline void rb_release_read(rb_t *rb)
 //=============================================================================
 static inline int rb_try_exclusive_write(rb_t *rb)
 {
-#ifdef RB_PROVIDE_LOCKS
+#ifndef RB_DISABLE_RW_MUTEX
 	if(pthread_mutex_trylock(&rb->write_lock)) {return 0;}
 	else {return 1;}
 #else
@@ -1500,8 +1501,7 @@ static inline int rb_try_exclusive_write(rb_t *rb)
 //=============================================================================
 static inline void rb_release_write(rb_t *rb)
 {
-#ifdef RB_PROVIDE_LOCKS
-
+#ifndef RB_DISABLE_RW_MUTEX
 	pthread_mutex_unlock(&rb->write_lock);
 #endif
 }
@@ -1559,6 +1559,11 @@ void rb_print_regions(rb_t *rb)
 */
 static inline size_t rb_skip(rb_t *rb, size_t count) {return rb_advance_read_index(rb,count);}
 
+/**
+* \brief This is an alias to rb_drop().
+*/
+static inline size_t rb_skip_all(rb_t *rb, size_t count) {return rb_drop(rb);}
+
 //#define RB_ALIASES_1
 #ifdef RB_ALIASES_1
 //if rb.h is used as a jack_ringbuffer replacement these wrappers simplify source modification
@@ -1576,7 +1581,6 @@ static inline void rb_get_write_vector(const rb_t *rb, rb_region_t *regions) {re
 #ifdef RB_ALIASES_2
 //inspired by https://github.com/xant/libhl/blob/master/src/rbuf.c,
 //http://svn.drobilla.net/lad/trunk/raul/raul/RingBuffer.hpp
-static inline size_t rb_size(rb_t *rb)		{return rb->size;}
 static inline size_t rb_capacity(rb_t *rb)	{return rb->size;}
 static inline void rb_clear(rb_t *rb)		{rb_reset(rb);}
 static inline void rb_destroy(rb_t *rb)		{rb_free(rb);}
