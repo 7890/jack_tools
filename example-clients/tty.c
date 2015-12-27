@@ -609,6 +609,9 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	int pos=0; //!!!! timing wrong
 
+	//holding midi message
+	void *buf=malloc(3);
+
 	size_t m_offset=0;
 	size_t m_count=0;
 	while(rb_find_next_midi_message(rb,&m_offset,&m_count))
@@ -621,18 +624,16 @@ static int process(jack_nframes_t nframes, void *arg)
 		{
 			rb_skip(rb,m_offset);
 		}
-		void *buf=malloc(m_count);
 		//read it
 		rb_read(rb,buf,m_count);
 		//put to JACK MIDI out
 		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,m_count);
-
-		free(buf);
+		//reset for next cycle
 		m_offset=0;
 		m_count=0;
 		pos++; //pseudo timing
 	}
-
+	free(buf);
 	return 0;
 }
 
