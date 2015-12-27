@@ -836,7 +836,7 @@ int process(jack_nframes_t nframes, void *arg)
 			uint64_t drop_bytes_count=requested_drop_count
 				*port_count*period_size*bytes_per_sample;
 
-			rb_advance_read_pointer(rb,drop_bytes_count);
+			rb_advance_read_index(rb,drop_bytes_count);
 
 			requested_drop_count=0;
 			multi_channel_drop_counter=0;

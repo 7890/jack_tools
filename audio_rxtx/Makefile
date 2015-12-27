@@ -1,6 +1,6 @@
 CC ?= gcc
-CFLAGS ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -lm -ldl
-CFLAGS_STATIC ?= -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -lm -ldl -lpthread
+CFLAGS ?= `pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DRB_DISABLE_SHM -DRB_DISABLE_RW_MUTEX -lm -ldl
+CFLAGS_STATIC ?= -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DRB_DISABLE_SHM -DRB_DISABLE_RW_MUTEX -lm -ldl -lpthread
 
 # -ldl
 
@@ -15,6 +15,8 @@ BLD = build
 DOC = doc
 DIST = dist
 ARCHIVE = archive
+
+RBURL = https://raw.githubusercontent.com/7890/csnip/master/rb/rb.h
 
 #.deb package
 SRC_URL ?= "https://github.com/7890/jack_tools"
@@ -77,7 +79,7 @@ compile:
 
 #weak libjack
 	#weak libjack allows to determine at runtime if libjack.so.0 /.. is available -> no "hard" linking to libjack
-	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags jack` -DNDEBUG
+	$(CC) -c -o $(BLD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags jack` -DNDEBUG -Wno-deprecated-declarations
 
 #common
 	$(CC) -c -o $(BLD)/jack_audio_common.o $(SRC)/jack_audio_common.c $(CFLAGS)
@@ -244,5 +246,16 @@ deb_dist:
 	@echo "$(BLD)/$(PROGNAME)_$(RELEASE_DATE)_$(VERSION)-$(RELEASE)_$(ARCH).deb.txt"
 	@echo ""
 	@echo "if package is ok to release, move to $(DIST) and add to repository"
+
+update_rb:
+	@echo "checking prerequisites..."
+	which wget
+	@echo "ok."
+
+	@echo "updating rb.h with $(RBURL)?"
+	@echo "/!\\ THIS WILL REPLACE ANY LOCAL MODIFICATIONS IN rb.h"
+	@read a
+	wget -O $(SRC)/rb.h $(RBURL)
+	@echo "now make."
 
 .PHONY: compile manpage clean install uninstall prepare_checkinstall deb deb_dist
