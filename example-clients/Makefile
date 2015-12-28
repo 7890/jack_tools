@@ -15,7 +15,9 @@ SRC = .
 BLD = build
 DOC = doc
 
-RBURL = https://raw.githubusercontent.com/7890/csnip/master/rb/rb.h
+RBURL = https://raw.githubusercontent.com/7890/csnip/master/rb
+#rb.h
+#rb_midi.h
 
 default: compile
 
@@ -129,10 +131,11 @@ update_rb:
 	which wget
 	@echo "ok."
 
-	@echo "updating rb.h with $(RBURL)?"
+	@echo "updating rb.h, rb_midi.h from $(RBURL)?"
 	@echo "/!\\ THIS WILL REPLACE ANY LOCAL MODIFICATIONS IN rb.h"
 	@read a
-	wget -O $(SRC)/rb.h $(RBURL)
+	wget -O $(SRC)/rb.h $(RBURL)/rb.h
+	wget -O $(SRC)/rb_midi.h $(RBURL)/rb_midi.h
 	@echo "now make."
 
 .PHONY: clean install uninstall

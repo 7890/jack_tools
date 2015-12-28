@@ -134,7 +134,7 @@ Command Meaning 				# param
 #include <sys/ioctl.h>
 #include <fcntl.h>
 
-#include "rb.h"
+#include "rb_midi.h"
 
 int main(int argc, char *argv[]);
 static void setup_serial_thread();
@@ -289,6 +289,7 @@ int main(int argc, char *argv[])
 
 	//just 100 bytes. this is handy for dumping the ringbuffer.
 	rb=rb_new( 100 );
+	//rb=rb_new( 3 * jack_get_buffer_size(client) );
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
