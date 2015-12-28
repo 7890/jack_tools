@@ -1,7 +1,7 @@
 CC = i686-w64-mingw32-gcc
 
 PKG_CONFIG_PATH=/home/winbuild/win-stack-w32/lib/pkgconfig/
-CFLAGS ?= `/usr/bin/pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -D_WIN=1 -DPLATFORM_WINDOWS=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_SHM -lm -w
+CFLAGS ?= `/usr/bin/pkg-config --libs --cflags liblo` -D_GNU_SOURCE=1 -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -D_WIN=1 -DPLATFORM_WINDOWS=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_RW_MUTEX -DRB_DISABLE_SHM -lm -w
 
 #http://article.gmane.org/gmane.comp.gnu.mingw.user/27539/
 
