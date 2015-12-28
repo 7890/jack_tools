@@ -6,7 +6,7 @@ BUILD_BIN = /home/winbuild/win-stack-w32/bin
 
 PKG_CONFIG_PATH=$(BUILD_LIB)/pkgconfig/
 
-CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -Wno-write-strings -Wno-pointer-arith -O3
+CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_RW_MUTEX -DRB_DISABLE_SHM -Wno-write-strings -Wno-pointer-arith -O3
 
 SRC = src
 BUILD = build
