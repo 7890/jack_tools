@@ -338,16 +338,16 @@ Legend (example prompt):
         ^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^
         1           23456  7 8   9     10    11   10 12           13
         
-          1): status playing '>', paused '||' or seeking '...'
-          2): JACK transport on/off 'J' or ' '
-          3): mute on/off 'M' or ' '
-          4): amplification 'A', '!' (clipping) or ' ' (no amp.)
-          5): loop on/off 'L' or ' '
-          6): pause at end on/off 'P' or ' '
-          7): time and seek in seconds 'S' or frames 'F'
-          8): time indication 'rel' to frame_offset or 'abs'
+          1): status playing > or paused ||
+          2): JACK transport on/off J or ' '
+          3): mute on/off M or ' '
+          4): amplification A, ! (clipping) or ' ' (no amp.)
+          5): loop on/off L or ' '
+          6): pause at end on/off P or ' '
+          7): time and seek in seconds S or frames F
+          8): time indication rel to frame_offset or abs
           9): seek step size in seconds or frames
-         10): time elapsed ' ' or remaining '-'
+         10): time elapsed ' ' or remaining -
          11): time in seconds or frames
          12): time in HMS.millis
          13): keyboard input indication (i.e. seek)
