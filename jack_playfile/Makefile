@@ -103,8 +103,8 @@ jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/ja
 	&& rm -f jack_playfile_man_dump
 
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG -Wno-deprecated-declarations
-	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -DSTATIC_BUILD=1 `pkg-config --cflags --libs sndfile opusfile`
-	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) $(STATIC_LIBS) -ldl -lpthread
+	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -DSTATIC_BUILD=1 -DRB_DISABLE_SHM `pkg-config --cflags --libs sndfile opusfile`
+	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) -DRB_DISABLE_SHM $(STATIC_LIBS) -ldl -lpthread
 
 	strip --strip-all jack_playfile_static
 	readelf -h jack_playfile_static
