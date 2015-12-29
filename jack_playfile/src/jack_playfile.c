@@ -280,26 +280,26 @@ while(true)
 			fprintf(stderr,"using custom file sample rate: %d\n", custom_file_sample_rate);
 		}
 
-		float speed=(double)custom_file_sample_rate/sf_info_generic.samplerate;
+		float speed=(double)custom_file_sample_rate/sf_info_generic.sample_rate;
 		fprintf(stderr,"speed: %.3f     %s\n"
 			,speed
 			,format_duration_str( get_seconds(&sf_info_generic) / speed )
 			);
 		//from now on, the file (info) will look like it would be originally using the custom sample rate
-		sf_info_generic.samplerate=custom_file_sample_rate;
+		sf_info_generic.sample_rate=custom_file_sample_rate;
 	}
 
-	out_to_in_sr_ratio=(double)jack->sample_rate/sf_info_generic.samplerate;
+	out_to_in_sr_ratio=(double)jack->sample_rate/sf_info_generic.sample_rate;
 
 	fprintf(stderr,"play range:      %s\n"
-		,format_duration_str( (double)frame_count/sf_info_generic.samplerate)
+		,format_duration_str( (double)frame_count/sf_info_generic.sample_rate)
 	);
 
 	if(!setup_resampler())
 	{
 		fprintf(stderr,"hint: custom file sample rates where\n\trate %%modulo 50 = 0\nshould work in most cases.");
 		shutdown_in_progress=1;
-		keyboard_control_enabled=0;//prevent reset of terminal
+///		keyboard_control_enabled=0;//prevent reset of terminal
 		goto _main_loop;
 	}
 
@@ -308,10 +308,23 @@ while(true)
 		//ceil: request a bit more than needed to satisfy ratio
 		//will result in inp_count>0 after process ("too much" input for out/in ratio, will always have output)
 		sndfile_request_frames=ceil(jack->period_frames * (double)1/out_to_in_sr_ratio);
+		int additional=MAX(1,sndfile_request_frames*0.05);  //at least one more or ~5%
+		sndfile_request_frames+=additional;
 	}
 	else
 	{
 		sndfile_request_frames=jack->period_frames;
+		int additional=MAX(1,sndfile_request_frames*0.05);  //at least one more or ~5%
+		sndfile_request_frames+=additional;
+	}
+
+	if(is_verbose)
+	{
+		fprintf(stderr,"total byte out_to_in ratio: %f (%f * %f)\n"
+			,out_to_in_byte_ratio*out_to_in_sr_ratio
+			,out_to_in_byte_ratio
+			,out_to_in_sr_ratio
+		);
 	}
 
 	//set seek step size here to consider possibly overridden file sample rate
@@ -626,7 +639,7 @@ static int open_init_file(const char *f)
 	}
 	else
 	{
-		file_data_rate_bytes_per_second=sf_info_generic.samplerate * sf_info_generic.channels * bytes_per_sample_native;
+		file_data_rate_bytes_per_second=sf_info_generic.sample_rate * sf_info_generic.channels * bytes_per_sample_native;
 
 		if(is_verbose)
 		{

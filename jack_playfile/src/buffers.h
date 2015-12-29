@@ -65,14 +65,16 @@ static void setup_ringbuffers()
 		rb_free(rb_deinterleaved);
 	}
 
-	int size_multiplier=50;
-	int rb_interleaved_size_bytes		=size_multiplier * sndfile_request_frames	* channel_count_use_from_file * bytes_per_sample;
-	int rb_resampled_interleaved_size_bytes	=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
-	int rb_deinterleaved_size_bytes		=size_multiplier * jack->period_frames		* channel_count_use_from_file * bytes_per_sample;
+	//buffer size roughly >=0.3 seconds
+	int rb_interleaved_size_bytes		=0.3 * jack->cycles_per_second * sndfile_request_frames * channel_count_use_from_file * bytes_per_sample;
 
-	rb_interleaved=rb_new (rb_interleaved_size_bytes);
-	rb_resampled_interleaved=rb_new (rb_resampled_interleaved_size_bytes);
-	rb_deinterleaved=rb_new (rb_deinterleaved_size_bytes);
+	int rb_resampled_interleaved_size_bytes	=0.1 * jack->cycles_per_second * jack->period_frames * channel_count_use_from_file * bytes_per_sample;
+	int rb_deinterleaved_size_bytes		=4 * jack->period_frames * channel_count_use_from_file * bytes_per_sample;
+
+	//new: audio buffers -> if in shared memory, easy to show fill level for 3rd party process (see rb.h / rb_show_fill)
+	rb_interleaved			=rb_new_audio(rb_interleaved_size_bytes, sf_info_generic.sample_rate, channel_count_use_from_file, bytes_per_sample);
+	rb_resampled_interleaved	=rb_new_audio(rb_resampled_interleaved_size_bytes, jack->sample_rate, channel_count_use_from_file, bytes_per_sample);
+	rb_deinterleaved		=rb_new_audio(rb_deinterleaved_size_bytes, jack->sample_rate, channel_count_use_from_file, bytes_per_sample);
 
 /*
 	fprintf(stderr,"frames: request %d rb_interleaved %d rb_resampled_interleaved %d rb_deinterleaved %d\n"

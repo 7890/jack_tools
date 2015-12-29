@@ -193,7 +193,7 @@ static void jack_post_init()
 			fprintf(stderr,"JACK cycles per second: %.2f\n",jack->cycles_per_second);
 			fprintf(stderr,"JACK output data rate: %.1f bytes/s (%.2f MB/s)\n",jack->output_data_rate_bytes_per_second
 				,(jack->output_data_rate_bytes_per_second/1000000));
-			fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
+//			fprintf(stderr,"total byte out_to_in ratio: %f\n", out_to_in_byte_ratio);
 		}
 
 		jack->server_down=0;

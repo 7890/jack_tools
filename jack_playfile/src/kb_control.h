@@ -401,7 +401,7 @@ static void print_clock()
 		}
 	}
 
-	seconds=frames_to_seconds(pos,sf_info_generic.samplerate);
+	seconds=frames_to_seconds(pos,sf_info_generic.sample_rate);
 
 	if(is_time_seconds)
 	{
@@ -411,7 +411,7 @@ static void print_clock()
 				,(is_time_absolute ? "abs" : "rel")
 				,seek_seconds_per_hit
 				,(is_time_elapsed ? " " : "-")
-				,frames_to_seconds(pos,sf_info_generic.samplerate)
+				,frames_to_seconds(pos,sf_info_generic.sample_rate)
 				,(is_time_elapsed ? " " : "-")
 				,format_duration_str(seconds));
 		}
@@ -421,7 +421,7 @@ static void print_clock()
 				,(is_time_absolute ? "abs" : "rel")
 				,seek_seconds_per_hit
 				,(is_time_elapsed ? " " : "-")
-				,frames_to_seconds(pos,sf_info_generic.samplerate)
+				,frames_to_seconds(pos,sf_info_generic.sample_rate)
 				,(is_time_elapsed ? " " : "-")
 				,format_duration_str(seconds));
 		}

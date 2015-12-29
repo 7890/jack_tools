@@ -84,13 +84,13 @@ static int get_resampler_pad_size_end()
 static int setup_resampler()
 {
 	//test if resampling needed
-	if(out_to_in_sr_ratio!=1)//sf_info_generic.samplerate!=jack_sample_rate)
+	if(out_to_in_sr_ratio!=1)//sf_info_generic.sample_rate!=jack_sample_rate)
 	{
 //		fprintf(stderr, "file sample rate different from JACK sample rate\n");
 
 		if(use_resampling)
 		{
-			//prepare resampler for playback with given jack samplerate
+			//prepare resampler for playback with given jack sample_rate
 			/*
 			//http://kokkinizita.linuxaudio.org/linuxaudio/zita-resampler/resampler.html
 			FILTSIZE: The valid range for hlen is 16 to 96.
@@ -100,10 +100,10 @@ static int setup_resampler()
 			*/
 
 			//setup returns zero on success, non-zero otherwise. 
-			if (R.setup (sf_info_generic.samplerate, jack->sample_rate, channel_count_use_from_file, RESAMPLER_FILTERSIZE))
+			if (R.setup (sf_info_generic.sample_rate, jack->sample_rate, channel_count_use_from_file, RESAMPLER_FILTERSIZE))
 			{
 				fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
-					,jack->sample_rate,sf_info_generic.samplerate);
+					,jack->sample_rate,sf_info_generic.sample_rate);
 				use_resampling=0;
 				return 0;
 			}
@@ -131,7 +131,7 @@ static int setup_resampler()
 				fprintf (stderr, "resampler initialized: inpsize() %d inpdist() %.2f sr in %d sr out %d out/in ratio %f\n"
 					,R.inpsize()
 					,R.inpdist()
-					,sf_info_generic.samplerate
+					,sf_info_generic.sample_rate
 					,jack->sample_rate
 					,out_to_in_sr_ratio);
 */

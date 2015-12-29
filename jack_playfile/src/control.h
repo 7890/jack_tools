@@ -102,7 +102,7 @@ static void set_seconds_from_exponent()
 		seek_seconds_per_hit=pow(10,scale_exponent_seconds);
 	}
 
-	seek_frames_per_hit=seek_seconds_per_hit*sf_info_generic.samplerate;
+	seek_frames_per_hit=seek_seconds_per_hit*sf_info_generic.sample_rate;
 //	fprintf(stderr,"\nexp %d seek_seconds_per_hit %f\n",scale_exponent_seconds,seek_seconds_per_hit);
 }
 

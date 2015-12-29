@@ -83,7 +83,7 @@ MP3:
 typedef struct
 {
 	sf_count_t frames; //Used to be called samples.
-	int samplerate;
+	int sample_rate;
 	int channels;
 	int format;
 } SF_INFO_GENERIC;
@@ -155,7 +155,7 @@ static void sin_close();
 
 static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer);
 
-static double frames_to_seconds(sf_count_t frames, int samplerate);
+static double frames_to_seconds(sf_count_t frames, int sample_rate);
 static double get_seconds(SF_INFO_GENERIC *sf_info);
 static const char *format_duration_str(double seconds);
 static const char *generate_duration_str(SF_INFO_GENERIC *sf_info);
@@ -206,7 +206,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 	/*
 	typedef struct
 	{ sf_count_t  frames ; //Used to be called samples.
-	int	samplerate ;
+	int	sample_rate ;
 	int	channels ;
 	int	format ;
 	int	sections ;
@@ -219,7 +219,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 	if(soundfile!=NULL)
 	{
 		sf_info_generic.frames=sf_info_sndfile.frames;
-		sf_info_generic.samplerate=sf_info_sndfile.samplerate;
+		sf_info_generic.sample_rate=sf_info_sndfile.samplerate;
 		sf_info_generic.channels=sf_info_sndfile.channels;
 		sf_info_generic.format=sf_info_sndfile.format;
 
@@ -246,7 +246,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 			//seek to end, get frame count
 			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1);
 			//the libopusfile API always decodes files to 48 kHz.
-			sf_info_generic.samplerate=48000;
+			sf_info_generic.sample_rate=48000;
 			sf_info_generic.channels=op_channel_count(soundfile_opus,0);
 			sf_info_generic.format=SF_FORMAT_OPUS | SF_FORMAT_FLOAT;
 		}
@@ -307,7 +307,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 				//sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
 				//this is better
 				sf_info_generic.frames=mpg123_length(soundfile_123);
-				sf_info_generic.samplerate=48000; ///
+				sf_info_generic.sample_rate=48000; ///
 				sf_info_generic.channels=2; ///
 				sf_info_generic.format=SF_FORMAT_MP3 | SF_FORMAT_FLOAT;
 			}
@@ -695,14 +695,14 @@ static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 }//end read_frames_from_file_to_buffer
 
 //=============================================================================
-static double frames_to_seconds(sf_count_t frames, int samplerate)
+static double frames_to_seconds(sf_count_t frames, int sample_rate)
 {
 	double seconds;
 	if (frames==0)
 	{
 		return 0;
 	}
-	seconds = (1.0 * frames) / samplerate;
+	seconds = (1.0 * frames) / sample_rate;
 	return seconds;
 }
 
@@ -710,15 +710,15 @@ static double frames_to_seconds(sf_count_t frames, int samplerate)
 static double get_seconds(SF_INFO_GENERIC *sf_info)
 {
 	double seconds;
-	if (sf_info->samplerate < 1)
+	if (sf_info->sample_rate < 1)
 	{
 		return 0;
 	}
-	if (sf_info->frames / sf_info->samplerate > 0x7FFFFFFF)
+	if (sf_info->frames / sf_info->sample_rate > 0x7FFFFFFF)
 	{
 		return -1;
 	}
-	seconds = (1.0 * sf_info->frames) / sf_info->samplerate;
+	seconds = (1.0 * sf_info->frames) / sf_info->sample_rate;
 	return seconds;
 }
 
@@ -872,7 +872,7 @@ static int file_info(SF_INFO_GENERIC sf_info, int print)
 			,format_string, sub_format_string, sf_info.format
 			,duration_str
 			,sf_info.frames
-			,sf_info.samplerate
+			,sf_info.sample_rate
 			,sf_info.channels
 		);
 	}
