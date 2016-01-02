@@ -153,6 +153,31 @@ static inline int rb_find_next_midi_message(rb_t *rb, size_t *offset, size_t *co
 	return 0;
 }
 
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_read_next_midi_message(rb_t *rb, char *destination)
+{
+	size_t m_offset=0;
+	size_t m_count=0;
+
+	if(rb_find_next_midi_message(rb,&m_offset,&m_count))
+	{
+//		fprintf(stderr,"==offset %zu mcount %zu\n",m_offset,m_count);
+
+		if(m_offset>0)
+		{
+			rb_skip(rb,m_offset);
+		}
+		return rb_read(rb,destination,m_count);
+	}
+	else
+	{
+		return 0;
+	}
+}
+
 #ifdef __cplusplus
 }
 #endif
