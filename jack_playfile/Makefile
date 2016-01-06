@@ -19,7 +19,7 @@ V_OGG		=1.3.2
 V_FLAC		=1.3.1
 V_OPUSFILE	=0.6
 V_OPUS		=1.1
-V_LIBMPG123	=1.23.0
+V_LIBMPG123	=1.22.4
 
 DISTRO_LIBS_DIR 	=/usr/lib/x86_64-linux-gnu
 #DISTRO_LIBS_DIR 	=/usr/lib/i386-linux-gnu
