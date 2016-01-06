@@ -7,6 +7,7 @@ gcc -o jack_midi_heartbeat midi_heartbeat.c `pkg-config --libs liblo` `pkg-confi
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <jack/jack.h>
 #include <jack/midiport.h>
 #include <sys/signal.h>
