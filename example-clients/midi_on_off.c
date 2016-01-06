@@ -11,6 +11,8 @@ gcc -o jack_midi_on_off midi_on_off.c  `pkg-config --libs liblo` `pkg-config --l
 
 
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
 #include <jack/jack.h>
 #include <jack/midiport.h>
 #include <sys/signal.h>
