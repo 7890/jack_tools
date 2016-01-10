@@ -122,9 +122,6 @@ static int is_flac=0;
 //how many frames to read per request
 static int sndfile_request_frames=0;
 
-//readers read into this buffer
-static float *frames_from_file_buffer;
-
 //reported by stat()
 static uint64_t file_size_bytes=0;
 
@@ -541,6 +538,8 @@ static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer
 	int ogg_buffer_offset=0;
 	int current_section;
 
+	float *tmp_buffer_opus=tmp_buffer;
+
 //	fprintf(stderr,"\nread_frames_from_file_to_buffer() called\n");
 
 	while(frames_to_go>0 && !file_eof)
@@ -574,7 +573,7 @@ static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer
 		{
 			//read multichannel as normal
 			could_read_frame_count=op_read_float(soundfile_opus
-				,(float*)tmp_buffer
+				,(float*)tmp_buffer_opus
 				,frames_to_go*sf_info_generic.channels
 				,NULL);
 
@@ -589,8 +588,7 @@ static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer
 				frames_to_go-=could_read_frame_count;
 
 				//set offset in buffer for next cycle
-				tmp_buffer+=could_read_frame_count*sf_info_generic.channels;
-
+				tmp_buffer_opus+=could_read_frame_count*sf_info_generic.channels;
 //				fprintf(stderr,"\ncould read %"PRId64", to go %"PRId64"\n",could_read_frame_count,frames_to_go);
 				continue;
 			}
@@ -695,13 +693,6 @@ static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer
 	    |---|---| copy
 	*/
 
-	if(is_opus)
-	{
-		//"reset" back to start
-		tmp_buffer-=(count-frames_to_go)*sf_info_generic.channels;
-	}
-
-
 	//filter out unwanted channels, only copy requested
 	if(channel_count_use_from_file>=0)
 	{
@@ -720,7 +711,6 @@ static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer
 				{
 //					fprintf(stderr,"\n-");
 				}
-
 			}
 		}
 	}//end if(channel_count_use_from_file>=0)

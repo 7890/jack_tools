@@ -69,6 +69,13 @@ static int rs_get_pad_size_end(rs_t *r)
 }
 
 //=============================================================================
+static void rs_free(rs_t *r)
+{
+	if(r==NULL) {return;}
+	free(r);
+}
+
+//=============================================================================
 static rs_t * rs_new(int quality, rb_t *in_buffer, rb_t *out_buffer, int output_period_frames)
 {
 	if(in_buffer==NULL || out_buffer==NULL) {return NULL;}

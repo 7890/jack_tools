@@ -58,6 +58,9 @@ static int playlist_advance_direction=PL_DIRECTION_FORWARD;
 //how many bytes one sample (of one channel) is using in the file
 static int bytes_per_sample_in_file=0;
 
+//disk reads read into this buffer
+static float *frames_from_file_buffer;
+
 //=============================================================================
 int main(int argc, char *argv[])
 {
@@ -154,10 +157,13 @@ while(true)
 	);
 
 	//depends on jack samplerate, sf_info_generice sample rate, channel_count_use_from_file
+	//=================
 	setup_ringbuffers();
 
+	rs_free(r1);
 	//setup resampler
 	r1=rs_new(0,rb_interleaved,rb_resampled_interleaved,jack->period_frames);
+	//=================
 
 	if(r1==NULL)
 	{
@@ -187,6 +193,11 @@ while(true)
 		int additional=MAX(1,sndfile_request_frames*0.1);
 		sndfile_request_frames+=additional;
 	}
+
+///	fprintf(stderr,"\nsndfile_request_frames: %d\n",sndfile_request_frames);
+
+	delete[] frames_from_file_buffer;
+	frames_from_file_buffer=new float[sndfile_request_frames*channel_count_use_from_file];
 
 	if(settings->is_verbose)
 	{
@@ -697,9 +708,6 @@ static void *disk_thread_func(void *arg)
 
 	//seek to given offset position
 	running->last_seek_pos=sin_seek(running->frame_offset,SEEK_SET);
-
-	//readers read into this buffer, interleaved channels
-	frames_from_file_buffer=new float[sndfile_request_frames*channel_count_use_from_file];
 
 	//===main disk loop
 	for(;;)
