@@ -41,6 +41,8 @@ static const float version=0.89;
 static void init_settings();
 static void init_running_properties();
 
+static void parse_cmdline_args(int argc, char *argv[]);
+
 static void print_main_help();
 static void print_manpage();
 static void print_header();
@@ -137,6 +139,160 @@ static struct option long_options[] =
 	{"libs",	no_argument,  0,	'L'},
 	{0, 0, 0, 0}
 };
+
+//================================================================
+static void parse_cmdline_args(int argc, char *argv[])
+{
+	int opt;
+	//do until command line options parsed
+	while(1)
+	{
+		//getopt_long stores the option index here
+		int option_index=0;
+
+		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:A:F:dNEpmlfarkejvL", long_options, &option_index);
+
+		//Detect the end of the options
+		if(opt==-1)
+		{
+			break;
+		}
+		switch(opt)
+		{
+			case 0:
+
+			//If this option set a flag, do nothing else now
+			if(long_options[option_index].flag!=0)
+			{
+				break;
+			}
+
+			case 'h':
+				print_main_help();
+				break;
+
+			case 'H':
+				print_manpage();
+				break;
+
+			case 'V':
+				print_version();
+				exit(0);
+
+			case 'n':
+				jack->client_name=optarg;
+				break;
+
+			case 's':
+				jack->server_name=optarg;
+				break;
+
+			case 'o':
+				settings->frame_offset=strtoull(optarg, NULL, 10);
+				break;
+
+			case 'c':
+				settings->frame_count=strtoull(optarg, NULL, 10);
+				break;
+
+			case 'O':
+				settings->channel_offset=atoi(optarg);
+				break;
+
+			case 'C':
+				settings->channel_count=atoi(optarg);
+				break;
+
+			case 'D':
+				settings->keyboard_control_enabled=0;
+				break;
+
+			case 'R':
+//				settings->use_resampling=0;
+				break;
+
+			case 'S':
+				settings->custom_file_sample_rate=atoi(optarg);
+				break;
+
+			case 'A':
+				jack->volume_amplification_decibel=MIN(6, atof(optarg) );
+				jack->volume_coefficient=pow( 10, ( jack->volume_amplification_decibel / 20 ) );
+				break;
+
+			case 'F':
+				settings->read_from_playlist=1;
+				//in playlist.h
+				playlist_file=optarg;
+				break;
+
+			case 'd':
+				settings->dump_usable_files=1;
+				break;
+
+			case 'N':
+				jack->autoconnect_ports=0;
+				break;
+
+			case 'E':
+				jack->try_reconnect=0;
+				break;
+
+			case 'p':
+				settings->is_playing=0;
+				break;
+
+			case 'm':
+				settings->is_muted=1;
+				break;
+
+			case 'l':
+				settings->loop_enabled=1;
+				break;
+
+			case 'f':
+				settings->is_time_seconds=0;
+				break;
+
+			case 'a':
+				settings->is_time_absolute=1;
+				break;
+
+			case 'r':
+				settings->is_time_elapsed=0;
+				break;
+
+			case 'k':
+				settings->is_clock_displayed=0;
+				break;
+
+			case 'e':
+				settings->pause_at_end=1;
+				break;
+
+			case 'j':
+				jack->use_transport=1;
+				break;
+
+			case 'v':
+				settings->is_verbose=1;
+				break;
+
+			case 'L':
+				print_libs();
+				exit(0);
+
+			case '?': //invalid commands
+				//getopt_long already printed an error message
+				fprintf(stderr, "Wrong arguments, see --help.\n");
+				exit(1);
+				break;
+
+			default:
+				break;
+		 } //end switch op
+	}//end while(1) parse args
+}//end parse_cmdline_args()
 
 //================================================================
 static void print_main_help()

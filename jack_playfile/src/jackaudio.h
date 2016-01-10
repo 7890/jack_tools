@@ -36,9 +36,9 @@ static int jack_init();
 static void jack_error(const char* err);
 static void jack_post_init();
 static int jack_process(jack_nframes_t nframes, void *arg);
-static void jack_open_client();
-static void jack_register_output_ports();
-static void jack_activate_client();
+static int jack_open_client();
+static int jack_register_output_ports();
+static int jack_activate_client();
 static void jack_connect_output_ports();
 static void jack_fill_output_buffers_zero();
 static void jack_register_callbacks();
@@ -142,21 +142,19 @@ static void jack_error(const char* err)
 }
 
 //=============================================================================
-static void wait_connect_jack()
+static int wait_connect_jack()
 {
 	fprintf (stderr, "\r%s\rwaiting for connection to JACK server...",clear_to_eol_seq);
 
 	while(jack->client==NULL)
 	{
-		jack_open_client();
-
-		if (jack->client == NULL) 
+		if (!jack_open_client())
 		{
 //			fprintf (stderr, "/!\\ jack_client_open() failed, status = 0x%2.0x\n", jack->status);
 			if(!jack->try_reconnect)
 			{
 				fprintf (stderr, " failed.\n");
-				exit(1);
+				return 0;
 			}
 #ifdef WIN32
 			Sleep(1000);
@@ -167,6 +165,8 @@ static void wait_connect_jack()
 	}//end while client==NULL
 
 	fprintf (stderr, "\r%s\r",clear_to_eol_seq);
+
+	return 1;
 }//end wait_connect_jack()
 
 //=============================================================================
@@ -420,13 +420,21 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 }//end process()
 
 //=============================================================================
-static void jack_open_client()
+static int jack_open_client()
 {
 	jack->client = jack_client_open (jack->client_name, jack->options, &jack->status, jack->server_name);
+	if(jack->client==NULL)
+	{
+		return 0;
+	}
+	else
+	{
+		return 1;
+	}
 }
 
 //=============================================================================
-static void jack_register_output_ports()
+static int jack_register_output_ports()
 {
 	//register each output port
 	for (int port=0 ; port<running->output_port_count ; port ++)
@@ -436,8 +444,7 @@ static void jack_register_output_ports()
 		if (asprintf(&portName, "output_%d", (port+1)) < 0) 
 		{
 			fprintf(stderr, "/!\\ could not create portname for port %d\n", port);
-			free_ringbuffers();
-			exit(1);
+			return 0;
 		}
 
 		//register the output port
@@ -445,22 +452,23 @@ static void jack_register_output_ports()
 		if (jack->ioPortArray[port] == NULL) 
 		{
 			fprintf(stderr, "/!\\ could not create output port %d\n", (port+1));
-			free_ringbuffers();
-			exit(1);
+			return 0;
 		}
 	}
+	return 1;
 }
 
 //=============================================================================
-static void jack_activate_client()
+static int jack_activate_client()
 {
 	//now activate client in JACK, starting with process() cycles
 	if (jack_activate (jack->client)) 
 	{
 		fprintf (stderr, "/!\\ cannot activate client\n\n");
 		free_ringbuffers();
-		exit(1);
+		return 0;
 	}
+	return 1;
 }
 
 //=============================================================================
