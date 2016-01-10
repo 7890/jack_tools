@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -75,7 +75,6 @@ MP3:
 #include <sndfile.h>
 #include <opusfile.h>
 #include <vorbis/vorbisfile.h>
-//should be optional
 #include <mpg123.h>
 
 #include "config.h"
@@ -103,31 +102,22 @@ static SF_INFO_GENERIC sf_info_generic;
 //try mpg123 reader
 static mpg123_handle *soundfile_123=NULL;
 
-//if found to be mp3 file
-static int is_mpg123=0;
-
 //yet another reader
 static OggOpusFile *soundfile_opus;
-
-//if found to be opus file
-static int is_opus=0;
 
 //..and another (for faster seeking)
 static OggVorbis_File soundfile_vorbis;
 
 //oggvorbis takes a regular file
-FILE *ogg_file_;
-
-//if found to be opus file
-static int is_ogg_=0;
+FILE *ogg_file;
 
 //multichannel float buffer for ov_read_float
 static float **ogg_buffer;
 
-static int is_flac_=0;
-
-//how many bytes one sample (of one channel) is using in the file
-static int bytes_per_sample_native=0;
+static int is_mpg123=0;
+static int is_opus=0;
+static int is_ogg=0;
+static int is_flac=0;
 
 //how many frames to read per request
 static int sndfile_request_frames=0;
@@ -145,28 +135,25 @@ static uint64_t total_bytes_read_from_file=0;
 
 static uint64_t total_frames_read_from_file=0;
 
-//in disk thread, detect if 'frame_count' was read from file
-static int all_frames_read=0;
-
 static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet);
-static int check_if_mp3_file(const char *filename);
+static int sin_check_if_mp3_file(const char *filename);
 static sf_count_t sin_seek(sf_count_t offset, int whence);
 static void sin_close();
 
-static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer);
+static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer);
 
-static double frames_to_seconds(sf_count_t frames, int sample_rate);
-static double get_seconds(SF_INFO_GENERIC *sf_info);
-static const char *format_duration_str(double seconds);
-static const char *generate_duration_str(SF_INFO_GENERIC *sf_info);
+static double sin_frames_to_seconds(sf_count_t frames, int sample_rate);
+static double sin_get_seconds(SF_INFO_GENERIC *sf_info);
+static const char * sin_format_duration_str(double seconds);
+static const char * sin_generate_duration_str(SF_INFO_GENERIC *sf_info);
 
-static int is_flac(SF_INFO_GENERIC *sf_info);
-static int is_ogg(SF_INFO_GENERIC *sf_info);
+static int sin_is_flac(SF_INFO_GENERIC *sf_info);
+static int sin_is_ogg(SF_INFO_GENERIC *sf_info);
 
-static int file_info(SF_INFO_GENERIC sf_info, int print);
+static int sin_file_info(SF_INFO_GENERIC sf_info, int print);
 
 //read full-channel from file to this buffer before sorting out channel_offset and channel_count
-static float *tmp_buffer=new float[10000000]; ////
+static float *tmp_buffer=new float[10000000]; ///
 
 //result of requested channel_offset, channel_count and channels in file
 int channel_count_use_from_file=0;
@@ -179,28 +166,28 @@ int closing_file_in_progress=0;
 static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 {
 	is_opus=0;
-	is_ogg_=0;
+	is_ogg=0;
 	is_mpg123=0;
-	is_flac_=0;
+	is_flac=0;
 
-        struct stat st;
-        stat(fileuri, &st);
+	struct stat st;
+	stat(fileuri, &st);
 /*
-           S_IFSOCK   0140000   socket
-           S_IFLNK    0120000   symbolic link
-           S_IFREG    0100000   regular file
-           S_IFBLK    0060000   block device
-           S_IFDIR    0040000   directory
-           S_IFCHR    0020000   character device
-           S_IFIFO    0010000   FIFO
+S_IFSOCK   0140000   socket
+S_IFLNK    0120000   symbolic link
+S_IFREG    0100000   regular file
+S_IFBLK    0060000   block device
+S_IFDIR    0040000   directory
+S_IFCHR    0020000   character device
+S_IFIFO    0010000   FIFO
 */
-        //ignore if not a regular file or a symbolic link
-        if((st.st_mode & S_IFMT) != S_IFREG
-                && (st.st_mode & S_IFMT) != S_IFLNK
-        )
-        {
-                return 0;
-        }
+	//ignore if not a regular file or a symbolic link
+	if((st.st_mode & S_IFMT) != S_IFREG
+		&& (st.st_mode & S_IFMT) != S_IFLNK
+	)
+	{
+		return 0;
+	}
 
 	memset (&sf_info_sndfile, 0, sizeof (sf_info_sndfile)) ;
 	/*
@@ -224,13 +211,17 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 		sf_info_generic.format=sf_info_sndfile.format;
 
 		//use vorbisfile to decode ogg
-		if(is_ogg(&sf_info_generic))
+		if(sin_is_ogg(&sf_info_generic))
 		{
 			sf_close(soundfile);
 
-			ogg_file_ = fopen(fileuri,"r");
-			ov_open(ogg_file_,&soundfile_vorbis,NULL,0);
-			is_ogg_=1;
+			ogg_file = fopen(fileuri,"r");
+			ov_open(ogg_file,&soundfile_vorbis,NULL,0);
+			is_ogg=1;
+		}
+		else if(sin_is_flac(&sf_info_generic))
+		{
+			is_flac=1;
 		}
 	}
 	else
@@ -239,12 +230,13 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 		int ret;
 		soundfile_opus=op_open_file(fileuri,&ret);
 
-		if(soundfile_opus!=NULL)
+		if(!ret && soundfile_opus!=NULL)
 		{
 			is_opus=1;
 
 			//seek to end, get frame count
-			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1);
+//			fprintf(stderr,"/!\\ reducing frame count by 1\n");
+			sf_info_generic.frames=op_pcm_total(soundfile_opus,-1) - 1; //-1 not nice
 			//the libopusfile API always decodes files to 48 kHz.
 			sf_info_generic.sample_rate=48000;
 			sf_info_generic.channels=op_channel_count(soundfile_opus,0);
@@ -253,7 +245,7 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 		else
 		{
 			//try mp3
-			if(!check_if_mp3_file(fileuri))
+			if(!sin_check_if_mp3_file(fileuri))
 			{
 				return 0;
 			}
@@ -307,8 +299,8 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 				//sf_info_generic.frames=mpg123_seek(soundfile_123,0,SEEK_END);
 				//this is better
 				sf_info_generic.frames=mpg123_length(soundfile_123);
-				sf_info_generic.sample_rate=48000; ///
-				sf_info_generic.channels=2; ///
+				sf_info_generic.sample_rate=48000;
+				sf_info_generic.channels=2;
 				sf_info_generic.format=SF_FORMAT_MP3 | SF_FORMAT_FLOAT;
 			}
 			else 
@@ -323,6 +315,22 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 		}//end try mpg123
 	}//end try opus
 
+	if(sf_info_generic.frames<1)
+	{
+		fprintf(stderr,"/!\\ file has zero frames, nothing to play!\n");
+		return 0;
+	}
+	if(sf_info_generic.sample_rate<1)
+	{
+		fprintf(stderr,"/!\\ file has invalid sample rate, nothing to play!\n");
+		return 0;
+	}
+	if(sf_info_generic.channels<1)
+	{
+		fprintf(stderr,"/!\\ file has no channels, nothing to play!\n");
+		return 0;
+	}
+
 	//matching format found
 	return 1;
 }//end sin_open
@@ -330,15 +338,14 @@ static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 //rough test if file could be of type mp3
 //return 0 on error, 1 on success
 //=============================================================================
-static int check_if_mp3_file(const char *filename)
+static int sin_check_if_mp3_file(const char *filename)
 {
-        FILE *f=NULL;
-        f=fopen(filename, "rb");
-        if(f==NULL)
-        {
-                return 0;
-        }
-
+	FILE *f=NULL;
+	f=fopen(filename, "rb");
+	if(f==NULL)
+	{
+		return 0;
+	}
 /*
 http://git.cgsecurity.org/cgit/testdisk/tree/src/file_mp3.c
 static const unsigned char mpeg1_L3_header1[2]= {0xFF, 0xFA};
@@ -348,19 +355,40 @@ static const unsigned char mpeg2_L3_header2[2]= {0xFF, 0xF3};
 static const unsigned char mpeg25_L3_header1[2]={0xFF, 0xE2};
 static const unsigned char mpeg25_L3_header2[2]={0xFF, 0xE3};
 */
-
-//	unsigned char bytes_pattern[2]={0xFF,0xFB};
 	unsigned char bytes_pattern_with_id3[3]={0x49,0x44,0x33}; //ID3
-
 	unsigned char bytes_header[3];
 
-        size_t size=fread(bytes_header, 1, 3, f);
+	size_t size;
+	unsigned char c;
+	int i;
+	//find first non-zero byte in the first 1000 bytes
+	for(i=0;i<1000;i++)
+	{
+		size=fread(&c, 1, 1, f);
+//		fprintf(stderr,"%d %zu %X\n",i,size,c);
+		if(c!=0)
+		{
+//			fprintf(stderr,"first non-zero byte %d\n",i);
+			//seek on back to read it again
+			fseek(f,-1,SEEK_CUR);
+//			fprintf(stderr,"at %zu\n",ftell(f));
+			break;
+		}
+	}
 
-        if(size<3)
-        {
+	if(c==0)
+	{
 		fclose(f);
-                return 0;
-        }
+		return 0;
+	}
+	size=fread(bytes_header, 1, 3, f);
+//	fprintf(stderr,"\n%X %X %X\n",bytes_header[0],bytes_header[1],bytes_header[2]);
+
+	if(size<3)
+	{
+		fclose(f);
+		return 0;
+	}
 
 	if(bytes_header[0] == bytes_pattern_with_id3[0]
 		&& bytes_header[1] == bytes_pattern_with_id3[1]
@@ -385,8 +413,8 @@ static const unsigned char mpeg25_L3_header2[2]={0xFF, 0xE3};
 			return 1;
 		}
 	}
-        fclose(f);
-        return 0;
+	fclose(f);
+	return 0;
 }
 
 //=============================================================================
@@ -400,6 +428,7 @@ static sf_count_t sin_seek(sf_count_t offset, int whence)
 		}
 		else
 		{
+			//returns the resulting offset >= 0 or error/message code
 			return mpg123_seek(soundfile_123,offset,whence);
 		}
 	}
@@ -407,7 +436,9 @@ static sf_count_t sin_seek(sf_count_t offset, int whence)
 	{
 		if(whence==SEEK_SET)
 		{
-			return op_pcm_seek(soundfile_opus,offset);
+			//op_pcm_seek returns 0 on success, or a negative value on error.
+			op_pcm_seek(soundfile_opus,offset);
+			return (sf_count_t)op_pcm_tell(soundfile_opus);
 		}
 		else if(whence==SEEK_CUR)
 		{
@@ -426,11 +457,13 @@ static sf_count_t sin_seek(sf_count_t offset, int whence)
 			}
 		}
 	}
-	else if(is_ogg_)
+	else if(is_ogg)
 	{
 		if(whence==SEEK_SET)
 		{
-			return ov_pcm_seek(&soundfile_vorbis,offset);
+			//returns 0 for success
+			ov_pcm_seek(&soundfile_vorbis,offset);
+			return (sf_count_t)ov_pcm_tell(&soundfile_vorbis);
 		}
 		else if(whence==SEEK_CUR)
 		{
@@ -451,6 +484,7 @@ static sf_count_t sin_seek(sf_count_t offset, int whence)
 	}
 	else //sndfile
 	{
+		//sf_seek will return the offset in (multichannel) frames from the start of the audio data or -1 if an error occured
 		return sf_seek(soundfile,offset,whence);
 	}
 }//end sf_seek_()
@@ -472,16 +506,17 @@ static void sin_close()
 	{
 		if(soundfile_opus!=NULL)
 		{
-			op_free(soundfile_opus);
+			///this sometimes creates ~double free corruption (?)
+			//op_free(soundfile_opus);
 			soundfile_opus=NULL;
 		}
 	}
-	else if(is_ogg_)
+	else if(is_ogg)
 	{
-		if(ogg_file_!=NULL)
+		if(ogg_file!=NULL)
 		{
 			ov_clear(&soundfile_vorbis);
-			ogg_file_=NULL;
+			ogg_file=NULL;
 		}
 	}
 	else //sndfile
@@ -496,7 +531,7 @@ static void sin_close()
 }//end sf_close()
 
 //==============================================================================
-static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
+static int64_t sin_read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 {
 	int64_t frames_to_go=count;
 	int64_t could_read_frame_count=0;
@@ -513,7 +548,7 @@ static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 //		fprintf(stderr,"\nto go %"PRId64"\n",frames_to_go);
 
 		//==================================== sndfile
-		if(!is_mpg123 && !is_opus && !is_ogg_)
+		if(!is_mpg123 && !is_opus && !is_ogg)
 		{
 			could_read_frame_count=sf_readf_float(soundfile,(float*)tmp_buffer,frames_to_go);
 
@@ -561,7 +596,7 @@ static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 			}
 		}//end opus
 		//==================================== ogg
-		else if(is_ogg_)
+		else if(is_ogg)
 		{
 			/*
 			//https://xiph.org/vorbis/doc/vorbisfile/example.html
@@ -675,7 +710,7 @@ static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 		{
 			for(int k=0;k<sf_info_generic.channels;k++)
 			{
-				if(k>=channel_offset && k<channel_offset+channel_count_use_from_file)
+				if(k>=running->channel_offset && k<running->channel_offset+channel_count_use_from_file)
 				{
 					buffer[bindex]=tmp_buffer[i*sf_info_generic.channels+k];
 					bindex++;
@@ -695,7 +730,7 @@ static int64_t read_frames_from_file_to_buffer(uint64_t count, float *buffer)
 }//end read_frames_from_file_to_buffer
 
 //=============================================================================
-static double frames_to_seconds(sf_count_t frames, int sample_rate)
+static double sin_frames_to_seconds(sf_count_t frames, int sample_rate)
 {
 	double seconds;
 	if (frames==0)
@@ -707,7 +742,7 @@ static double frames_to_seconds(sf_count_t frames, int sample_rate)
 }
 
 //=============================================================================
-static double get_seconds(SF_INFO_GENERIC *sf_info)
+static double sin_get_seconds(SF_INFO_GENERIC *sf_info)
 {
 	double seconds;
 	if (sf_info->sample_rate < 1)
@@ -724,7 +759,7 @@ static double get_seconds(SF_INFO_GENERIC *sf_info)
 
 //=============================================================================
 //https://github.com/erikd/libsndfile/blob/master/programs/sndfile-info.c
-static const char *format_duration_str(double seconds)
+static const char * sin_format_duration_str(double seconds)
 {
 	static char str [128] ;
 	int hrs, min ;
@@ -739,17 +774,17 @@ static const char *format_duration_str(double seconds)
 
 //=============================================================================
 //https://github.com/erikd/libsndfile/blob/master/programs/sndfile-info.c
-static const char *generate_duration_str(SF_INFO_GENERIC *sf_info)
+static const char * sin_generate_duration_str(SF_INFO_GENERIC *sf_info)
 {
 	return(
-		format_duration_str(
-			get_seconds(sf_info)
+		sin_format_duration_str(
+			sin_get_seconds(sf_info)
 		)
 	);
 }
 
 //=============================================================================
-static int is_flac(SF_INFO_GENERIC *sf_info)
+static int sin_is_flac(SF_INFO_GENERIC *sf_info)
 {
 	if( (sf_info->format & SF_FORMAT_TYPEMASK)==SF_FORMAT_FLAC )
 	{
@@ -762,7 +797,7 @@ static int is_flac(SF_INFO_GENERIC *sf_info)
 }
 
 //=============================================================================
-static int is_ogg(SF_INFO_GENERIC *sf_info)
+static int sin_is_ogg(SF_INFO_GENERIC *sf_info)
 {
 	if( (sf_info->format & SF_FORMAT_TYPEMASK)==SF_FORMAT_OGG )
 	{
@@ -775,7 +810,7 @@ static int is_ogg(SF_INFO_GENERIC *sf_info)
 }
 
 //=============================================================================
-static int file_info(SF_INFO_GENERIC sf_info, int print)
+static int sin_file_info(SF_INFO_GENERIC sf_info, int print)
 {
 	/*
 	SF_FORMAT_SUBMASK  = 0x0000FFFF
@@ -864,7 +899,7 @@ static int file_info(SF_INFO_GENERIC sf_info, int print)
 	};
 
 	const char *duration_str;
-	duration_str=generate_duration_str(&sf_info);
+	duration_str=sin_generate_duration_str(&sf_info);
 
 	if(print)
 	{

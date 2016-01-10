@@ -17,7 +17,7 @@
  * rb.h is part of a collection of C snippets which can be found here:
  * [https://github.com/7890/csnip](https://github.com/7890/csnip)
  *
- * Copyright (C) 2015 Thomas Brand
+ * Copyright (C) 2015 - 2016 Thomas Brand
  *
  * rb.h is derived from ringbuffer.c and ringbuffer.h in jack repository
  * [https://github.com/jackaudio/jack1](https://github.com/jackaudio/jack1)
@@ -89,6 +89,7 @@ See also rb_new_shared(). */
 #include <string.h> //memcpy
 #include <sys/types.h> //size_t
 #include <stdio.h> //fprintf
+#include <math.h> //ceil
 
 #include <inttypes.h> //uint8_t
 
@@ -114,6 +115,8 @@ See also rb_new_shared(). */
 	#define MIN(a,b) (((a)<(b))?(a):(b))
 #endif
 
+static char *bar_string="============================================================";
+
 /**
  * Ringbuffers are of type rb_t.
  * 
@@ -138,11 +141,22 @@ typedef struct
   int memory_locked;		/**< \brief Whether or not the buffer is locked to memory (if locked, no virtual memory disk swaps). */
   int in_shared_memory;		/**< \brief Whether or not the buffer is allocated as a file in shared memory (normally found under '/dev/shm'.)*/
 
+  int unlink_requested;		/**< \brief If set to 1, readers and writers should consider the buffer deleted, not using it anymore (unlinking it with rb_free())*/ 
+
+  int no_more_input_data;	/**< \brief A writer can indicate that no more data will be put to the rinbuffer, i.e. the writer finished.*/
+
   int sample_rate;		/**< \brief If ringbuffer is used as audio buffer, sample_rate is > 0.*/
   int channel_count;		/**< \brief The number of channels stored in this buffer (interleaved).*/
   int bytes_per_sample;		/**< \brief The number of bytes per audio sample.*/
 
   char shm_handle[256];		/**< \brief Name of shared memory file, alphanumeric handle. */
+  char human_name[256];		/**< \brief Name of buffer, alphanumeric. */
+
+  uint64_t total_bytes_read;	/**< \brief Total bytes read from this ringbuffer. Aadvancing the read index is iterpreted as read. Internal calls are also counted. rb_reset() will reset this value. */
+  uint64_t total_bytes_write;	/**< \brief Total bytes written to this ringbuffer. Advancing the write index is interpreted as write. Internal calls are also counted. rb_reset() will reset this value. */
+  uint64_t total_bytes_peek;	/**< \brief Total bytes peeked from this ringbuffer. rb_reset() will reset this value. */
+  uint64_t total_underflows;	/**< \brief Total underflow incidents (not bytes): could not read the requested amount of bytes. rb_reset() will reset this value. */
+  uint64_t total_overflows;	/**< \brief Total overflow incidents (not bytes): could not write the requested amount of bytes. rb_reset() will reset this value. */
 
 #ifndef RB_DISABLE_RW_MUTEX
   pthread_mutexattr_t mutex_attributes;
@@ -155,8 +169,11 @@ rb_t;
 //make struct memebers accessible via function
 static inline int rb_is_mlocked(rb_t *rb) {return rb->memory_locked;}
 static inline int rb_is_shared(rb_t *rb) {return rb->in_shared_memory;}
+static inline int rb_is_unlink_requested(rb_t *rb) {return rb->unlink_requested;}
+static inline void rb_request_unlink(rb_t *rb) {rb->unlink_requested=1;}
 static inline size_t rb_size(rb_t *rb){return rb->size;}
 static inline char *rb_shared_memory_handle(rb_t *rb) {return rb->shm_handle;}
+static inline char *rb_human_name(rb_t *rb) {return rb->human_name;}
 static inline int rb_sample_rate(rb_t *rb) {return rb->sample_rate;}
 static inline int rb_channel_count(rb_t *rb) {return rb->channel_count;}
 static inline int rb_bytes_per_sample(rb_t *rb) {return rb->bytes_per_sample;}
@@ -184,10 +201,16 @@ typedef struct
 } 
 rb_region_t;
 
+static inline void rb_set_common_init_values(rb_t *rb);
 static inline rb_t *rb_new(size_t size);
-static inline rb_t *rb_new_audio(size_t size, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_named(size_t size, char *name);
+static inline rb_t *rb_new_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample);
 static inline rb_t *rb_new_shared(size_t size);
-static inline rb_t *rb_new_shared_audio(size_t size, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_shared_named(size_t size, char *name);
+static inline rb_t *rb_new_shared_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_shared_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample);
+
 static inline void rb_free(rb_t *rb);
 static inline int rb_mlock(rb_t *rb);
 static inline int rb_munlock(rb_t *rb);
@@ -202,14 +225,14 @@ static inline size_t rb_generic_read(rb_t *rb, char *destination, size_t count, 
 static inline size_t rb_read(rb_t *rb, char *destination, size_t count);
 static inline size_t rb_overread(rb_t *rb, char *destination, size_t count);
 static inline size_t rb_write(rb_t *rb, const char *source, size_t count);
-static inline size_t rb_peek(const rb_t *rb, char *destination, size_t count);
-static inline size_t rb_peek_at(const rb_t *rb, char *destination, size_t count, size_t offset);
+static inline size_t rb_peek(rb_t *rb, char *destination, size_t count);
+static inline size_t rb_peek_at(rb_t *rb, char *destination, size_t count, size_t offset);
 static inline size_t rb_drop(rb_t *rb);
 static inline int rb_find_byte(rb_t *rb, char byte, size_t *offset);
 static inline int rb_find_byte_sequence(rb_t *rb, char *pattern, size_t pattern_offset, size_t count, size_t *offset);
 static inline size_t rb_read_byte(rb_t *rb, char *destination);
-static inline size_t rb_peek_byte(const rb_t *rb, char *destination);
-static inline size_t rb_peek_byte_at(const rb_t *rb, char *destination, size_t offset);
+static inline size_t rb_peek_byte(rb_t *rb, char *destination);
+static inline size_t rb_peek_byte_at(rb_t *rb, char *destination, size_t offset);
 static inline size_t rb_skip_byte(rb_t *rb);
 static inline size_t rb_write_byte(rb_t *rb, const char *source);
 static inline size_t rb_generic_advance_read_index(rb_t *rb, size_t count, int over);
@@ -220,13 +243,48 @@ static inline void rb_get_read_regions(const rb_t *rb, rb_region_t *regions);
 static inline void rb_get_write_regions(const rb_t *rb, rb_region_t *regions);
 static inline void rb_get_next_read_region(const rb_t *rb, rb_region_t *region);
 static inline void rb_get_next_write_region(const rb_t *rb, rb_region_t *region);
+static inline size_t rb_frame_to_byte_count(const rb_t *rb, size_t count);
+static inline size_t rb_byte_to_frame_count(const rb_t *rb, size_t count);
+static inline size_t rb_second_to_byte_count(double seconds, int sample_rate, int channel_count, int bytes_per_sample);
 static inline int rb_try_exclusive_read(rb_t *rb);
 static inline void rb_release_read(rb_t *rb);
 static inline int rb_try_exclusive_write(rb_t *rb);
 static inline void rb_release_write(rb_t *rb);
 static inline void *buf_ptr(const rb_t *rb);
-static inline void rb_debug(rb_t *rb);
-static inline void rb_print_regions(rb_t *rb);
+static inline void rb_debug(const rb_t *rb);
+static inline void rb_debug_linearbar(const rb_t *rb);
+static inline void rb_print_regions(const rb_t *rb);
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline void rb_set_common_init_values(rb_t *rb)
+{
+	rb->write_index=0;
+	rb->read_index=0;
+	rb->last_was_write=0;
+	rb->memory_locked=0;
+	rb->no_more_input_data=0;
+
+	rb->total_bytes_read=0;
+	rb->total_bytes_write=0;
+	rb->total_bytes_peek=0;
+	rb->total_underflows=0;
+	rb->total_overflows=0;
+
+#ifndef RB_DISABLE_RW_MUTEX
+	#ifndef RB_DISABLE_SHM
+		pthread_mutexattr_init(&rb->mutex_attributes);
+		pthread_mutexattr_setpshared(&rb->mutex_attributes, PTHREAD_PROCESS_SHARED);
+		pthread_mutex_init(&rb->read_lock, &rb->mutex_attributes);
+		pthread_mutex_init(&rb->write_lock, &rb->mutex_attributes);
+	#else
+		pthread_mutex_init ( &rb->read_lock, NULL);
+		pthread_mutex_init ( &rb->write_lock, NULL);
+	#endif
+#endif
+}
 
 /**
  * Allocate a ringbuffer data structure of a specified size. The
@@ -244,19 +302,37 @@ static inline void rb_print_regions(rb_t *rb);
 //=============================================================================
 static inline rb_t *rb_new(size_t size)
 {
-	return rb_new_audio(size,0,1,1);
+	return rb_new_audio(size,"anonymous",0,1,1);
 }
 
 /**
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_audio(size_t size, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_named(size_t size, char *name)
 {
+	return rb_new_audio(size,name,0,1,1);
+}
 
+/**
+ * n/a
+ */
+//=============================================================================
+static inline rb_t *rb_new_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+{
+	size_t size=rb_second_to_byte_count(seconds,sample_rate,channel_count,bytes_per_sample);
+	return rb_new_audio(size,name,sample_rate,channel_count, bytes_per_sample);
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline rb_t *rb_new_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+{
 #ifndef RB_DISABLE_SHM
 	#ifdef RB_DEFAULT_USE_SHM
-		return rb_new_shared_audio(size,sample_rate,channel_count,bytes_per_sample);
+		return rb_new_shared_audio(size,name,sample_rate,channel_count,bytes_per_sample);
 	#endif
 #endif
 	if(size<1) {return NULL;}
@@ -269,21 +345,14 @@ static inline rb_t *rb_new_audio(size_t size, int sample_rate, int channel_count
 
 	//the attached buffer is in the same malloced space
 	//right after rb_t (at offset sizeof(rb_t))
-
+	rb_set_common_init_values(rb);
 	rb->size=size;
-	rb->write_index=0;
-	rb->read_index=0;
-	rb->last_was_write=0;	
-	rb->memory_locked=0;
 	rb->in_shared_memory=0;
+	rb->unlink_requested=0;
 	rb->sample_rate=sample_rate;
 	rb->channel_count=channel_count;
 	rb->bytes_per_sample=bytes_per_sample;
-
-#ifndef RB_DISABLE_RW_MUTEX
-	pthread_mutex_init ( &rb->read_lock, NULL);
-	pthread_mutex_init ( &rb->write_lock, NULL);
-#endif
+	strncpy(rb->human_name, name, 255);
 	return rb;
 }
 
@@ -316,14 +385,33 @@ static inline rb_t *rb_new_audio(size_t size, int sample_rate, int channel_count
 //=============================================================================
 static inline rb_t *rb_new_shared(size_t size)
 {
-	return rb_new_shared_audio(size,0,1,1);
+	return rb_new_shared_audio(size,"anonymous",0,1,1);
 }
 
 /**
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_shared_audio(size_t size, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_shared_named(size_t size, char *name)
+{
+	return rb_new_shared_audio(size,name,0,1,1);
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline rb_t *rb_new_shared_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+{
+	size_t size=rb_second_to_byte_count(seconds,sample_rate,channel_count,bytes_per_sample);
+	return rb_new_shared_audio(size,name,sample_rate,channel_count, bytes_per_sample);
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline rb_t *rb_new_shared_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample)
 {
 #ifdef RB_DISABLE_SHM
 	return NULL;
@@ -354,22 +442,17 @@ static inline rb_t *rb_new_shared_audio(size_t size, int sample_rate, int channe
 	memcpy(rb->shm_handle,shm_handle,37);
 //	fprintf(stderr,"buffer address %lu\n",(unsigned long int)buf_ptr(rb));
 
+	rb_set_common_init_values(rb);
 	rb->size=size;
-	rb->write_index=0;
-	rb->read_index=0;
-	rb->last_was_write=0;	
-	rb->memory_locked=0;
 	rb->in_shared_memory=1;
+	rb->unlink_requested=0;
 	rb->sample_rate=sample_rate;
 	rb->channel_count=channel_count;
 	rb->bytes_per_sample=bytes_per_sample;
+	strncpy(rb->human_name, name, 255);
 
-#ifndef RB_DISABLE_RW_MUTEX
-	pthread_mutexattr_init(&rb->mutex_attributes);
-	pthread_mutexattr_setpshared(&rb->mutex_attributes, PTHREAD_PROCESS_SHARED);
-	pthread_mutex_init(&rb->read_lock, &rb->mutex_attributes);
-	pthread_mutex_init(&rb->write_lock, &rb->mutex_attributes);
-#endif
+//	rb_debug_linearbar(rb);
+
 	return rb;
 #endif
 }
@@ -448,6 +531,7 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 static inline void rb_free(rb_t *rb)
 {
 	if(rb==NULL) {return;}
+	rb->unlink_requested=1;
 #ifndef RB_DISABLE_MLOCK
 	if(rb->memory_locked)
 	{
@@ -512,6 +596,19 @@ static inline int rb_munlock(rb_t *rb)
 }
 
 /**
+ * n/a
+ */
+//=============================================================================
+static inline void rb_reset_stats(rb_t *rb)
+{
+	rb->total_bytes_read=0;
+	rb->total_bytes_write=0;
+	rb->total_bytes_peek=0;
+	rb->total_underflows=0;
+	rb->total_overflows=0;
+}
+
+/**
  * Reset the read and write indices, making an empty buffer.
  *
  * Any active reader and/or writer should be done before calling rb_reset().
@@ -524,6 +621,7 @@ static inline void rb_reset(rb_t *rb)
 	rb->read_index=0;
 	rb->write_index=0;
 	rb->last_was_write=0;
+	rb_reset_stats(rb);
 }
 
 /**
@@ -632,6 +730,9 @@ static inline size_t rb_generic_read(rb_t *rb, char *destination, size_t count, 
 	}
 
 	rb->last_was_write=0;
+	rb->total_bytes_read+=do_read_count;
+	if(do_read_count<count){rb->total_underflows++;}
+
 	return do_read_count;
 }
 
@@ -737,6 +838,8 @@ static inline size_t rb_write(rb_t *rb, const char *source, size_t count)
 		rb->write_index=copy_count_2 % rb->size;
 	}
 	rb->last_was_write=1;
+	rb->total_bytes_write+=do_write_count;
+	if(do_write_count<count){rb->total_overflows++;}
 	return do_write_count;
 }
 
@@ -759,7 +862,7 @@ static inline size_t rb_write(rb_t *rb, const char *source, size_t count)
  * @return the number of bytes read, which may range from 0 to count.
  */
 //=============================================================================
-static inline size_t rb_peek(const rb_t *rb, char *destination, size_t count)
+static inline size_t rb_peek(rb_t *rb, char *destination, size_t count)
 {
 	return rb_peek_at(rb,destination,count,0);
 }
@@ -784,12 +887,16 @@ static inline size_t rb_peek(const rb_t *rb, char *destination, size_t count)
  * @return the number of bytes read, which may range from 0 to count.
  */
 //=============================================================================
-static inline size_t rb_peek_at(const rb_t *rb, char *destination, size_t count, size_t offset)
+static inline size_t rb_peek_at(rb_t *rb, char *destination, size_t count, size_t offset)
 {
 	if(count==0) {return 0;}
 	size_t can_read_count;
 	//can not read more than offset, no chance to read from there
-	if((can_read_count=rb_can_read(rb))<=offset) {return 0;}
+	if((can_read_count=rb_can_read(rb))<=offset)
+	{
+		rb->total_underflows++;
+		return 0;
+	}
 	//limit read count respecting offset
 	size_t do_read_count=count>can_read_count-offset ? can_read_count-offset : count;
 	//adding the offset, knowing it could be beyond buffer end
@@ -829,6 +936,10 @@ static inline size_t rb_peek_at(const rb_t *rb, char *destination, size_t count,
 	{
 		memcpy(destination+copy_count_1, &(  ((char*)buf_ptr(rb))  [0]), copy_count_2);
 	}
+
+	rb->total_bytes_peek+=do_read_count;
+	if(do_read_count<count){rb->total_underflows++;}
+
 	return do_read_count;
 }
 
@@ -908,7 +1019,7 @@ static inline size_t rb_read_byte(rb_t *rb, char *destination)
  * @return the number of bytes read, which may range from 0 to 1.
  */
 //=============================================================================
-static inline size_t rb_peek_byte(const rb_t *rb, char *destination)
+static inline size_t rb_peek_byte(rb_t *rb, char *destination)
 {
 	return rb_peek_byte_at(rb,destination,0);
 }
@@ -925,10 +1036,14 @@ static inline size_t rb_peek_byte(const rb_t *rb, char *destination)
  * @return the number of bytes read, which may range from 0 to 1.
  */
 //=============================================================================
-static inline size_t rb_peek_byte_at(const rb_t *rb, char *destination, size_t offset)
+static inline size_t rb_peek_byte_at(rb_t *rb, char *destination, size_t offset)
 {
 	size_t can_read_count;
-	if((can_read_count=rb_can_read(rb))<=offset) {return 0;}
+	if((can_read_count=rb_can_read(rb))<=offset)
+	{
+		rb->total_underflows++;
+		return 0;
+	}
 
 	size_t tmp_read_index=rb->read_index+offset;
 
@@ -940,6 +1055,10 @@ static inline size_t rb_peek_byte_at(const rb_t *rb, char *destination, size_t o
 	{
 		memcpy(destination, &(  ((char*)buf_ptr(rb))  [tmp_read_index]),1);
 	}
+
+	rb->total_bytes_peek+=1;
+
+	return 1;
 }
 
 /**
@@ -992,7 +1111,11 @@ static inline size_t rb_generic_advance_read_index(rb_t *rb, size_t count, int o
 	}
 	else
 	{
-		if(!(can_read_count=rb_can_read(rb))) {return 0;}
+		if(!(can_read_count=rb_can_read(rb)))
+		{
+			rb->total_underflows++;
+			return 0;
+		}
 		do_advance_count=count>can_read_count ? can_read_count : count;
 	}
 	size_t r=rb->read_index;
@@ -1008,6 +1131,10 @@ static inline size_t rb_generic_advance_read_index(rb_t *rb, size_t count, int o
 	}
 
 	rb->last_was_write=0;
+
+	rb->total_bytes_read+=do_advance_count;
+	if(do_advance_count<count){rb->total_underflows++;}
+
 	return do_advance_count;
 }
 
@@ -1069,7 +1196,11 @@ static inline size_t rb_advance_write_index(rb_t *rb, size_t count)
 {
 	if(count==0) {return 0;}
 	size_t can_write_count;
-	if(!(can_write_count=rb_can_write(rb))) {return 0;}
+	if(!(can_write_count=rb_can_write(rb)))
+	{
+		rb->total_overflows++;
+		return 0;
+	}
 
 	size_t do_advance_count=count>can_write_count ? can_write_count : count;
 	size_t w=rb->write_index;
@@ -1078,6 +1209,10 @@ static inline size_t rb_advance_write_index(rb_t *rb, size_t count)
 
 	rb->write_index=(tmp_write_index%=rb->size);
 	rb->last_was_write=1;
+
+	rb->total_bytes_write+=do_advance_count;
+	if(do_advance_count<count){rb->total_overflows++;}
+
 	return do_advance_count;
 }
 
@@ -1334,6 +1469,34 @@ static inline void *buf_ptr(const rb_t *rb)
 }
 
 /**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_frame_to_byte_count(const rb_t *rb, size_t count)
+{
+	return count * rb->channel_count * rb->bytes_per_sample;	
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_byte_to_frame_count(const rb_t *rb, size_t count)
+{
+	return (size_t)(count/rb->channel_count/rb->bytes_per_sample);
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_second_to_byte_count(double seconds, int sample_rate, int channel_count, int bytes_per_sample)
+{
+	size_t frames=ceil(seconds*sample_rate);
+	return frames * channel_count * bytes_per_sample;
+}
+
+/**
 * Try to lock the ringbuffer for exclusive read.
 * Only one process can lock the ringbuffer for reading at a time.
 * Other processes can not read from the ringbuffer while it is locked.
@@ -1411,7 +1574,7 @@ static inline void rb_release_write(rb_t *rb)
 * Print out information about ringbuffer to stderr.
 */
 //=============================================================================
-void rb_debug(rb_t *rb)
+static inline void rb_debug(const rb_t *rb)
 {
 	if(rb==NULL)
 	{
@@ -1431,10 +1594,91 @@ void rb_debug(rb_t *rb)
 }
 
 /**
+* Print out information about rinbuffer including a bar graph to indicate
+* the buffer fill level.
+*/
+//=============================================================================
+static inline void rb_debug_linearbar(const rb_t *rb)
+{
+	if(rb==NULL)
+	{
+		fprintf(stderr,"rb is NULL\n");
+		return;
+	}
+	fprintf(stderr,"%s: %s\n",rb->shm_handle, rb->human_name);
+	if(rb->sample_rate>0)
+	{
+		fprintf(stderr,"audio: %3d channels @ %6d Hz, %2d bytes per sample, capacity %9.3f s\n"
+			,rb->channel_count
+			,rb->sample_rate
+			,rb->bytes_per_sample
+			,(float)rb->size/rb->bytes_per_sample/rb->sample_rate/rb->channel_count
+		);
+	}
+
+	fprintf(stderr,"r/w %.3f w %"PRId64" r %"PRId64" d %"PRId64" p %"PRId64" o %"PRId64" u %"PRId64" \n"
+		,rb->total_bytes_write!=0 ?
+			(float)rb->total_bytes_read/rb->total_bytes_write 
+			: 0
+		,rb->total_bytes_write
+		,rb->total_bytes_read
+		,rb->total_bytes_write>rb->total_bytes_read ?
+			rb->total_bytes_write - rb->total_bytes_read 
+			: rb->total_bytes_read - rb->total_bytes_write
+		,rb->total_bytes_peek
+		,rb->total_overflows
+		,rb->total_underflows
+	);
+
+	int bar_ticks_count=45;
+	size_t can_w=rb_can_write(rb);
+	float fill_level;
+	if(can_w==0)
+	{
+		fill_level=1;
+	}
+	else if(can_w==rb->size)
+	{
+		fill_level=0;
+	}
+	else
+	{
+		fill_level=1-(float)can_w/rb->size;
+	}
+	int bar_ticks_show=fill_level*bar_ticks_count;
+	if(rb->sample_rate>0)
+	{
+		fprintf(stderr,"fill %.6f [%*.*s%s%*s] %9.3f s\n"
+			,fill_level
+			,bar_ticks_show
+			,bar_ticks_show
+			,bar_string
+			,fill_level==0 ? "_" : (fill_level==1 ? "^" : ">")
+			,(bar_ticks_count-bar_ticks_show)
+			,""
+			,(float)(rb->size-can_w)/rb->bytes_per_sample/rb->sample_rate/rb->channel_count
+		);
+	}
+	else
+	{
+		fprintf(stderr,"fill %.6f [%*.*s%s%*s] %10zu\n"
+			,fill_level
+			,bar_ticks_show
+			,bar_ticks_show
+			,bar_string
+			,fill_level==0 ? "_" : (fill_level==1 ? "^" : ">")
+			,(bar_ticks_count-bar_ticks_show)
+			,""
+			,rb->size-can_w
+		);
+	}
+}
+
+/**
 * Print out information about rinbuffer regions to stderr.
 */
 //=============================================================================
-void rb_print_regions(rb_t *rb)
+static inline void rb_print_regions(const rb_t *rb)
 {
 	rb_region_t data[2];
 	rb_get_read_regions(rb,data);
@@ -1463,7 +1707,7 @@ static inline size_t rb_skip(rb_t *rb, size_t count) {return rb_advance_read_ind
 /**
 * \brief This is an alias to rb_drop().
 */
-static inline size_t rb_skip_all(rb_t *rb, size_t count) {return rb_drop(rb);}
+static inline size_t rb_skip_all(rb_t *rb) {return rb_drop(rb);}
 
 /**
 * \brief This is an alias to rb_overadvance_read_index().

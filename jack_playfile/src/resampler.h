@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,260 +26,257 @@
 
 #include <zita-resampler/resampler.h>
 
-#include "buffers.h"
+#include "rb.h"
 
-//zita-resampler
-static Resampler R;
+//main zita-resampler
+Resampler R;
 
-//quality (higher means better means more cpu)
-//valid range 16 to 96
-static int RESAMPLER_FILTERSIZE=64;
+typedef struct
+{
+	//quality (higher means better means more cpu use)
+	//valid range 16 to 96
+	int filtersize;
 
-//JACK sr to file sr ratio
-static double out_to_in_sr_ratio=1;
+	rb_t *in_buffer;
+	rb_t *out_buffer;
 
-//frames put to resampler, without start/end padding
-static uint64_t total_input_frames_resampled=0;
+	//JACK sr to file sr ratio
+	double out_to_in_sr_ratio;
 
-//in resample(), detect when all requested frames were resampled
-static int resampling_finished=0;
+	int input_period_frames;
+	int output_period_frames;
 
-//in jack_playfile.c
-//static void print_stats();
+	//frames put to resampler, without start/end padding
+	size_t total_input_frames_resampled;
 
-/*
-downsampling (ratio>1)
-in: 10
-out: 2
-out_to_in: 2/10 = 0.2
-read 10 samples for 2 output samples
-read 0.2 samples for 1 output sample
-
-upsampling (ratio<1)
-in: 2
-out: 10
-out_to_in: 10/2 = 5
-read two samples for 10 output samples
-read 5 samples for 1 output sample
-
-file 44100, jack 96000 -> 0.459375
-for one jack_period_frames, we need at least period_size * out_to_in_sr_ratio frames from input
-*/
+	//in rs_process(), detect when all requested frames were resampled
+	int resampling_finished;
+} rs_t;
 
 //=============================================================================
-static int get_resampler_pad_size_start()
+static int rs_get_pad_size_start(rs_t *r)
 {
 	return R.inpsize()-1;
 //	return R.inpsize()/2-1;
 }
 
 //=============================================================================
-static int get_resampler_pad_size_end()
+static int rs_get_pad_size_end(rs_t *r)
 {
 //	return R.inpsize()-1;
 	return R.inpsize()/2-1;
+
 }
 
 //=============================================================================
-static int setup_resampler()
+static rs_t * rs_new(int quality, rb_t *in_buffer, rb_t *out_buffer, int output_period_frames)
 {
-	//test if resampling needed
-	if(out_to_in_sr_ratio!=1)//sf_info_generic.sample_rate!=jack_sample_rate)
+	if(in_buffer==NULL || out_buffer==NULL) {return NULL;}
+
+	//need audio aware rb_t
+	if(!rb_sample_rate(in_buffer) || !rb_sample_rate(out_buffer)) {return NULL;}
+
+	rs_t *r;
+	r=(rs_t*)malloc(sizeof(rs_t));
+	if(r==NULL) {return NULL;}
+
+	if(quality==0)
 	{
-//		fprintf(stderr, "file sample rate different from JACK sample rate\n");
-
-		if(use_resampling)
-		{
-			//prepare resampler for playback with given jack sample_rate
-			/*
-			//http://kokkinizita.linuxaudio.org/linuxaudio/zita-resampler/resampler.html
-			FILTSIZE: The valid range for hlen is 16 to 96.
-			...it should be clear that 
-			hlen = 32 should provide very high quality for F_min equal to 48 kHz or higher, 
-			while hlen = 48 should be sufficient for an F_min of 44.1 kHz. 
-			*/
-
-			//setup returns zero on success, non-zero otherwise. 
-			if (R.setup (sf_info_generic.sample_rate, jack->sample_rate, channel_count_use_from_file, RESAMPLER_FILTERSIZE))
-			{
-				fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
-					,jack->sample_rate,sf_info_generic.sample_rate);
-				use_resampling=0;
-				return 0;
-			}
-			else
-			{
-				/*
-				The inpsize () member returns the lenght of the FIR filter expressed in input samples. 
-				At least this number of samples is required to produce an output sample.
-
-				inserting inpsize() / 2 - 1 zero-valued samples at the start will align the first input and output samples.
-				inserting k - 1 zero valued samples will ensure that the output includes the full filter response for the first input sample.
-				*/
-				//initialize resampler
-				R.reset();
-
-				R.inp_data=0;
-////////////////////
-				R.inp_count=get_resampler_pad_size_start();
-				//pad with zero
-				R.out_data=0;
-				R.out_count=1;
-				R.process();
-/*
-				fprintf(stderr,"resampler init: inp_count %d out_count %d\n",R.inp_count,R.out_count);
-				fprintf (stderr, "resampler initialized: inpsize() %d inpdist() %.2f sr in %d sr out %d out/in ratio %f\n"
-					,R.inpsize()
-					,R.inpdist()
-					,sf_info_generic.sample_rate
-					,jack->sample_rate
-					,out_to_in_sr_ratio);
-*/
-
-				if(is_verbose)
-				{
-					fprintf(stderr,"resampler out_to_in ratio: %f\n",out_to_in_sr_ratio);
-				}
-
-			}//end resampler setup
- 		}//end if use_resampling
-		else
-		{
-			fprintf(stderr,"will play file without resampling.\n");
-		}
-	}//end unequal in/out sr
-
-	return 1;
-
-}//end setup_resampler()
-
-//=============================================================================
-static void resample()
-{
-	if(out_to_in_sr_ratio==1.0 || !use_resampling || resampling_finished)
-	{
-		resampling_finished=1;
-
-		//no need to do anything
-		return;
+		quality=64;//default
 	}
 
-//	fprintf(stderr,"resample() called\n");
+	r->out_to_in_sr_ratio=(float)rb_sample_rate(out_buffer)/rb_sample_rate(in_buffer);
 
-	//normal operation
-	if(rb_can_read(rb_interleaved)
-		>= sndfile_request_frames * channel_count_use_from_file * bytes_per_sample)
+	r->filtersize=MAX(MIN(quality,96),16); //limit 16,96
+	r->in_buffer=in_buffer;
+	r->out_buffer=out_buffer;
+	r->output_period_frames=output_period_frames;
+
+	r->total_input_frames_resampled=0;
+	r->resampling_finished=0;
+
+	r->input_period_frames=ceil(r->output_period_frames * (double)1/r->out_to_in_sr_ratio);
+
+	//setup returns zero on success, non-zero otherwise. 
+	if (R.setup (rb_sample_rate(r->in_buffer), rb_sample_rate(r->out_buffer), rb_channel_count(r->in_buffer), r->filtersize))
 	{
-//		fprintf(stderr,"resample(): normal operation\n");
+		fprintf (stderr, "/!\\ sample rate ratio %d/%d is not supported.\n"
+			,rb_sample_rate(r->out_buffer)
+			,rb_sample_rate(r->in_buffer)
+		);
+		free(r);
+		return NULL;
+	}
 
-		float *interleaved_frame_buffer=new float [sndfile_request_frames * channel_count_use_from_file];
-		float *buffer_resampling_out=new float [jack->period_frames * channel_count_use_from_file];
+	//initialize resampler
+	//R.reset();
+	R.inp_data=0;
+	R.inp_count=rs_get_pad_size_start(r);
+	//pad with zero
+	R.out_data=0;
+	R.out_count=1;
+	R.process();
+
+/*
+	fprintf(stderr, "resampler initialized: inpsize() %d inpdist() %.2f sr in %d sr out %d out/in ratio %f\n"
+		,r->R.inpsize()
+		,r->R.inpdist()
+		,rb_sample_rate(r->in_buffer)
+		,rb_sample_rate(r->out_buffer)
+		,r->out_to_in_sr_ratio);
+*/
+	return r;
+}//end rs_new()
+
+//=============================================================================
+static int rs_process(rs_t *r)
+{
+	if(r->out_to_in_sr_ratio==1.0 || r->resampling_finished)
+	{
+		r->resampling_finished=1;
+		//no need to do anything
+		return 0;
+	}
+//	fprintf(stderr,"rs_process() called\n");
+
+	int float_count_in =r->input_period_frames  * rb_channel_count(r->in_buffer);
+	int float_count_out=r->output_period_frames * rb_channel_count(r->in_buffer);
+
+	int byte_count_in =float_count_in  * rb_bytes_per_sample(r->in_buffer);
+	int byte_count_out=float_count_out * rb_bytes_per_sample(r->in_buffer);
+
+	if(rb_can_read(r->in_buffer) >= byte_count_in
+		&& rb_can_write(r->out_buffer) >= byte_count_out
+	)
+	{
+//		fprintf(stderr,"rb_process(): normal operation\n");
+
+		float *interleaved_frame_buffer=new float [float_count_in];
+		float *buffer_resampling_out=new float [float_count_out];
 
 		//condition to jump into while loop
 		R.out_count=1;
 
 		int resampler_loop_counter=0;
+
+		//while resampler needs more input for one output period
 		while(R.out_count>0)
 		{
-			//read from rb_interleaved, just peek / don't move read pointer yet
-			rb_peek(rb_interleaved
+			//read from r->in_buffer, just peek / don't move read pointer yet
+			size_t peeked=rb_peek(r->in_buffer
 				,(char*)interleaved_frame_buffer
-				,sndfile_request_frames * channel_count_use_from_file * bytes_per_sample);
+				,byte_count_in);
 			
+			if(peeked!=byte_count_in)
+			{
+//				fprintf(stderr,"\nin rs_process(): could not peek %d bytes!\n",byte_count_in);
+			}
+
 			//configure for next resampler process cycle
 			R.inp_data=interleaved_frame_buffer;
-			R.inp_count=sndfile_request_frames;
+			R.inp_count=r->input_period_frames;
 			R.out_data=buffer_resampling_out;
-			R.out_count=jack->period_frames;
+			R.out_count=r->output_period_frames;
 
-//			fprintf(stderr,"--- resample(): before inpcount %d outcount %d\n",R.inp_count,R.out_count);
+//			fprintf(stderr,"--- rb_process(): before inpcount %d outcount %d\n",R.inp_count,R.out_count);
 			R.process();
-//			fprintf(stderr,"--- resample(): after inpcount %d outcount %d loop %d\n",R.inp_count,R.out_count,resampler_loop_counter);
+//			fprintf(stderr,"--- rb_process(): after inpcount %d outcount %d loop %d\n",R.inp_count,R.out_count,resampler_loop_counter);
 
-			if(R.inp_count>0)
+/*
+			if(r->R.inp_count>0)
 			{
-//				fprintf(stderr,"resample(): /!\\ after process r.inp_count %d\n",R.inp_count);
+				fprintf(stderr,"--- rb_process(): /!\\ after process r.inp_count %d\n",r->R.inp_count);
 				//this probably means that the remaining input sample is not yet processed to out
 				//we'll use it again for the next cycle (feed as the first sample of the next processing block)
 			}
+*/
+			//- remaining inp_count!
+			int bytes_processed=(r->input_period_frames-R.inp_count) * rb_channel_count(r->in_buffer) * rb_bytes_per_sample(r->in_buffer);
 
-			//advance - remaining inp_count!
-			rb_advance_read_index(rb_interleaved
-				,(sndfile_request_frames-R.inp_count) * channel_count_use_from_file * bytes_per_sample);
+			//advance as many input bytes as resampler could process
+			size_t advanced=rb_advance_read_index(
+				r->in_buffer
+				,bytes_processed);
 
-			total_input_frames_resampled+=(sndfile_request_frames-R.inp_count);
+			if(advanced!=bytes_processed)
+			{
+//				fprintf(stderr,"\nin rs_process(): could not advance %d bytes!\n",bytes_processed);
+			}
+
+			r->total_input_frames_resampled+=(r->input_period_frames-R.inp_count);
 
 			resampler_loop_counter++;
-		}//end while(R.out_count>0)
+		}//end while(r->R.out_count>0)
 
-		//finally write resampler output to rb_resampled_interleaved
-		rb_write(rb_resampled_interleaved
+		//finally write resampler output to r->out_buffer
+		size_t wrote=rb_write(r->out_buffer
 			,(const char*)buffer_resampling_out
-			,jack->period_frames * channel_count_use_from_file * bytes_per_sample);
+			,byte_count_out);
+
+			if(wrote!=byte_count_out)
+			{
+//				fprintf(stderr,"\nin rs_process(): could not write %d bytes!\n",byte_count_out);
+			}
 
 		delete[] interleaved_frame_buffer;
 		delete[] buffer_resampling_out;
+
+		return rb_byte_to_frame_count(r->in_buffer,wrote);
 	}
 
 	//finished with partial or no data left, feed zeroes at end
-	else if(all_frames_read && rb_can_read(rb_interleaved)>=0)
+	else if(r->in_buffer->no_more_input_data && rb_can_read(r->in_buffer)>=0)
 	{
-		int frames_left=rb_can_read(rb_interleaved)/channel_count_use_from_file/bytes_per_sample;
-//		fprintf(stderr,"resample(): partial data in rb_interleaved (frames): %d\n",frames_left);
+		int frames_left=rb_can_read(r->in_buffer)/rb_channel_count(r->in_buffer)/rb_bytes_per_sample(r->in_buffer);
+//		fprintf(stderr,"rb_process(): partial data in r->in_buffer (frames): %d\n",frames_left);
 
 		//adding zero pad to get full output of resampler
-////////////////////
-		int final_frames=frames_left + get_resampler_pad_size_end();
+		int final_frames=frames_left + rs_get_pad_size_end(r);
 
-		float *interleaved_frame_buffer=new float [ final_frames  * channel_count_use_from_file];
-		float *buffer_resampling_out=new float [ ( (int)(out_to_in_sr_ratio * final_frames) ) * channel_count_use_from_file ];
+		float *interleaved_frame_buffer=new float [ final_frames  * rb_channel_count(r->in_buffer)];
+		float *buffer_resampling_out=new float [ ( (int)(r->out_to_in_sr_ratio * final_frames) ) * rb_channel_count(r->in_buffer) ];
 
-		//read from rb_interleaved
-		rb_read(rb_interleaved
+		//read from r->in_buffer
+		rb_read(r->in_buffer
 			,(char*)interleaved_frame_buffer
-			,frames_left * channel_count_use_from_file * bytes_per_sample);
+			,frames_left * rb_channel_count(r->in_buffer) * rb_bytes_per_sample(r->in_buffer));
 			
 		//configure resampler for next process cycle
 		R.inp_data=interleaved_frame_buffer;
 		R.inp_count=final_frames;
-
 		R.out_data=buffer_resampling_out;
-		R.out_count=(int) (out_to_in_sr_ratio * final_frames);
+		R.out_count=(int) (r->out_to_in_sr_ratio * final_frames);
 
-//		fprintf(stderr,"LAST before inpcount %d outcount %d\n",R.inp_count,R.out_count);
+//		fprintf(stderr,"LAST before inpcount %d outcount %d\n",r->R.inp_count,r->R.out_count);
 		R.process();
-//		fprintf(stderr,"LAST after inpcount %d outcount %d\n",R.inp_count,R.out_count);
+//		fprintf(stderr,"LAST after inpcount %d outcount %d\n",r->R.inp_count,r->R.out_count);
 
 		//don't count zero padding frames
-		total_input_frames_resampled+=frames_left;
+		r->total_input_frames_resampled+=frames_left;
 
-		if(add_markers)
+		if(settings->add_markers)
 		{
 			//index of last sample of first channel
-			int last_sample_index=( (int)(out_to_in_sr_ratio * final_frames) ) * channel_count_use_from_file - channel_count_use_from_file;
+			int last_sample_index=( (int)(r->out_to_in_sr_ratio * final_frames) ) * rb_channel_count(r->in_buffer) - rb_channel_count(r->in_buffer);
 
 			//mark last samples of all channels
-			for(int i=0;i<channel_count_use_from_file;i++)
+			for(int i=0;i<rb_channel_count(r->in_buffer);i++)
 			{
 				buffer_resampling_out[last_sample_index+i]  =debug_marker->last_sample_out_of_resampler;
 			}
 		}
 
-		//finally write resampler output to rb_resampled_interleaved
-		rb_write(rb_resampled_interleaved
+		//finally write resampler output to r->out_buffer
+		rb_write(r->out_buffer
 			,(const char*)buffer_resampling_out
-			,(int)(out_to_in_sr_ratio * final_frames) * channel_count_use_from_file * bytes_per_sample);
+			,(int)(r->out_to_in_sr_ratio * final_frames) * rb_channel_count(r->in_buffer) * rb_bytes_per_sample(r->in_buffer));
 
-		resampling_finished=1;
+		r->resampling_finished=1;
+
+		delete[] interleaved_frame_buffer;
+		delete[] buffer_resampling_out;
 	}
-	else
-	{
-//		fprintf(stderr,"/!\\ this should not happen\n");
-	}
-
-//	print_stats();
-
-}//end resample()
+}//end rs_process()
 
 #endif
 //EOF

@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -51,39 +51,13 @@ static void reset_ringbuffers();
 static void setup_ringbuffers()
 {
 //	fprintf(stderr,"setup_ringbuffers()\n");
+	rb_free(rb_interleaved);
+	rb_free(rb_resampled_interleaved);
+	rb_free(rb_deinterleaved);
 
-	if(rb_interleaved!=NULL)
-	{
-		rb_free(rb_interleaved);
-	}
-	if(rb_resampled_interleaved!=NULL)
-	{
-		rb_free(rb_resampled_interleaved);
-	}
-	if(rb_deinterleaved!=NULL)
-	{
-		rb_free(rb_deinterleaved);
-	}
-
-	//buffer size roughly >=0.3 seconds
-	int rb_interleaved_size_bytes		=0.3 * jack->cycles_per_second * sndfile_request_frames * channel_count_use_from_file * bytes_per_sample;
-
-	int rb_resampled_interleaved_size_bytes	=0.1 * jack->cycles_per_second * jack->period_frames * channel_count_use_from_file * bytes_per_sample;
-	int rb_deinterleaved_size_bytes		=4 * jack->period_frames * channel_count_use_from_file * bytes_per_sample;
-
-	//new: audio buffers -> if in shared memory, easy to show fill level for 3rd party process (see rb.h / rb_show_fill)
-	rb_interleaved			=rb_new_audio(rb_interleaved_size_bytes, sf_info_generic.sample_rate, channel_count_use_from_file, bytes_per_sample);
-	rb_resampled_interleaved	=rb_new_audio(rb_resampled_interleaved_size_bytes, jack->sample_rate, channel_count_use_from_file, bytes_per_sample);
-	rb_deinterleaved		=rb_new_audio(rb_deinterleaved_size_bytes, jack->sample_rate, channel_count_use_from_file, bytes_per_sample);
-
-/*
-	fprintf(stderr,"frames: request %d rb_interleaved %d rb_resampled_interleaved %d rb_deinterleaved %d\n"
-		,sndfile_request_frames
-		,rb_interleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
-		,rb_resampled_interleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
-		,rb_deinterleaved_size_bytes/channel_count_use_from_file/bytes_per_sample
-	);
-*/
+	rb_interleaved                  =rb_new_audio_seconds(0.9,"interleaved",sf_info_generic.sample_rate,channel_count_use_from_file,sizeof(float));
+	rb_resampled_interleaved        =rb_new_audio_seconds(0.9,"resampled interleaved",jack->sample_rate,channel_count_use_from_file,sizeof(float));
+	rb_deinterleaved                =rb_new_audio_seconds(0.1,"deinterleaved",jack->sample_rate,channel_count_use_from_file,sizeof(float));
 }
 
 //=============================================================================
@@ -109,21 +83,25 @@ static void free_ringbuffers()
 //=============================================================================
 static void reset_ringbuffers()
 {
-	reset_ringbuffers_in_progress=1;
 //	fprintf(stderr,"reset ringbuffers\n");
+	reset_ringbuffers_in_progress=1;
+
 	if(rb_deinterleaved!=NULL)
 	{
-		rb_reset(rb_deinterleaved);
+		rb_drop(rb_deinterleaved);
+		rb_reset_stats(rb_deinterleaved);
 	}
 
 	if(rb_resampled_interleaved!=NULL)
 	{
-		rb_reset(rb_resampled_interleaved);
+		rb_drop(rb_resampled_interleaved);
+		rb_reset_stats(rb_resampled_interleaved);
 	}
 
 	if(rb_interleaved!=NULL)
 	{
-		rb_reset(rb_interleaved);
+		rb_drop(rb_interleaved);
+		rb_reset_stats(rb_interleaved);
 	}
 	reset_ringbuffers_in_progress=0;
 }

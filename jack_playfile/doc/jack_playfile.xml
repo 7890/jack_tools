@@ -31,7 +31,7 @@ Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus
 </listitem>
 <listitem>
 <simpara>
-High quality resampling to match JACK sample rate (can be turned off)
+High quality resampling to match JACK sample rate (supports custom SR)
 </simpara>
 </listitem>
 <listitem>
@@ -88,7 +88,7 @@ MP3 supports a maximum of two channels (no "MP3 Surround" support).
 </simpara>
 </listitem>
 </itemizedlist>
-<simpara>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</simpara>
+<simpara>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (no resampling involved).</simpara>
 <simpara>Limitations:</simpara>
 <simpara><emphasis>jack_playfile</emphasis> can read and play local audio files only. There is currently no support for standard playlists or extended metadata.
 No DSP except optional resampling and amplification is applied to the audio signal.
@@ -99,7 +99,7 @@ This plugin collection is a good starting point: <ulink url="https://github.com/
 <simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
-<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.88.</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.89.</simpara>
 </refsect1>
 <refsect1 id="_options">
 <title>OPTIONS</title>
@@ -191,19 +191,6 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         Disable keyboard control.
         <emphasis role="strong">Default:</emphasis> <emphasis>jack_playfile</emphasis> accepts keyboard input while playing.
         For a detailed overview on available control actions, see <emphasis>KEYBOARD SHORTCUTS</emphasis> below or hit <emphasis>F1</emphasis> or <emphasis>h</emphasis> while <emphasis>jack_playfile</emphasis> is started and control is enabled.
-</simpara>
-</listitem>
-</varlistentry>
-<varlistentry>
-<term>
-<emphasis role="strong">-R, --noresampling</emphasis> (w/o argument)
-</term>
-<listitem>
-<simpara>
-        Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
-        <emphasis role="strong">Default:</emphasis> The samples read from given file are resampled to match JACK sample rate.
-        This makes files play at the expected pitch and tempo.
-        Best results are achieved when the file sample rate matches JACK&#8217;s.
 </simpara>
 </listitem>
 </varlistentry>
@@ -802,7 +789,7 @@ byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. F
 </listitem>
 <listitem>
 <simpara>
-resampler out_to_in ratio: JACK sample rate divided by file sample rate.
+resampler out_to_in ratio: JACK sample rate divided by file sample rate (file sample rate can be customized with -S).
 </simpara>
 </listitem>
 <listitem>
@@ -815,16 +802,16 @@ data_rate: Bytes to read from file per second to satisfy constant flow to JACK o
 <literallayout class="monospaced">|| paused   JMALP  S rel 0.001       943.1  (00:15:43.070)
 ^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^
 1           23456  7 8   9     10    11   10 12           13</literallayout>
-<literallayout class="monospaced"> 1): status playing '&gt;', paused '||' or seeking '...'
- 2): JACK transport on/off 'J' or ' '
- 3): mute on/off 'M' or ' '
- 4): amplification 'A', '!' (clipping) or ' ' (no amp.)
- 5): loop on/off 'L' or ' '
- 6): pause at end on/off 'P' or ' '
- 7): time and seek in seconds 'S' or frames 'F'
- 8): time indication 'rel' to frame_offset or 'abs'
+<literallayout class="monospaced"> 1): status playing &gt; paused || or seeking ...
+ 2): JACK transport on/off J or ' '
+ 3): mute on/off M or ' '
+ 4): amplification A, ! (clipping) or ' ' (no amp.)
+ 5): loop on/off L or ' '
+ 6): pause at end on/off P or ' '
+ 7): time and seek in seconds S or frames F
+ 8): time indication rel to frame_offset or abs
  9): seek step size in seconds or frames
-10): time elapsed ' ' or remaining '-'
+10): time elapsed ' ' or remaining -
 11): time in seconds or frames
 12): time in HMS.millis
 13): keyboard input indication (i.e. seek)</literallayout>
@@ -1099,11 +1086,11 @@ libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
 <refsect1 id="_authors">
 <title>AUTHORS</title>
 <simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
-<simpara>Last Update: Mon Dec 21 18:40:54 CET 2015</simpara>
+<simpara>Last Update: Sun Jan 10 20:19:26 CET 2016</simpara>
 </refsect1>
 <refsect1 id="_copying">
 <title>COPYING</title>
-<simpara>Copyright (C) 2015 Thomas Brand. Free use of this software is
+<simpara>Copyright (C) 2015 - 2016 Thomas Brand. Free use of this software is
 granted under the terms of the GNU General Public License (GPL).</simpara>
 </refsect1>
 </refentry>

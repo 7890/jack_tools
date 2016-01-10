@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -23,8 +23,6 @@
 
 //simple file player for JACK
 //inspired by jack_play, libsndfile, zresampler
-
-//find ~/Music -name "*\.wav" -exec ./jack_playfile --chcount 2 "{}" +
 
 #include <signal.h>
 #include <getopt.h>
@@ -51,15 +49,23 @@ static uint64_t frames_to_seek_type=SEEK_CUR; //or SEEK_SET
 //use to signal next file, resulting in partial init (not a full JACK client shutdown/register)
 static int prepare_for_next_file=0;
 
-//signal to decrement index for next file
-static int prev_file_requested=0;
+static int PL_DIRECTION_FORWARD=0;
+static int PL_DIRECTION_BACKWARD=1;
+
+//signal wether to go to previous or next index in playlist
+static int playlist_advance_direction=PL_DIRECTION_FORWARD;
+
+//how many bytes one sample (of one channel) is using in the file
+static int bytes_per_sample_in_file=0;
 
 //=============================================================================
 int main(int argc, char *argv[])
 {
-	init_jack_struct();//so that options can be put there
+	//init structs so that options can be put there
+	init_settings();
+	init_jack_struct();
 
-	init_term_seq();
+	kb_init_term_seq();
 
 	int opt;
 	//do until command line options parsed
@@ -106,33 +112,31 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'o':
-				frame_offset=strtoull(optarg, NULL, 10);
-				frame_offset_first=frame_offset;
+				settings->frame_offset=strtoull(optarg, NULL, 10);
 				break;
 
 			case 'c':
-				frame_count=strtoull(optarg, NULL, 10);
-				frame_count_first=frame_count;
+				settings->frame_count=strtoull(optarg, NULL, 10);
 				break;
 
 			case 'O':
-				channel_offset=atoi(optarg);
+				settings->channel_offset=atoi(optarg);
 				break;
 
 			case 'C':
-				channel_count=atoi(optarg);
+				settings->channel_count=atoi(optarg);
 				break;
 
 			case 'D':
-				keyboard_control_enabled=0;
+				settings->keyboard_control_enabled=0;
 				break;
 
 			case 'R':
-				use_resampling=0;
+//				settings->use_resampling=0;
 				break;
 
 			case 'S':
-				custom_file_sample_rate=atoi(optarg);
+				settings->custom_file_sample_rate=atoi(optarg);
 				break;
 
 			case 'A':
@@ -141,12 +145,13 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'F':
-				read_from_playlist=1;
+				settings->read_from_playlist=1;
+				//in playlist.h
 				playlist_file=optarg;
 				break;
 
 			case 'd':
-				dump_usable_files=1;
+				settings->dump_usable_files=1;
 				break;
 
 			case 'N':
@@ -158,35 +163,35 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'p':
-				is_playing=0;
+				settings->is_playing=0;
 				break;
 
 			case 'm':
-				is_muted=1;
+				settings->is_muted=1;
 				break;
 
 			case 'l':
-				loop_enabled=1;
+				settings->loop_enabled=1;
 				break;
 
 			case 'f':
-				is_time_seconds=0;
+				settings->is_time_seconds=0;
 				break;
 
 			case 'a':
-				is_time_absolute=1;
+				settings->is_time_absolute=1;
 				break;
 
 			case 'r':
-				is_time_elapsed=0;
+				settings->is_time_elapsed=0;
 				break;
 
 			case 'k':
-				is_clock_displayed=0;
+				settings->is_clock_displayed=0;
 				break;
 
 			case 'e':
-				pause_at_end=1;
+				settings->pause_at_end=1;
 				break;
 
 			case 'j':
@@ -194,7 +199,7 @@ int main(int argc, char *argv[])
 				break;
 
 			case 'v':
-				is_verbose=1;
+				settings->is_verbose=1;
 				break;
 
 			case 'L':
@@ -212,49 +217,49 @@ int main(int argc, char *argv[])
 		 } //end switch op
 	}//end while(1) parse args
 
+	//this will copy from settings to "running" properties for next file
+	init_running_properties();
+
 	//handle ctrl+c
 	signal(SIGTERM, signal_handler);
 	signal(SIGINT, signal_handler);
 
-	if(keyboard_control_enabled)
+	if(settings->keyboard_control_enabled)
 	{
-		init_key_codes();
+		kb_init_key_codes();
 		//now set raw to read key hits
-		set_terminal_raw();
+		kb_set_terminal_raw();
 	}
 
-	if(!create_playlist(argc,argv,read_from_playlist,dump_usable_files))
+	if(!pl_create(argc,argv,settings->read_from_playlist,settings->dump_usable_files))
 	{
 		//clean up / reset and quit
 		signal_handler(44);
 	}
 	//all done
-	if(dump_usable_files)
+	if(settings->dump_usable_files)
 	{
-		signal_handler(42);
+		signal_handler(42); //quit nicely
 	}
 
-	if(!open_init_file_from_playlist())
+	if(!pl_open_init_file())
 	{
 		fprintf(stderr,"/!\\ no valid files in playlist\n");
 		//clean up / reset and quit
-		signal_handler(44);
+		signal_handler(44); //quit with error
 	}
 
-	if(keyboard_control_enabled)
+	if(settings->keyboard_control_enabled)
 	{
 		//turn off cursor
 		fprintf(stderr,"%s",turn_off_cursor_seq);
 	}
 
-	//if no explicit channel count is known (chcount 0), the first file in a possible row of files
-	//sets the chcount for all following files
-	if(channel_count==0)
+	if(!jack_init())
 	{
-		channel_count=channel_count_use_from_file;
+		//clean up / reset and quit
+		signal_handler(44);
 	}
-
-	jack_init();
 
 //=======
 //outer loop, start over if JACK went down and came back
@@ -263,7 +268,7 @@ while(true)
 {
 	//if for some reason (i.e. last file arg was invalid) and shutdown_in_progress requested,
 	//jump over init stuff and let main loop handle nice shutdown
-	if(shutdown_in_progress)
+	if(running->shutdown_in_progress)
 	{
 		goto _main_loop;
 	}
@@ -273,66 +278,74 @@ while(true)
 	jack_post_init();
 
 	//sampling rate ratio output (JACK) to input (file)
-	if(custom_file_sample_rate>0 && use_resampling)
+	if(settings->custom_file_sample_rate>0)
 	{
-		if(is_verbose)
+		if(settings->is_verbose)
 		{
-			fprintf(stderr,"using custom file sample rate: %d\n", custom_file_sample_rate);
+			fprintf(stderr,"using custom file sample rate: %d\n", settings->custom_file_sample_rate);
 		}
 
-		float speed=(double)custom_file_sample_rate/sf_info_generic.sample_rate;
+		float speed=(double)settings->custom_file_sample_rate/sf_info_generic.sample_rate;
 		fprintf(stderr,"speed: %.3f     %s\n"
 			,speed
-			,format_duration_str( get_seconds(&sf_info_generic) / speed )
+			,sin_format_duration_str( sin_get_seconds(&sf_info_generic) / speed )
 			);
 		//from now on, the file (info) will look like it would be originally using the custom sample rate
-		sf_info_generic.sample_rate=custom_file_sample_rate;
+		sf_info_generic.sample_rate=settings->custom_file_sample_rate;
 	}
 
-	out_to_in_sr_ratio=(double)jack->sample_rate/sf_info_generic.sample_rate;
-
-	fprintf(stderr,"play range:      %s\n"
-		,format_duration_str( (double)frame_count/sf_info_generic.sample_rate)
+	fprintf(stderr,"play duration:   %s\n"
+		,sin_format_duration_str( (double)running->frame_count/sf_info_generic.sample_rate)
 	);
 
-	if(!setup_resampler())
+
+	//depends on jack samplerate, sf_info_generice sample rate, channel_count_use_from_file
+	setup_ringbuffers();
+
+	//setup resampler
+	r1=rs_new(0,rb_interleaved,rb_resampled_interleaved,jack->period_frames);
+
+	if(r1==NULL)
 	{
 		fprintf(stderr,"hint: custom file sample rates where\n\trate %%modulo 50 = 0\nshould work in most cases.");
-		shutdown_in_progress=1;
-///		keyboard_control_enabled=0;//prevent reset of terminal
+		running->shutdown_in_progress=1;
 		goto _main_loop;
 	}
 
-	if(use_resampling)
+	if(settings->is_verbose)
 	{
-		//ceil: request a bit more than needed to satisfy ratio
-		//will result in inp_count>0 after process ("too much" input for out/in ratio, will always have output)
-		sndfile_request_frames=ceil(jack->period_frames * (double)1/out_to_in_sr_ratio);
-		int additional=MAX(1,sndfile_request_frames*0.05);  //at least one more or ~5%
+		fprintf(stderr,"resampler out_to_in ratio: %f\n",r1->out_to_in_sr_ratio);
+	}
+
+	if(r1->out_to_in_sr_ratio!=1)
+	{
+		//how many frames to read per disk_read
+		sndfile_request_frames=r1->input_period_frames;
+
+		//add some to be faster than realtime
+		int additional=MAX(1,sndfile_request_frames*0.2 *(float)1.5/r1->out_to_in_sr_ratio );
 		sndfile_request_frames+=additional;
 	}
 	else
 	{
 		sndfile_request_frames=jack->period_frames;
-		int additional=MAX(1,sndfile_request_frames*0.05);  //at least one more or ~5%
+		//add some to be faster than realtime
+		int additional=MAX(1,sndfile_request_frames*0.1);
 		sndfile_request_frames+=additional;
 	}
 
-	if(is_verbose)
+	if(settings->is_verbose)
 	{
 		fprintf(stderr,"total byte out_to_in ratio: %f (%f * %f)\n"
-			,out_to_in_byte_ratio*out_to_in_sr_ratio
-			,out_to_in_byte_ratio
-			,out_to_in_sr_ratio
+			,running->out_to_in_byte_ratio*r1->out_to_in_sr_ratio
+			,running->out_to_in_byte_ratio
+			,r1->out_to_in_sr_ratio
 		);
 	}
-
 	//set seek step size here to consider possibly overridden file sample rate
 	//(10 seconds should seek 10 seconds in overridden sr domain)
 	set_frames_from_exponent();
 	set_seconds_from_exponent();
-
-	setup_ringbuffers();
 
 	setup_disk_thread();
 
@@ -345,16 +358,11 @@ while(true)
 	{
 		jack_register_callbacks();
 		jack_register_output_ports();
-
-/*
-		fprintf(stderr,"\ninterleaved buffer %"PRId64" resampled frame buffer %"PRId64" bytes \n"
-			,rb_can_read(rb_interleaved)
-			,rb_can_read(rb_resampled_interleaved)
-		);
-*/
-
 		jack_activate_client();
-		jack_connect_output_ports();
+		if(jack->autoconnect_ports)
+		{
+			jack_connect_output_ports();
+		}
 	}
 	prepare_for_next_file=0;
 
@@ -362,7 +370,6 @@ while(true)
 //	fprintf(stderr,"jack->process_enabled\n");
 
 _main_loop:
-
 	//run until interrupted
 	while (1) 
 	{
@@ -374,14 +381,14 @@ _main_loop:
 			}
 			else
 			{
-				shutdown_in_progress=1;
+				running->shutdown_in_progress=1;
 			}
 		}
 
 		//try clean shutdown, mainly to avoid possible audible glitches 
-		if(shutdown_in_progress && !shutdown_in_progress_signalled)
+		if(running->shutdown_in_progress && !running->shutdown_in_progress_signalled)
 		{
-			shutdown_in_progress_signalled=1;
+			running->shutdown_in_progress_signalled=1;
 
 			if(no_more_files_to_play)
 			{
@@ -399,8 +406,8 @@ _main_loop:
 
 				goto _start_all_over;
 			}
-		}//end if(shutdown_in_progress && !shutdown_in_progress_signalled)
-		else if(keyboard_control_enabled)
+		}//end if(running->shutdown_in_progress && !running->shutdown_in_progress_signalled)
+		else if(settings->keyboard_control_enabled)
 		{
 			fprintf(stderr,"\r");
 
@@ -408,13 +415,13 @@ _main_loop:
 			//go to start of line, add spaces ~"clear", go to start of line
 			//fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 
-			if(seek_frames_in_progress)
+			if(running->seek_frames_in_progress)
 			{
 				fprintf(stderr,"...seeking  ");
 			}
 			else
 			{
-				if(is_playing)
+				if(settings->is_playing)
 				{
 					fprintf(stderr,">  playing  ");
 				}
@@ -433,7 +440,7 @@ _main_loop:
 				fprintf(stderr," ");
 			}
 
-			if(is_muted)
+			if(settings->is_muted)
 			{
 				fprintf(stderr,"M");
 			}
@@ -456,7 +463,7 @@ _main_loop:
 				fprintf(stderr," ");
 			}
 
-			if(loop_enabled)
+			if(settings->loop_enabled)
 			{
 				fprintf(stderr,"L");
 			}
@@ -465,7 +472,7 @@ _main_loop:
 				fprintf(stderr," ");
 			}
 
-			if(pause_at_end)
+			if(settings->pause_at_end)
 			{
 				fprintf(stderr,"P  ");
 			}
@@ -474,10 +481,10 @@ _main_loop:
 				fprintf(stderr,"   ");
 			}
 
-			print_clock();
+			kb_print_clock();
 
-			handle_key_hits();
-		}//end if keyboard_control_enabled
+			kb_handle_key_hits();
+		}//end if settings->keyboard_control_enabled
 #ifdef WIN32
 		Sleep(10);
 #else
@@ -494,27 +501,26 @@ _start_all_over:
 	//in both cases break out to outer loop
 
 	jack->process_enabled=0;
-	shutdown_in_progress=0;
-	shutdown_in_progress_signalled=0;
+	running->shutdown_in_progress=0;
+	running->shutdown_in_progress_signalled=0;
 
 	if(jack->server_down)
 	{
 		//will be created again once JACK available
 		jack->client=NULL;
 		//leave intact as much as possible to retake playing at pos where JACK went away
-		reset_terminal();
 	}
 	else //if(!jack->server_down)
 	{
 		sin_close();
 		fprintf(stderr,"\n\n");
 
-		set_playlist_index(prev_file_requested);
-		prev_file_requested=0;
+		pl_set_index(playlist_advance_direction);
+		playlist_advance_direction=PL_DIRECTION_FORWARD;
 
-		if(!open_init_file_from_playlist())
+		if(!pl_open_init_file())
 		{
-			shutdown_in_progress=1;
+			running->shutdown_in_progress=1;
 		}
 	}
 
@@ -529,7 +535,6 @@ static int open_init_file(const char *f)
 //	fprintf(stderr,"open_init_file %s\n",f);
 
 	filename=f;
-
 	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
 
 	if(!(sin_open(filename,&sf_info_generic,0)))
@@ -546,12 +551,12 @@ static int open_init_file(const char *f)
 
 	//reset some variables
 	disk_thread_initialized=0;
-	all_frames_read=0;
+	set_all_frames_read(0);
 	total_frames_read_from_file=0;
-	is_idling_at_end=0;
-	frame_offset=frame_offset_first;
-	frame_count=frame_count_first;
-	resampling_finished=0;
+	running->is_idling_at_end=0;
+
+	running->frame_offset=settings->frame_offset;
+	running->frame_count=settings->frame_count;
 
 	struct stat st;
 	stat(filename, &st);
@@ -562,115 +567,37 @@ static int open_init_file(const char *f)
 		,(int)files_to_play.size()
 		,filename);
 
-	if(is_verbose)
+	if(settings->is_verbose)
 	{
 		fprintf(stderr,"size:        %"PRId64" bytes (%.2f MB)\n",file_size_bytes,(float)file_size_bytes/1000000);
 	}
 
-	is_flac_=is_flac(&sf_info_generic);
+	//print file format info
+	bytes_per_sample_in_file=sin_file_info(sf_info_generic,settings->is_verbose);
 
-	//flac and opus have different seek behaviour than wav or ogg (SEEK_END (+0) -> -1)
-	if(is_opus || is_flac_)
+	if(!settings->is_verbose)
 	{
-//		fprintf(stderr,"/!\\ reducing frame count by 1\n");
-		sf_info_generic.frames=(sf_info_generic.frames-1);///not nice
+		fprintf(stderr,"total duration:  %s\n", sin_generate_duration_str(&sf_info_generic));
 	}
 
-	if(sf_info_generic.frames<1)
+	//offset can't be greater total frames in file
+	if(running->frame_offset>sf_info_generic.frames)
 	{
-		fprintf(stderr,"/!\\ file has zero frames, nothing to play!\n");
+		fprintf(stderr,"/!\\ frame_offset greater or equal as frames in file.\n");
 		return 0;
 	}
 
-	if(channel_count>0)//fixed_output_port_count)
-	{
-		//the JACK client will have a fixed output port count, less equal or more than file has channels
-		output_port_count=channel_count;
-
-	}
-	else //port count (also) depends on file
-	{
-		int ch_file=sf_info_generic.channels;
-
-		ch_file-=channel_offset;
-		if(channel_count>0)
-		{
-			ch_file=MIN(ch_file,channel_count);
-		}
-		output_port_count=ch_file;
-	}
-
-	///
-	channel_count_use_from_file=MIN(output_port_count,(sf_info_generic.channels-channel_offset));
-
-/*
-	fprintf(stderr,"file channels %d ch offset %d ch count %d (=output port count %d), use from file: %d\n"
-		,sf_info_generic.channels
-		,channel_offset
-		,channel_count
-		,output_port_count
-		,channel_count_use_from_file);
-*/
-
-	if(output_port_count<=0 || channel_count_use_from_file<=0)
-	{
-		fprintf(stderr,"/!\\ selection of zero or less channels (i.e. channel offset beyond file channel count), nothing to play\n");
-		return 0;
-	}
-
-	bytes_per_sample_native=file_info(sf_info_generic,is_verbose);
-
-	if(!is_verbose)
-	{
-		fprintf(stderr,"total duration:  %s\n", generate_duration_str(&sf_info_generic));
-	}
-
-	if(bytes_per_sample_native<=0 || is_opus || is_mpg123 || is_ogg_ || is_flac_)
-	{
-		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
-		file_data_rate_bytes_per_second=(float)file_size_bytes
-			/get_seconds(&sf_info_generic);
-
-		if(is_verbose)
-		{
-			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
-				,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
-		}
-	}
-	else
-	{
-		file_data_rate_bytes_per_second=sf_info_generic.sample_rate * sf_info_generic.channels * bytes_per_sample_native;
-
-		if(is_verbose)
-		{
-			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
-		}
-	}
-
-	if( (file_data_rate_bytes_per_second/1000000) > 20 )
-	{
-		fprintf(stderr,"/!\\ this is a relatively high data rate\n");
-	}
-
-	//offset can't be negative or greater total frames in file
-	if(frame_offset<0 || frame_offset>sf_info_generic.frames)
-	{
-		frame_offset=0;
-		if(is_verbose)
-		{
-			fprintf(stderr,"frame_offset set to %"PRId64"\n",frame_offset);
-		}
-	}
-
-	//if requested count negative, zero or greater total frames in file
-	if(frame_count<=0 || frame_count>sf_info_generic.frames)
+	//if requested count negative, zero or greater than frames in file
+	//limit count
+	if(running->frame_count<=0 || running->frame_count>sf_info_generic.frames)
 	{
 		//set possible max respecting frame_offset
-		frame_count=sf_info_generic.frames-frame_offset;
-		if(is_verbose)
+		running->frame_count=sf_info_generic.frames-running->frame_offset;
+
+		if(settings->is_verbose)
 		{
-			fprintf(stderr,"frame_count set to %"PRId64"",frame_count);
-			if(frame_count==sf_info_generic.frames)
+			fprintf(stderr,"frame_count set to: %"PRId64"",running->frame_count);
+			if(running->frame_count==sf_info_generic.frames)
 			{
 				fprintf(stderr," (all available frames)");
 			}
@@ -679,83 +606,140 @@ static int open_init_file(const char *f)
 	}
 
 	//offset + count can't be greater than frames in file
-	if( (frame_offset+frame_count) > sf_info_generic.frames)
+	//limit count
+	if( (running->frame_offset+running->frame_count) > sf_info_generic.frames)
 	{
 		//set possible max respecting frame_offset
-		frame_count=MIN((sf_info_generic.frames-frame_offset),frame_count);
+		running->frame_count=MIN((sf_info_generic.frames-running->frame_offset),running->frame_count);
 
-		if(is_verbose)
+		if(settings->is_verbose)
 		{
-			fprintf(stderr,"frame_count set to %"PRId64"\n",frame_count);
+			fprintf(stderr,"frame_count set to: %"PRId64"\n",running->frame_count);
 		}
 	}
 
-	if(is_verbose)
+	if(running->channel_count>0)//fixed_output_port_count
+	{
+		//the JACK client will have a fixed output port count, less equal or more than file has channels
+		running->output_port_count=running->channel_count;
+		if(settings->is_verbose)
+		{
+			fprintf(stderr,"output port count (fixed): %d\n",running->output_port_count);
+		}
+
+	}
+	else //port count depends on file and offset
+	{
+		int output_port_count=sf_info_generic.channels;
+		//reducing by channel offset
+		output_port_count-=running->channel_offset;
+		running->output_port_count=output_port_count;
+
+		if(running->output_port_count<=0)
+		{
+			fprintf(stderr,"/!\\ no channels in selection (i.e. channel offset beyond or equal file channel count), nothing to play\n");
+			return 0;
+		}
+
+		if(settings->is_verbose)
+		{
+			fprintf(stderr,"output port count: %d\n",running->output_port_count);
+		}
+
+		//if no explicit channel count is known (channel_count 0), the first file in a possible row of files
+		//sets the channel_count for all following files
+		running->channel_count=channel_count_use_from_file;
+	}
+
+	//how many channels to read from file
+	channel_count_use_from_file
+		=MIN(running->output_port_count,(sf_info_generic.channels - running->channel_offset));
+
+	if(settings->is_verbose)
 	{
 		fprintf(stderr,"playing frames (offset count end): %"PRId64" %"PRId64" %"PRId64"\n"
-			,frame_offset
-			,frame_count
-			,MIN(sf_info_generic.frames,frame_offset+frame_count));
+			,running->frame_offset
+			,running->frame_count
+			,MIN(sf_info_generic.frames,running->frame_offset+running->frame_count));
 	}
 
 	//if for some reason from==to (count==0)
-	if(frame_count==0)
+	if(running->frame_count==0)
 	{
-		fprintf(stderr,"/!\\ zero frames, nothing to do\n");
+		fprintf(stderr,"/!\\ no frames in selection, nothing to play\n");
 		return 0;
 	}
 
-	if(is_verbose)
+	if(settings->is_verbose)
 	{
 		fprintf(stderr,"playing channels (offset count last): %d %d %d\n"
-			,channel_offset
+			,running->channel_offset
 			,channel_count_use_from_file
-			,channel_offset+channel_count_use_from_file);
+			,running->channel_offset+channel_count_use_from_file);
 
 		fprintf(stderr,"amplification: %.1f dB (%.3f)\n"
 			,jack->volume_amplification_decibel
 			,jack->volume_coefficient);
 	}
 
-	//initial seek
-	if(frame_offset>0)
+	if(bytes_per_sample_in_file<=0 || is_opus || is_mpg123 || is_ogg || is_flac)
 	{
-		frames_to_seek=frame_offset;
+		//try estimation: total filesize (including headers, other chunks ...) divided by (frames*channels*native bytes)
+		file_data_rate_bytes_per_second=(float)file_size_bytes
+			/sin_get_seconds(&sf_info_generic);
+
+		if(settings->is_verbose)
+		{
+			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s) average, estimated\n"
+				,file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		}
+	}
+	else
+	{
+		file_data_rate_bytes_per_second=sf_info_generic.sample_rate * sf_info_generic.channels * bytes_per_sample_in_file;
+
+		if(settings->is_verbose)
+		{
+			fprintf(stderr,"disk read:   %.1f bytes/s (%.2f MB/s)\n",file_data_rate_bytes_per_second,(file_data_rate_bytes_per_second/1000000));
+		}
+	}
+
+	if( settings->is_verbose && (file_data_rate_bytes_per_second/1000000) > 20 )
+	{
+		fprintf(stderr,"/!\\ this is a relatively high data rate\n");
+	}
+
+	//initial seek
+	if(running->frame_offset>0)
+	{
+		frames_to_seek=running->frame_offset;
 		frames_to_seek_type=SEEK_SET;
-		seek_frames_in_progress=1;
+		running->seek_frames_in_progress=1;
 	}
 	else
 	{
 		frames_to_seek=0;
-		seek_frames_in_progress=0;
+		running->seek_frames_in_progress=0;
 	}
-
-	//~1%
-//	seek_frames_per_hit=ceil(frame_count / 100);
-
-//	set_frames_from_exponent();
-//	set_seconds_from_exponent();
-
 //	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
 
 	return 1;
-
 }//end open_init_file()
 
 //=============================================================================
 static int disk_read_frames()
 {
 //	fprintf(stderr,"disk_read_frames() called\n");
+	uint64_t frames_to_go=running->frame_count-total_frames_read_from_file;
 
-	uint64_t frames_to_go=frame_count-total_frames_read_from_file;
 //	fprintf(stderr,"disk_read_frames(): frames to go %" PRId64 "\n",frames_to_go);
 
 	//only read/write as many frames as requested (frame_count)
 	int frames_read=(int)MIN(frames_to_go,sndfile_request_frames);
 
-	if(frames_read<=0 && !is_idling_at_end)
+	if(frames_read<=0 && !running->is_idling_at_end)
 	{
-		all_frames_read=1;
+		set_all_frames_read(1);
 		return 0;
 	}
 
@@ -763,9 +747,10 @@ static int disk_read_frames()
 
 	rb_t *rb_to_use;
 
-	if(!is_idling_at_end)
+	if(!running->is_idling_at_end)
 	{
-		if(out_to_in_sr_ratio==1.0 || !use_resampling)
+
+		if(r1->out_to_in_sr_ratio==1.0)
 		{
 			//directly write to rb_resampled_interleaved (skipping rb_interleaved)
 			rb_to_use=rb_resampled_interleaved;
@@ -785,60 +770,62 @@ static int disk_read_frames()
 		//frames_read: number of (multi-channel) samples to read, i.e. 1 frame in a stereo file = two values
 
 		//get float frames from any of the readers, requested size ensured to be returned except eof
-		frames_read_from_file=read_frames_from_file_to_buffer(frames_read, frames_from_file_buffer);
+		frames_read_from_file=sin_read_frames_from_file_to_buffer(frames_read, frames_from_file_buffer);
 
 		//put to the selected ringbuffer
 		rb_write(rb_to_use,(const char*)frames_from_file_buffer,frames_read_from_file*channel_count_use_from_file*bytes_per_sample);
-	}//end if(!is_idling_at_end)
+	}//end if(!running->is_idling_at_end)
 
 	if(frames_read_from_file>0)
 	{
 		disk_read_cycle_count++;
-		total_bytes_read_from_file+=frames_read_from_file * sf_info_generic.channels * bytes_per_sample_native;
+		total_bytes_read_from_file+=frames_read_from_file * sf_info_generic.channels * bytes_per_sample_in_file;
 
 		total_frames_read_from_file+=frames_read_from_file;
 //		fprintf(stderr,"disk_read_frames(): frames: read %"PRId64" total %"PRId64"\n",frames_read_from_file,total_frames_read_from_file);
 
-		if(total_frames_read_from_file>=frame_count)
+		if(total_frames_read_from_file>=running->frame_count)
 		{
-			all_frames_read=1;
-			if(pause_at_end)
+			set_all_frames_read(1);
+			if(settings->pause_at_end)
 			{
 #ifndef WIN32
 				fprintf(stderr,"pae ");
 #endif
-				total_frames_read_from_file=frame_count;
-				is_playing=0;
-				seek_frames_in_progress=0;
+				total_frames_read_from_file=running->frame_count;
+				settings->is_playing=0;
+				running->seek_frames_in_progress=0;
 				frames_to_seek=0;
-				is_idling_at_end=1;
+				running->is_idling_at_end=1;
 			}
 
-			if(loop_enabled)
+			if(settings->loop_enabled)
 			{
 #ifndef WIN32
-				if(keyboard_control_enabled)
+				if(settings->keyboard_control_enabled)
 				{
 					fprintf(stderr,"loop ");
 				}
 #endif
 				total_frames_read_from_file=0;
-				all_frames_read=0;///
+				set_all_frames_read(0);
 
-				seek_frames_in_progress=1;
-				///clever to seek here?
-				sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
-				seek_frames_in_progress=0;
+				running->seek_frames_in_progress=1;
+				running->last_seek_pos=sin_seek(running->frame_offset,SEEK_SET);
+				running->seek_frames_in_progress=0;
 
-				is_idling_at_end=0;
-				resampling_finished=0;
+				//current play position / clock depends on last_seek_pos and rb_deinterleaved total_bytes_read
+				rb_reset_stats(rb_deinterleaved);
+
+				running->is_idling_at_end=0;
+				r1->resampling_finished=0;
 				return 1;
 			}
 		}//end if(total_frames_read_from_file>=frame_count)
 		return frames_read_from_file;
 	}//end if(frames_read_from_file>0)
 	//if no frames were read assume we're at EOF
-	all_frames_read=1;
+	set_all_frames_read(1);
 	return 0;
 }//end disk_read_frames()
 
@@ -850,7 +837,7 @@ static void *disk_thread_func(void *arg)
 	//assume soundfile not null
 
 	//seek to given offset position
-	sf_count_t count=sin_seek(frame_offset,SEEK_SET);
+	running->last_seek_pos=sin_seek(running->frame_offset,SEEK_SET);
 
 	//readers read into this buffer, interleaved channels
 	frames_from_file_buffer=new float[sndfile_request_frames*channel_count_use_from_file];
@@ -861,60 +848,55 @@ static void *disk_thread_func(void *arg)
 //		fprintf(stderr,"disk_thread_func() loop\n");
 
 		//check if seek is due
-		if(seek_frames_in_progress)
+		if(running->seek_frames_in_progress)
 		{
-//			fprintf(stderr,"\nseek start === frames to seek %"PRId64"\n",frames_to_seek);
-			sf_count_t count=sin_seek(frames_to_seek,frames_to_seek_type);
+			running->last_seek_pos=sin_seek(frames_to_seek,frames_to_seek_type);
 
-			seek_frames_in_progress=0;
+			running->seek_frames_in_progress=0;
 			frames_to_seek=0;
 
-			sf_count_t new_pos=sin_seek(0,SEEK_CUR);
-
-			total_frames_read_from_file=new_pos-frame_offset;
+			total_frames_read_from_file=running->last_seek_pos-running->frame_offset;
 
 			//reset some variables before update
-			all_frames_read=0;
-			is_idling_at_end=0;
-			resampling_finished=0;
-			if(total_frames_read_from_file>=frame_count)
+			set_all_frames_read(0);
+			running->is_idling_at_end=0;
+			r1->resampling_finished=0;
+			if(total_frames_read_from_file>=running->frame_count)
 			{
-				all_frames_read=1;
-				if(pause_at_end)
+				set_all_frames_read(1);
+				if(settings->pause_at_end)
 				{
 #ifndef WIN32
 				fprintf(stderr,"pae ");
 #endif
-					is_idling_at_end=1;
-					is_playing=0;
+					running->is_idling_at_end=1;
+					settings->is_playing=0;
 				}
 
-				if(loop_enabled)
+				if(settings->loop_enabled)
 				{
 #ifndef WIN32
-					if(keyboard_control_enabled)
+					if(settings->keyboard_control_enabled)
 					{
 						fprintf(stderr,"loop ");
 					}
 #endif
 					total_frames_read_from_file=0;
-					all_frames_read=0;
-					seek_frames_in_progress=1;
-					///
-					sf_count_t new_pos=sin_seek(frame_offset,SEEK_SET);
-					seek_frames_in_progress=0;
-					is_idling_at_end=0;
-					resampling_finished=0;
-
+					set_all_frames_read(0);
+					running->seek_frames_in_progress=1;
+					running->last_seek_pos=sin_seek(running->frame_offset,SEEK_SET);
+					running->seek_frames_in_progress=0;
+					running->is_idling_at_end=0;
+					r1->resampling_finished=0;
 					continue;
 				}
 			}
 
-//			fprintf(stderr,"\nseek end === new pos %"PRId64" total read %"PRId64"\n",new_pos,total_frames_read_from_file);
+//			fprintf(stderr,"\nseek end === new pos %"PRId64" total read %"PRId64"\n",running->last_seek_pos,total_frames_read_from_file);
 		}
 
 		//don't read yet, possibly was started paused or another seek will follow shortly
-		if(!is_playing && !is_idling_at_end)
+		if(!settings->is_playing && !running->is_idling_at_end)
 		{
 			//===wait here until process() requests to continue
 			pthread_cond_wait (&ok_to_read, &disk_thread_lock);
@@ -923,7 +905,7 @@ static void *disk_thread_func(void *arg)
 		}
 
 		//no resampling needed
-		if(out_to_in_sr_ratio==1.0 || !use_resampling)
+		if(r1->out_to_in_sr_ratio==1.0)
 		{
 			if(rb_can_write(rb_resampled_interleaved)
 				< sndfile_request_frames * channel_count_use_from_file * bytes_per_sample )
@@ -939,7 +921,6 @@ static void *disk_thread_func(void *arg)
 			if(rb_can_write(rb_interleaved)
 				< sndfile_request_frames * channel_count_use_from_file * bytes_per_sample )
 			{
-
 				//===wait here until process() requests to continue
 				pthread_cond_wait (&ok_to_read, &disk_thread_lock);
 				//once waked up, restart loop
@@ -951,7 +932,7 @@ static void *disk_thread_func(void *arg)
 		//disk_read() returns 0 on EOF
 		if(!disk_read_frames())
 		{
-			if(!is_idling_at_end)
+			if(!running->is_idling_at_end)
 			{
 				//not idling so eof
 				goto done;
@@ -966,8 +947,8 @@ done:
 //	sf_close_();//close in shutdown handler
 
 	pthread_mutex_unlock (&disk_thread_lock);
-        pthread_join(disk_thread, NULL);
-        pthread_cancel(disk_thread);
+	pthread_join(disk_thread, NULL);
+	pthread_cancel(disk_thread);
 
 //	fprintf(stderr,"disk_thread_func(): disk thread finished\n");
 
@@ -999,7 +980,7 @@ static void setup_disk_thread()
 //=============================================================================
 static void req_buffer_from_disk_thread()
 {
-	if((all_frames_read && !seek_frames_in_progress)
+	if((all_frames_read() && !running->seek_frames_in_progress)
 	|| reset_ringbuffers_in_progress)
 	{
 		return;
@@ -1015,15 +996,6 @@ static void req_buffer_from_disk_thread()
 		return;
 	}
 
-	/*
-	The pthread_mutex_trylock() function shall be equivalent to pthread_mutex_lock(), 
-	except that if the mutex object referenced by mutex is currently locked (by any 
-	thread, including the current thread), the call shall return immediately.
-
-	The pthread_mutex_trylock() function shall return zero if a lock on the mutex 
-	object referenced by mutex is acquired. Otherwise, an error number is returned 
-	to indicate the error. 
-	*/
 	//if possible to lock the disk_thread_lock mutex
 	if(!pthread_mutex_trylock(&disk_thread_lock))
 	{
@@ -1039,30 +1011,28 @@ static void req_buffer_from_disk_thread()
 //>=0
 static void seek_frames_absolute(int64_t frames_abs)
 {
-	if(seek_frames_in_progress)
+	if(running->seek_frames_in_progress)
 	{
 		return;
 	}
 
 	//limit absolute seek to given boundaries (frame_offset, frame_count)
-	uint64_t seek_=MAX(frame_offset,frames_abs);
-	uint64_t seek =MIN((frame_offset+frame_count),seek_);
+	uint64_t seek_max=MAX(running->frame_offset,frames_abs);
+//	uint64_t seek =MIN((running->frame_offset+running->frame_count),seek_);
 
 	//seek in disk_thread
-	frames_to_seek=seek;
+	frames_to_seek=MIN((running->frame_offset+running->frame_count),seek_max);
 	frames_to_seek_type=SEEK_SET;
 
 	reset_ringbuffers();
-	seek_frames_in_progress=1;
-
-////need to reset more more
+	running->seek_frames_in_progress=1;
 }
 
 //=============================================================================
 //+ / -
 static void seek_frames(int64_t frames_rel)
 {
-	if(seek_frames_in_progress)
+	if(running->seek_frames_in_progress)
 	{
 		return;
 	}
@@ -1072,10 +1042,6 @@ static void seek_frames(int64_t frames_rel)
 		//nothing to do
 		return;
 	}
-
-	//0-seek
-	sf_count_t current_read_pos=sin_seek(0,SEEK_CUR);
-
 /*
                             current abs pos    
          abs start          v                                   abs end
@@ -1090,13 +1056,15 @@ static void seek_frames(int64_t frames_rel)
                      limit                      limit
 */
 
+	sf_count_t current_read_pos=get_current_play_position_in_file();
+
 	int64_t seek=0;
 
 	//limit relative seek to given boundaries (frame_offset, frame_count)
 	if(frames_rel>0)
 	{
 		seek=MIN(
-			(int64_t)(frame_offset + frame_count - current_read_pos)
+			(int64_t)(running->frame_offset + running->frame_count - current_read_pos)
 			,frames_rel
 		);
 	}
@@ -1104,22 +1072,13 @@ static void seek_frames(int64_t frames_rel)
 	{
 		seek=MAX(
 
-			(int64_t)(frame_offset - current_read_pos)
+			(int64_t)(running->frame_offset - current_read_pos)
 			,frames_rel
 		);
 	}
 
-	//seek in disk_thread
-	frames_to_seek=seek;
-	frames_to_seek_type=SEEK_CUR;
-
-	reset_ringbuffers();
-
-	seek_frames_in_progress=1;
-
-//	fprintf(stderr,"frames to seek %"PRId64"\n",frames_to_seek);
-
-////need to reset more
+	//seek in disk_thread, always seek absolute
+	seek_frames_absolute(current_read_pos+seek);
 }
 
 //=============================================================================
@@ -1130,17 +1089,17 @@ static void seek_frames(int64_t frames_rel)
 //=============================================================================
 static int ctrl_toggle_play()
 {
-	if(pause_at_end && is_idling_at_end)
+	if(settings->pause_at_end && running->is_idling_at_end)
 	{
 		return 2;
 	}
 	else
 	{
-		is_idling_at_end=0;
-		is_playing=!is_playing;
+		running->is_idling_at_end=0;
+		settings->is_playing=!settings->is_playing;
 		if(jack->use_transport)
 		{
-			if(is_playing)
+			if(settings->is_playing)
 			{
 				jack_transport_start(jack->client);
 			}
@@ -1150,44 +1109,44 @@ static int ctrl_toggle_play()
 			}
 		}
 
-		return is_playing;
+		return settings->is_playing;
 	}
 }
 
 //=============================================================================
 static int ctrl_play()
 {
-	if(pause_at_end && is_idling_at_end)
+	if(settings->pause_at_end && running->is_idling_at_end)
 	{
 		return 2;
 	}
 	else
 	{
 		int tmp=0;
-		is_idling_at_end=0;
-		is_playing=1;
+		running->is_idling_at_end=0;
+		settings->is_playing=1;
 		if(jack->use_transport)
 		{
 			jack_transport_start(jack->client);
 		}
-		return is_playing;
+		return settings->is_playing;
 	}
 }
 
 //=============================================================================
 static void ctrl_pause()
 {
-///
+	///here: explicitly request pause (not via toggle)
 }
 
 //=============================================================================
 static void ctrl_quit()
 {
 	no_more_files_to_play=1;
-	loop_enabled=0; //prepare seek
-	pause_at_end=0;
-	is_idling_at_end=0;
-	is_playing=1;
+	settings->loop_enabled=0; //prepare seek
+	settings->pause_at_end=0;
+	running->is_idling_at_end=0;
+	settings->is_playing=1;///
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
@@ -1200,16 +1159,16 @@ static void ctrl_seek_backward()
 //=============================================================================
 static int ctrl_seek_forward()
 {
-	if(pause_at_end && is_idling_at_end)
+	if(settings->pause_at_end && running->is_idling_at_end)
 	{
 		return 2;
 	}
 	else
 	{
-		is_idling_at_end=0;
+		running->is_idling_at_end=0;
 		fprintf(stderr,">> ");
 		seek_frames( seek_frames_per_hit);
-		return is_playing;
+		return settings->is_playing;
 	}
 }
 
@@ -1218,16 +1177,16 @@ static int ctrl_seek_forward()
 //=============================================================================
 static void ctrl_seek_start()
 {
-	seek_frames_absolute(frame_offset);
+	seek_frames_absolute(running->frame_offset);
 
 }
 
 //=============================================================================
 static void ctrl_seek_start_play()
 {
-	is_playing=0;
-	seek_frames_absolute(frame_offset);
-	is_playing=1;
+	settings->is_playing=0;
+	seek_frames_absolute(running->frame_offset);
+	settings->is_playing=1;
 
 	if(jack->use_transport)
 	{
@@ -1238,21 +1197,21 @@ static void ctrl_seek_start_play()
 //=============================================================================
 static void ctrl_seek_start_pause()
 {
-	seek_frames_absolute(frame_offset);
+	seek_frames_absolute(running->frame_offset);
 }
 
 //=============================================================================
 static int ctrl_seek_end()
 {
-	if(is_idling_at_end)
+	if(running->is_idling_at_end)
 	{
 		return 2;
 	}
 	else
 	{
 		fprintf(stderr,">| end ");
-		seek_frames_absolute(frame_offset+frame_count);
-		return is_playing;
+		seek_frames_absolute(running->frame_offset+running->frame_count);
+		return settings->is_playing;
 	}
 }
 
@@ -1261,34 +1220,29 @@ static int ctrl_seek_end()
 //=============================================================================
 static void ctrl_toggle_mute()
 {
-	is_muted=!is_muted;
+	settings->is_muted=!settings->is_muted;
 }
 
 //=============================================================================
 static void ctrl_toggle_loop()
 {
-	loop_enabled=!loop_enabled;
+	settings->loop_enabled=!settings->loop_enabled;
 
-	if(loop_enabled && all_frames_read)
+	if(settings->loop_enabled && all_frames_read())
 	{
-		seek_frames_absolute(frame_offset);
+		seek_frames_absolute(running->frame_offset);
 	}
 }
 
 //=============================================================================
 static void ctrl_toggle_pause_at_end()
 {
-	pause_at_end=!pause_at_end;
-	if(pause_at_end && all_frames_read)
+	settings->pause_at_end=!settings->pause_at_end;
+	if(settings->pause_at_end && all_frames_read())
 	{
-		is_idling_at_end=1;
+		running->is_idling_at_end=1;
 	}
 }
-
-//',':  toggle seconds/frames
-//'-': toggle elapsed/remaining
-//'.': toggle abs / rel
-//'c': toggle clock on/off
 
 //=============================================================================
 static void ctrl_toggle_jack_transport()
@@ -1311,21 +1265,21 @@ static void ctrl_jack_transport_off()
 //=============================================================================
 static void ctrl_load_prev_file()
 {
-	prev_file_requested=1;
-	loop_enabled=0; //prepare seek
-	pause_at_end=0;
-	is_idling_at_end=0;
-	is_playing=1;///
+	playlist_advance_direction=PL_DIRECTION_BACKWARD;
+	settings->loop_enabled=0; //prepare seek
+	settings->pause_at_end=0;
+	running->is_idling_at_end=0;
+	settings->is_playing=1;///
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
 //=============================================================================
 static void ctrl_load_next_file()
 {
-	loop_enabled=0; //prepare seek
-	pause_at_end=0;
-	is_idling_at_end=0;
-	is_playing=1;///
+	settings->loop_enabled=0; //prepare seek
+	settings->pause_at_end=0;
+	running->is_idling_at_end=0;
+	settings->is_playing=1;///
 	ctrl_seek_end(); //seek to end ensures zeroed buffers (while seeking)
 }
 
@@ -1405,8 +1359,7 @@ static void ctrl_reset_volume()
 static void deinterleave()
 {
 //	fprintf(stderr,"deinterleave called\n");
-
-	if(all_frames_read && !rb_can_read(rb_resampled_interleaved))
+	if(all_frames_read() && !rb_can_read(rb_resampled_interleaved))
 	{
 		//nothing to do
 //		fprintf(stderr,"deinterleave(): disk thread finished and no more data in rb_resampled_interleaved\n");
@@ -1463,7 +1416,7 @@ static void deinterleave()
 					jack->clipping_detected=1;
 				}
 
-				if(is_muted)
+				if(settings->is_muted)
 				{
 					f1=0;
 				}
@@ -1478,50 +1431,62 @@ static void deinterleave()
 		free(data_resampled_interleaved);
 //		fprintf(stderr,"===deinterleave(): done\n");
 	}//end if enough data to deinterleave
-	else
-	{
-/*
-		fprintf(stderr,"deinterleave(): no deinterleave action in cycle # %"PRId64". frames resampled read space %d deinterleaved write space %d\n"
-			,jack->process_cycle_count
-			,rb_can_read(rb_resampled_interleaved) / channel_count_use_from_file / bytes_per_sample
-			,rb_can_write(rb_deinterleaved) / channel_count_use_from_file / bytes_per_sample );
-*/
-	}
 }//end deinterleave()
+
+//=============================================================================
+static void set_all_frames_read(int all_read)
+{
+	if(rb_interleaved==NULL || rb_resampled_interleaved==NULL) {return;}
+	rb_interleaved->no_more_input_data=all_read;
+	rb_resampled_interleaved->no_more_input_data=all_read;
+}
+
+//=============================================================================
+static int all_frames_read()
+{
+	if(rb_interleaved==NULL || rb_resampled_interleaved==NULL) {return 0;}
+	return (rb_interleaved->no_more_input_data || rb_resampled_interleaved->no_more_input_data);
+}
+
+//=============================================================================
+static uint64_t get_current_play_position_in_file()
+{
+	//the read position in the file is only equal to the play position after a seek (buffers empty).
+	//if interleaved buffer is filled, the position must be calculated "back" from last seek position 
+	//and deinterleave buffer fill level
+
+	sf_count_t pos=running->last_seek_pos;
+	sf_count_t pos_deinter=rb_byte_to_frame_count(rb_deinterleaved,rb_deinterleaved->total_bytes_read);
+	pos+=pos_deinter*((float)sf_info_generic.sample_rate/jack->sample_rate);
+	pos=MIN(running->frame_offset+running->frame_count,pos);
+	return pos;
+}
 
 //=============================================================================
 static void print_stats()
 {
-	if(!debug)
+	if(!settings->debug)
 	{
 		return;
 	}
-	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %lu resampled %lu deinterleaved %lu resampling finished %d all frames read %d disk thread finished %d all frames read %d\n"
+	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %lu resampled %lu deinterleaved %lu resampling finished %d all frames read %d disk thread finished %d\n"
 		,jack->process_cycle_count
 		,disk_read_cycle_count
 		,jack->process_cycle_underruns
 		,total_bytes_read_from_file
 
 		,total_frames_read_from_file
-		,total_input_frames_resampled
+		,r1->total_input_frames_resampled
 		,jack->total_frames_pushed_to_jack
 
 		,rb_can_read(rb_interleaved)		/channel_count_use_from_file/bytes_per_sample
 		,rb_can_read(rb_resampled_interleaved)	/channel_count_use_from_file/bytes_per_sample
 		,rb_can_read(rb_deinterleaved)		/channel_count_use_from_file/bytes_per_sample
 
-		,resampling_finished
-		,all_frames_read
+		,r1->resampling_finished
+		,all_frames_read()
 		,disk_thread_finished
-
-		,all_frames_read
 	);
-/*
-	fprintf(stderr,"proc underruns %"PRId64" interleaved %"PRId64"\n"
-		,jack->process_cycle_underruns
-		,rb_can_read(rb_interleaved)             /channel_count_use_from_file/bytes_per_sample
-	);
-*/
 }//end print_stats()
 
 //=============================================================================
@@ -1529,7 +1494,6 @@ static void signal_handler(int sig)
 {
 	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
 //	fprintf(stderr,"signal_handler() called\n");
-
 	print_stats();
 
 	if(jack->process_cycle_underruns>0)
@@ -1537,33 +1501,28 @@ static void signal_handler(int sig)
 		fprintf(stderr,"/!\\ underruns: %"PRId64"\n",jack->process_cycle_underruns);
 	}
 
-//	fprintf(stderr,"expected frames pushed to JACK (excl. resampler padding): %f\n",(double)(frame_count * out_to_in_sr_ratio) );
+//	fprintf(stderr,"expected frames pushed to JACK (excl. resampler padding): %f\n",(double)(frame_count * r1->out_to_in_sr_ratio) );
 
-	if(sig!=42 && sig!=44 && is_verbose)
+	if(sig!=42 && sig!=44 && settings->is_verbose)
 	{
 		fprintf(stderr, "terminate signal %d received\n",sig);
 	}
-
 	jack_close_down();
-
 	sin_close();
 //	fprintf(stderr,"soundfile closed\n");
 	mpg123_exit();
-
 	free_ringbuffers();
-
-	reset_terminal();
-
+	kb_reset_terminal();
 	fprintf(stderr,"jack_playfile done.\n");
-
 	fprintf(stderr,"%s",turn_on_cursor_seq);
-
 	if(sig==44)
 	{
+		//exit with error
 		exit(1);
 	}
 	else
 	{
+		//exit normally
 		exit(0);
 	}
 }//end signal_handler()

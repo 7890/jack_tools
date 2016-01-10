@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -36,13 +36,63 @@
 #include "jackaudio.h"
 #include "playlist.h"
 
-static const float version=0.88;
+static const float version=0.89;
+
+static void init_settings();
+static void init_running_properties();
 
 static void print_main_help();
 static void print_manpage();
 static void print_header();
 static void print_version();
 static void print_libs();
+
+//================================================================
+static void init_settings()
+{
+	settings=new Cmdline_Settings;
+
+	settings->frame_offset=0;
+	settings->frame_count=0; 
+	settings->channel_offset=0;
+	settings->channel_count=0;
+//	settings->use_resampling=1;
+	settings->custom_file_sample_rate=0;
+	settings->is_playing=1;
+	settings->is_muted=0;
+	settings->loop_enabled=0;
+	settings->pause_at_end=0;
+	settings->keyboard_control_enabled=1;
+	settings->is_clock_displayed=1;
+	settings->is_time_seconds=1;
+	settings->is_time_absolute=0;
+	settings->is_time_elapsed=1;
+	settings->read_from_playlist=0;
+	settings->dump_usable_files=0;
+	settings->is_verbose=0;
+	settings->debug=0;
+	settings->connect_to_sisco=0;
+	settings->add_markers=0;
+}
+
+//================================================================
+static void init_running_properties()
+{
+	running=new Running_Properties;
+
+	//copy from (initialized) settings
+	running->frame_offset=settings->frame_offset;
+	running->frame_count=settings->frame_count;
+	running->channel_offset=settings->channel_offset;
+	running->channel_count=settings->channel_count;
+	running->output_port_count=0;
+	running->seek_frames_in_progress=0;
+	running->is_idling_at_end=0;
+	running->shutdown_in_progress=0;
+	running->shutdown_in_progress_signalled=0;
+	running->out_to_in_byte_ratio=0;
+	running->last_seek_pos=0;
+}
 
 //data structure for command line options parsing
 //http://www.gnu.org/software/libc/manual/html_node/Using-Getopt.html
@@ -52,41 +102,39 @@ static struct option long_options[] =
 	{"help",	no_argument,		0, 'h'},
 	{"man",		no_argument,		0, 'H'},
 	{"version",	no_argument,		0, 'V'},
-	{"name",	required_argument,	0, 'n'},
-	{"sname",	required_argument,	0, 's'},
+	{"name",	required_argument,	0, 'n'}, //JackServer
+	{"sname",	required_argument,	0, 's'}, //JackServer
 
-	{"offset",	required_argument,	0, 'o'},
-	{"count",	required_argument,	0, 'c'},
+	{"offset",	required_argument,	0, 'o'}, //Settings
+	{"count",	required_argument,	0, 'c'}, //Settings
 
-	{"choffset",	required_argument,	0, 'O'},
-	{"chcount",	required_argument,	0, 'C'},
+	{"choffset",	required_argument,	0, 'O'}, //Settings
+	{"chcount",	required_argument,	0, 'C'}, //Settings
 
-	{"samplerate",	required_argument,	0, 'S'},
+	{"samplerate",	required_argument,	0, 'S'}, //Settings
 
-	{"amplify",	required_argument,	0, 'A'},
+	{"amplify",	required_argument,	0, 'A'}, //JackServer
 
 	{"file",	required_argument,	0, 'F'},
-	{"dump",	no_argument,  0,	'd'},
+	{"dump",	no_argument,  0,	'd'},    //Settings
 
-	{"nocontrol",	no_argument,  0,	'D'},
-	{"noresampling",no_argument,  0,	'R'},
-	{"noconnect",	no_argument,  0,	'N'},
-	{"noreconnect",	no_argument,  0,	'E'},
+	{"nocontrol",	no_argument,  0,	'D'},    //Settings
+/*	{"noresampling",no_argument,  0,	'R'},    //Settings */
+	{"noconnect",	no_argument,  0,	'N'},    //JackServer
+	{"noreconnect",	no_argument,  0,	'E'},    //JackServer
 
-	{"paused",	no_argument,  0,	'p'},
-	{"muted",	no_argument,  0,	'm'},
-	{"loop",	no_argument,  0,	'l'},
-	{"frames",	no_argument,  0,	'f'},
-	{"absolute",	no_argument,  0,	'a'},
-	{"remaining",	no_argument,  0,	'r'},
-	{"noclock",	no_argument,  0,	'k'},
-	{"pae",		no_argument,  0,	'e'},
-	{"transport",	no_argument,  0,	'j'},
+	{"paused",	no_argument,  0,	'p'},    //Settings
+	{"muted",	no_argument,  0,	'm'},    //Settings
+	{"loop",	no_argument,  0,	'l'},    //Settings
+	{"frames",	no_argument,  0,	'f'},    //Settings
+	{"absolute",	no_argument,  0,	'a'},    //Settings
+	{"remaining",	no_argument,  0,	'r'},    //Settings
+	{"noclock",	no_argument,  0,	'k'},    //Settings
+	{"pae",		no_argument,  0,	'e'},    //Settings
+	{"transport",	no_argument,  0,	'j'},    //JackServer
 
-	{"verbose",	no_argument,  0,	'v'},
+	{"verbose",	no_argument,  0,	'v'},    //Settings
 	{"libs",	no_argument,  0,	'L'},
-
-//{"",  no_argument,  &connect_to_sisco, 0},
 	{0, 0, 0, 0}
 };
 
@@ -104,7 +152,7 @@ static void print_main_help()
 	fprintf (stdout, "  -N, --noconnect           Don't connect JACK ports\n");
 	fprintf (stdout, "  -E, --noreconnect         Don't wait for JACK to re-connect\n");
 	fprintf (stdout, "  -D, --nocontrol           Disable keyboard control\n");
-	fprintf (stdout, "  -R, --noresampling        Disable resampling\n");
+//	fprintf (stdout, "  -R, --noresampling        Disable resampling\n");
 	fprintf (stdout, "  -S, --samplerate          Override file sample rate (affects pitch & tempo)\n");
 	fprintf (stdout, "  -A, --amplify             Amplifcation in dB (Volume):  (0.0)\n");
 	fprintf (stdout, "  -p, --paused              Start paused\n");
@@ -131,9 +179,8 @@ static void print_main_help()
 	fprintf (stdout, "This is a static build of jack_playfile.\n\n");
 	fprintf (stdout, "Display a built-in manual page: jack_playfile --man|less\n\n");
 #endif
-
 	exit(0);
-}
+} //end print_main_help()
 
 //=========================================================
 static void print_manpage()
@@ -148,7 +195,7 @@ static void print_manpage()
 static void print_header()
 {
 	fprintf (stderr, "\njack_playfile v%.2f\n", version);
-	fprintf (stderr, "(C) 2015 Thomas Brand  <tom@trellis.ch>\n");
+	fprintf (stderr, "(C) 2015 - 2016 Thomas Brand  <tom@trellis.ch>\n");
 }
 
 //=========================================================

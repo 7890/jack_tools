@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,13 +33,15 @@
 
 #include "config.h"
 #include "control.h"
+#include "buffers.h"
+#include "jack_playfile.h"
 
 #ifndef WIN32
-	static struct termios initial_settings; //cooked
-	struct termios settings; //raw
+	static struct termios term_initial_settings; //cooked
+	struct termios term_settings; //raw
 
 	//lower values mean faster repetition of events from held key (~ ?)
-	#define MAGIC_MAX_CHARS 5//18
+	#define MAGIC_MAX_CHARS 5
 	static unsigned char keycodes[ MAGIC_MAX_CHARS ];
 #else
 	DWORD        w_term_mode;
@@ -48,13 +50,7 @@
 	DWORD        w_term_count;
 #endif
 
-//if set to 0, keyboard entry won't be used (except ctrl+c)
-//also no clock or other running information is displayed
-static int keyboard_control_enabled=1;
-
-//0: no running clock
-static int is_clock_displayed=1;
-
+//keys used to control jack_playfile
 static int KEY_SPACE=0;
 static int KEY_Q=0;
 static int KEY_H=0;
@@ -95,23 +91,21 @@ static const char *turn_off_cursor_seq=NULL;
 //for displaying 'wheel' as progress indicator
 static int wheel_state=0;
 
-static void print_keyboard_shortcuts();
-static void handle_key_hits();
-static void print_clock();
-static void print_next_wheel_state(int direction);
-static void set_terminal_raw();
-static int read_raw_key();
-static void reset_terminal();
-static void init_term_seq();
-static void init_key_codes();
+static void kb_print_keyboard_shortcuts();
+static void kb_handle_key_hits();
+static void kb_print_clock();
+static void kb_print_next_wheel_state(int direction);
+static void kb_set_terminal_raw();
+static int kb_read_raw_key();
+static void kb_reset_terminal();
+static void kb_init_term_seq();
+static void kb_init_key_codes();
 
 //=============================================================================
-static void print_keyboard_shortcuts()
+static void kb_print_keyboard_shortcuts()
 {
 	fprintf(stderr,"\r%s\r\n",clear_to_eol_seq);
 	fprintf(stderr,"HELP\n\n");
-
-//	fprintf(stderr,"\r%s\rkeyboard shortcuts:\n",clear_to_eol_seq);
 	fprintf(stderr,"keyboard shortcuts:\n\n");
 
 	fprintf(stderr,"  h, f1              help (this screen)\n");
@@ -149,7 +143,7 @@ static void print_keyboard_shortcuts()
 	fprintf(stderr,"|| paused   JMALP  S rel 0.001       943.1  (00:15:43.070)  \n");
 	fprintf(stderr,"^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^\n");
 	fprintf(stderr,"1           23456  7 8   9     10    11   10 12           13\n\n");
-	fprintf(stderr,"  1): status playing > or paused ||");
+	fprintf(stderr,"  1): status playing > paused || or seeking ...\n");
 	fprintf(stderr,"  2): JACK transport on/off J or ' '\n");
 	fprintf(stderr,"  3): mute on/off M or ' '\n");
 	fprintf(stderr,"  4): amplification A, ! (clipping) or ' ' (no amp.)\n");
@@ -167,13 +161,9 @@ static void print_keyboard_shortcuts()
 }//end print_keyboard_shortcuts()
 
 //=============================================================================
-static void handle_key_hits()
+static void kb_handle_key_hits()
 {
-//the single cases could be further put to actions / separate methods
-//since some status updates are made.
-//should call method for each command and decide in the method what to do
-
-	int rawkey=read_raw_key();
+	int rawkey=kb_read_raw_key();
 //	fprintf(stderr,"rawkey: %d\n",rawkey);
 
 	//no key while timeout not reached
@@ -206,13 +196,13 @@ static void handle_key_hits()
 	//'h' or 'f1': help
 	else if(rawkey==KEY_H || rawkey==KEY_F1)
 	{
-		print_keyboard_shortcuts();
+		kb_print_keyboard_shortcuts();
 	}
 	//'<' (arrow left): 
 	else if(rawkey==KEY_ARROW_LEFT)
 	{
 		fprintf(stderr,"<< ");
-		print_next_wheel_state(-1);
+		kb_print_next_wheel_state(-1);
 		ctrl_seek_backward();
 	}
 	//'>' (arrow right): 
@@ -224,7 +214,7 @@ static void handle_key_hits()
 		}
 		else
 		{
-			print_next_wheel_state(+1);
+			kb_print_next_wheel_state(+1);
 		}
 	}
 	//'^' (arrow up):
@@ -255,7 +245,7 @@ static void handle_key_hits()
 	else if(rawkey==KEY_0)
 	{
 		fprintf(stderr,"|< home pause");
-		is_playing=0;
+		settings->is_playing=0;
 		ctrl_seek_start_pause();
 	}
 	//'>|' (end):
@@ -270,27 +260,27 @@ static void handle_key_hits()
 	else if(rawkey==KEY_M)
 	{
 		ctrl_toggle_mute();
-		fprintf(stderr,"mute %s",is_muted ? "on " : "off ");
+		fprintf(stderr,"mute %s",settings->is_muted ? "on " : "off ");
 	}
 	//'l': loop
 	else if(rawkey==KEY_L)
 	{
 		ctrl_toggle_loop();
-		fprintf(stderr,"loop %s",loop_enabled ? "on " : "off ");
+		fprintf(stderr,"loop %s",settings->loop_enabled ? "on " : "off ");
 	}
 	//'p': pause at end
 	else if(rawkey==KEY_P)
 	{
 		ctrl_toggle_pause_at_end();
-		fprintf(stderr,"pae %s",pause_at_end ? "on " : "off ");
+		fprintf(stderr,"pae %s",settings->pause_at_end ? "on " : "off ");
 	}
 	//',':  toggle seconds/frames
 	else if(rawkey==KEY_COMMA)
 	{
-		is_time_seconds=!is_time_seconds;
-		fprintf(stderr,"time %s",is_time_seconds ? "seconds " : "frames ");
+		settings->is_time_seconds=!settings->is_time_seconds;
+		fprintf(stderr,"time %s",settings->is_time_seconds ? "seconds " : "frames ");
 
-		if(is_time_seconds)
+		if(settings->is_time_seconds)
 		{
 			set_seconds_from_exponent();
 		}
@@ -302,20 +292,20 @@ static void handle_key_hits()
 	//'-': toggle elapsed/remaining
 	else if(rawkey==KEY_DASH)
 	{
-		is_time_elapsed=!is_time_elapsed;
-		fprintf(stderr,"time %s",is_time_elapsed ? "elapsed " : "remaining ");
+		settings->is_time_elapsed=!settings->is_time_elapsed;
+		fprintf(stderr,"time %s",settings->is_time_elapsed ? "elapsed " : "remaining ");
 	}
 	//'.': toggle abs / rel
 	else if(rawkey==KEY_PERIOD)
 	{
-		is_time_absolute=!is_time_absolute;
-		fprintf(stderr,"time %s",is_time_absolute ? "abs " : "rel ");
+		settings->is_time_absolute=!settings->is_time_absolute;
+		fprintf(stderr,"time %s",settings->is_time_absolute ? "abs " : "rel ");
 	}
 	//'c': toggle clock on/off
 	else if(rawkey==KEY_C)
 	{
-		is_clock_displayed=!is_clock_displayed;
-		fprintf(stderr,"clock %s", is_clock_displayed ? "on " : "off ");
+		settings->is_clock_displayed=!settings->is_clock_displayed;
+		fprintf(stderr,"clock %s", settings->is_clock_displayed ? "on " : "off ");
 	}
 	//'j': toggle JACK transport on/off
 	else if(rawkey==KEY_J)
@@ -362,18 +352,27 @@ static void handle_key_hits()
 }//end handle_key_hits()
 
 //=============================================================================
-static void print_clock()
+static void kb_print_clock()
 {
-	if(!is_clock_displayed)
+	if(!settings->is_clock_displayed)
 	{
 		return;
 	}
+/*
+|---------------------------------|    file                                sr1
+       |----------------------|        offset+count
+              |-----------|   loop    in interleaved or resampled buffer   sr2
+              v           v
+              playhead    read pos
 
-	sf_count_t pos=sin_seek(0,SEEK_CUR);
-	double seconds=0;
+              |---------------.-----------------------| problem: more than one loop cycle in buffer
+
+              
+seek = buffer reset, stats reset
+derive file pos from last seek pos (sr1) and playout count (sr2)
+*/
 
 /*
-
  elapsed                     remaining
 |--------------------------|------------------|  abs
 
@@ -384,46 +383,49 @@ static void print_clock()
              off                 off+count
 */
 
-	if(!is_time_absolute)
-	{
-		pos-=frame_offset;
+	sf_count_t pos=get_current_play_position_in_file();
+	double seconds=0;
 
-		if(!is_time_elapsed)
+	if(!settings->is_time_absolute)
+	{
+		pos-=running->frame_offset;
+
+		if(!settings->is_time_elapsed)
 		{
-			pos=frame_count-pos;
+			pos=running->frame_count-pos;
 		}
 	}
 	else //absolute
 	{
-		if(!is_time_elapsed)
+		if(!settings->is_time_elapsed)
 		{
 			pos=sf_info_generic.frames-pos;
 		}
 	}
 
-	seconds=frames_to_seconds(pos,sf_info_generic.sample_rate);
+	seconds=sin_frames_to_seconds(pos,sf_info_generic.sample_rate);
 
-	if(is_time_seconds)
+	if(settings->is_time_seconds)
 	{
 		if(seek_seconds_per_hit<1)
 		{
 			fprintf(stderr,"S %s %.3f %s %9.1f %s(%s) "
-				,(is_time_absolute ? "abs" : "rel")
+				,(settings->is_time_absolute ? "abs" : "rel")
 				,seek_seconds_per_hit
-				,(is_time_elapsed ? " " : "-")
-				,frames_to_seconds(pos,sf_info_generic.sample_rate)
-				,(is_time_elapsed ? " " : "-")
-				,format_duration_str(seconds));
+				,(settings->is_time_elapsed ? " " : "-")
+				,seconds
+				,(settings->is_time_elapsed ? " " : "-")
+				,sin_format_duration_str(seconds));
 		}
 		else
 		{
 			fprintf(stderr,"S %s %5.0f  %s %9.1f %s(%s) "
-				,(is_time_absolute ? "abs" : "rel")
+				,(settings->is_time_absolute ? "abs" : "rel")
 				,seek_seconds_per_hit
-				,(is_time_elapsed ? " " : "-")
-				,frames_to_seconds(pos,sf_info_generic.sample_rate)
-				,(is_time_elapsed ? " " : "-")
-				,format_duration_str(seconds));
+				,(settings->is_time_elapsed ? " " : "-")
+				,seconds
+				,(settings->is_time_elapsed ? " " : "-")
+				,sin_format_duration_str(seconds));
 		}
 	}
 	else
@@ -447,19 +449,19 @@ static void print_clock()
 		}
 
 		fprintf(stderr,"F %s %5"PRId64"%s %s %9"PRId64" %s(%s) "
-			,(is_time_absolute ? "abs" : "rel")
+			,(settings->is_time_absolute ? "abs" : "rel")
 			,seek_fph
 			,scale
-			,(is_time_elapsed ? " " : "-")
+			,(settings->is_time_elapsed ? " " : "-")
 			,pos
-			,(is_time_elapsed ? " " : "-")
-			,format_duration_str(seconds));
+			,(settings->is_time_elapsed ? " " : "-")
+			,sin_format_duration_str(seconds));
 	}
 }// end print_clock()
 
 //=============================================================================
 //-1: counter clockwise 1: clockwise
-static void print_next_wheel_state(int direction)
+static void kb_print_next_wheel_state(int direction)
 {
 	wheel_state+=direction;
 
@@ -500,31 +502,31 @@ static void print_next_wheel_state(int direction)
 
 //=============================================================================
 //http://www.cplusplus.com/forum/articles/7312/#msg33734
-static void set_terminal_raw()
+static void kb_set_terminal_raw()
 {
-	if(!keyboard_control_enabled)
+	if(!settings->keyboard_control_enabled)
 	{
 		return;
 	}
 
 #ifndef WIN32
 	//save original tty settings ("cooked")
-	tcgetattr( STDIN_FILENO, &initial_settings );
+	tcgetattr( STDIN_FILENO, &term_initial_settings );
 
-	tcgetattr( STDIN_FILENO, &settings );
+	tcgetattr( STDIN_FILENO, &term_settings );
 
 	//set the console mode to no-echo, raw input
-	settings.c_cc[ VTIME ] = 1;
-	settings.c_cc[ VMIN  ] = MAGIC_MAX_CHARS;
-	settings.c_iflag &= ~(IXOFF);
-	settings.c_lflag &= ~(ECHO | ICANON);
-	tcsetattr( STDIN_FILENO, TCSANOW, &settings );
+	term_settings.c_cc[ VTIME ] = 1;
+	term_settings.c_cc[ VMIN  ] = MAGIC_MAX_CHARS;
+	term_settings.c_iflag &= ~(IXOFF);
+	term_settings.c_lflag &= ~(ECHO | ICANON);
+	tcsetattr( STDIN_FILENO, TCSANOW, &term_settings );
 
 	//turn off cursor
 	//fprintf(stderr,"%s",turn_off_cursor_seq);//now in jack_playfile.c
 
 	//in shutdown signal handler
-	//tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+	//tcsetattr( STDIN_FILENO, TCSANOW, &term_initial_settings );
 #else
 	//set the console mode to no-echo, raw input, and no window or mouse events
 	w_term_hstdin = GetStdHandle( STD_INPUT_HANDLE );
@@ -543,7 +545,7 @@ static void set_terminal_raw()
 }//end set_terminal_raw()
 
 //=============================================================================
-static int read_raw_key()
+static int kb_read_raw_key()
 {
 #ifndef WIN32
 	//non-blocking poll / read key
@@ -582,10 +584,8 @@ static int read_raw_key()
 	{
 		return 0;
 	}
-/*
-	do ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
-	while ((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown);
-*/
+	//do ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
+	//while ((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown);
 
 	ReadConsoleInput( w_term_hstdin, &w_term_inrec, 1, &w_term_count );
 	if((w_term_inrec.EventType != KEY_EVENT) || !w_term_inrec.Event.KeyEvent.bKeyDown)
@@ -601,21 +601,21 @@ static int read_raw_key()
 }//end read_raw_key()
 
 //=============================================================================
-static void reset_terminal()
+static void kb_reset_terminal()
 {
-	if(!keyboard_control_enabled)
+	if(!settings->keyboard_control_enabled)
 	{
 		return;
 	}
 
 #ifndef WIN32
 	//reset terminal to original settings
-	tcsetattr( STDIN_FILENO, TCSANOW, &initial_settings );
+	tcsetattr( STDIN_FILENO, TCSANOW, &term_initial_settings );
 #endif
 }
 
 //=============================================================================
-static void init_term_seq()
+static void kb_init_term_seq()
 {
 #ifndef WIN32
 	clear_to_eol_seq=       "\033[0J";
@@ -630,9 +630,9 @@ static void init_term_seq()
 }
 
 //=============================================================================
-static void init_key_codes()
+static void kb_init_key_codes()
 {
-	if(!keyboard_control_enabled)
+	if(!settings->keyboard_control_enabled)
 	{
 		return;
 	}

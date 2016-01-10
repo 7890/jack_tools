@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,10 @@ static void seek_frames_absolute(int64_t frames_abs);
 static void seek_frames(int64_t frames_rel);
 
 static void deinterleave();
+
+static void set_all_frames_read(int all_read);
+static int all_frames_read();
+static uint64_t get_current_play_position_in_file();
 
 static void print_stats();
 

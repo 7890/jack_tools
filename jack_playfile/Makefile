@@ -1,6 +1,6 @@
 CC = g++
 #CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_RW_MUTEX -DRB_DISABLE_SHM -Wno-write-strings -Wno-pointer-arith -O3
-CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_RW_MUTEX -DRB_DEFAULT_USE_SHM -Wno-write-strings -Wno-pointer-arith -O3
+CFLAGS ?= -D_GNU_SOURCE=1 -D__STDC_FORMAT_MACROS -DUSE_WEAK_JACK=1 -DNO_JACK_METADATA=1 -DRB_DISABLE_MLOCK -DRB_DISABLE_RW_MUTEX -DRB_DEFAULT_USE_SHM -Wno-write-strings -Wno-pointer-arith -O3 
 
 SRC = src
 DOC = doc
@@ -23,7 +23,8 @@ V_LIBMPG123	=1.22.4
 
 DISTRO_LIBS_DIR 	=/usr/lib/x86_64-linux-gnu
 #DISTRO_LIBS_DIR 	=/usr/lib/i386-linux-gnu
-LOCAL_LIBS_DIR 		=/usr/local/lib
+LOCAL_LIBS_DIR		=/usr/local/lib
+#LOCAL_LIBS_DIR 	=archive/static_libs
 
 #./configure --enable-static
 
@@ -37,10 +38,9 @@ STATIC_LIB_OPUSFILE	=$(LOCAL_LIBS_DIR)/libopusfile.a
 STATIC_LIB_OPUS		=$(LOCAL_LIBS_DIR)/libopus.a
 STATIC_LIB_LIBMPG123	=$(LOCAL_LIBS_DIR)/libmpg123.a
 
-STATIC_LIBS = $(STATIC_LIB_VORBISFILE) $(STATIC_LIB_SNDFILE) $(STATIC_LIB_VORBIS) $(STATIC_LIB_VORBISENC) $(STATIC_LIB_OGG) $(STATIC_LIB_FLAC) $(STATIC_LIB_OPUSFILE) $(STATIC_LIB_OPUS) $(STATIC_LIB_LIBMPG123)
+STATIC_LIB_UUID		=$(DISTRO_LIBS_DIR)/libuuid.a
 
-#$(DISTRO_LIBS_DIR)/libdl.a
-#$(DISTRO_LIBS_DIR)/libpthread.a
+STATIC_LIBS = $(STATIC_LIB_VORBISFILE) $(STATIC_LIB_SNDFILE) $(STATIC_LIB_VORBIS) $(STATIC_LIB_VORBISENC) $(STATIC_LIB_OGG) $(STATIC_LIB_FLAC) $(STATIC_LIB_OPUSFILE) $(STATIC_LIB_OPUS) $(STATIC_LIB_LIBMPG123) $(STATIC_LIB_PTHREAD) $(STATIC_LIB_UUID)
 
 $(shell mkdir -p $(BUILD))
 
@@ -128,8 +128,9 @@ jack_playfile_static: zita_resampler build_info $(SRC)/jack_playfile.c $(SRC)/ja
 	&& rm -f jack_playfile_man_dump
 
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG -Wno-deprecated-declarations
-	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -DSTATIC_BUILD=1 -DRB_DISABLE_SHM `pkg-config --cflags --libs sndfile opusfile`
-	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) -DRB_DISABLE_SHM $(STATIC_LIBS) -ldl -lpthread
+
+	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) -DSTATIC_BUILD=1 `pkg-config --cflags --libs sndfile opusfile uuid`
+	$(CC) -static-libgcc -static-libstdc++ -o jack_playfile_static $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) $(STATIC_LIBS) -lrt -ldl -lpthread
 
 	strip --strip-all jack_playfile_static
 	readelf -h jack_playfile_static

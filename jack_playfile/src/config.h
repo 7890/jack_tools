@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 //
-//  Copyright (C) 2015 Thomas Brand <tom@trellis.ch>
+//  Copyright (C) 2015 - 2016 Thomas Brand <tom@trellis.ch>
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,29 +35,32 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 #ifdef WIN32
-        #include <windows.h>
-        #define bzero(p, l) memset(p, 0, l)
+	#include <windows.h>
+	#define bzero(p, l) memset(p, 0, l)
 #endif
 
 #ifndef PRId64
 	#define PRId64 "llu"
 #endif
 
+//=============================================================================
 typedef struct 
 {
 	char *server_name;
 	char *client_name;
 
-	int process_enabled;
-
 	int sample_rate;
 	int period_frames; //JACK -p option
 	float cycles_per_second;
 	float output_data_rate_bytes_per_second;
+
+	int process_enabled;
 	int server_down;
+
 	uint64_t process_cycle_count;
 	uint64_t process_cycle_underruns;
 	uint64_t total_frames_pushed_to_jack;
+
 	jack_options_t options;
 	jack_status_t status;
 	jack_transport_state_t transport_state;
@@ -75,6 +78,7 @@ typedef struct
 
 static JackServer *jack;
 
+//=============================================================================
 typedef struct
 {
 	float first_sample_normal_jack_period;
@@ -86,84 +90,86 @@ typedef struct
 
 static DebugMarker *debug_marker;
 
+//startup options
+//=============================================================================
+typedef struct
+{
+	//some values will need to be adjusted to fit the currently loaded file in a playlist
+	//however the settings are kept as given on startup in order to try to apply to a next file in the playlist
+
+	uint64_t frame_offset; //start from absolute frame pos (skip n frames from start)
+	uint64_t frame_count; //number of frames to read & play from offset (if argument not provided or 0: all frames)
+
+	int channel_offset; //start reading from offset (ignore n channels), relating to file channels
+	int channel_count; //how many channels to read from offset (ignoring possible trailing channels)
+
+//	int use_resampling; //if set to 0, will not resample, even if file has different SR from JACK
+	int custom_file_sample_rate; //override file sample rate to change pitch and tempo
+
+	int is_playing; //if set to 0: prepare everything for playing but wait for user to toggle to play
+	int is_muted;
+	int loop_enabled;
+	int pause_at_end; //don't quit program when everything has played out
+
+	int keyboard_control_enabled; //if set to 0, keyboard entry won't be used (except ctrl+c). also no clock or other running information is displayed.
+	int is_clock_displayed; //0: no running clock
+	int is_time_seconds; //0: frames, 1: seconds
+	int is_time_absolute; //0: relative to frame_offset and frame_offset + frame_count. 1: relative to frame 0.
+	int is_time_elapsed; //0: time remaining (-), 1: time elapsed
+
+	int read_from_playlist; //if set to 1, get files to play from given file, one song per line
+	int dump_usable_files; //if set to 1, dump usable files in playlist or args to stdout and quit
+
+	float is_verbose; //if set to 1, print more information while starting up
+	int debug; //if set to 1, will print stats
+	int connect_to_sisco; //debug: connect to jalv.gtk http://gareus.org/oss/lv2/sisco#Stereo_gtk
+
+	int add_markers; //if set to 1, will add "sample markers" for visual debugging in sisco
+} Cmdline_Settings;
+
+static Cmdline_Settings *settings;
+
+//running properties
+//=============================================================================
+typedef struct
+{
+	//the initial values are copied from Cmdline_Options struct and adapted to currently loaded file
+	//some values might be adjusted/limited
+
+	uint64_t frame_offset; //start from absolute frame pos (skip n frames from start)
+	uint64_t frame_count; //number of frames to read & play from offset (if argument not provided or 0: all (remaining) frames)
+
+	int channel_offset; //start reading from offset (ignore n channels), relating to file channels
+	int channel_count; //how many channels to read from offset (if argument not provided or 0: all (remaining) channels)
+
+	int seek_frames_in_progress; //if set to one, disk thread will seek on next chance
+	int is_idling_at_end; //status, kind of pause but locked (forward actions input ignored)
+
+	int shutdown_in_progress;
+	int shutdown_in_progress_signalled;
+
+	float out_to_in_byte_ratio; //JACK output to file input byte ratio
+
+	//how many ports the JACK client will have. fixed count if given as argument
+	//derived from first file in playlist (# of channels) and offset if not explicitely given
+	int output_port_count;
+
+	uint64_t last_seek_pos; //set file frame position on every seek
+} Running_Properties;
+
+static Running_Properties *running;
+
+
+static const char *cisco_in1="Simple Scope (Stereo) GTK:in1";
+static const char *cisco_in2="Simple Scope (Stereo) GTK:in2";
+//static const char *cisco_in1="Simple Scope (3 channel) GTK:in1";
+//static const char *cisco_in2="Simple Scope (3 channel) GTK:in2";
+
 //readers will try to open this file
 static const char *filename=NULL; 
 
-//start from absolute frame pos (skip n frames from start)
-static uint64_t frame_offset=0;
-
-//remember offset given as argument
-static uint64_t frame_offset_first=0;
-
-//number of frames to read & play from offset (if argument not provided or 0: all frames)
-static uint64_t frame_count=0; 
-
-//remember count given as argument
-static uint64_t frame_count_first=0; 
-
-//relating to file channels
-//start reading from offset (ignore n channels)
-static int channel_offset=0;
-
-//how many channels to read from offset (ignoring possible trailing channels)
-static int channel_count=0;
-
-//if set to 0, will not resample, even if file has different SR from JACK
-static int use_resampling=1;
-
-//override file sample rate to change pitch and tempo
-static int custom_file_sample_rate=0;
-
-//if set to 0: prepare everything for playing but wait for user to toggle to play
-static int is_playing=1;
-
-//toggle mute with 'm'
-static int is_muted=0;
-
-//toggle loop with 'l'
-static int loop_enabled=0;
-
-//don't quit program when everything has played out
-static int pause_at_end=0;
-
-//if set to 1, will print stats
-static int debug=0;
-
-//debug: connect to jalv.gtk http://gareus.org/oss/lv2/sisco#Stereo_gtk
-static int connect_to_sisco=0;
-
-//if set to 1, will add "sample markers" for visual debugging in sisco
-static int add_markers=0;
-
-//if set to one, disk thread will seek on next chance
-static int seek_frames_in_progress=0;
-
-//status, kind of pause but locked (forward actions input ignored)
-static int is_idling_at_end=0;
-
-//jack_process() will return immediately if 0
-//static int process_enabled=0;
-static int shutdown_in_progress=0;
-static int shutdown_in_progress_signalled=0; //handled in loop in main()
-
 //float, 4 bytes per sample
-static int bytes_per_sample=4;//==sizeof(sample_t);
-
-//how many ports the JACK client will have
-//for now: will use the same count as file has channels
-static int output_port_count=0;
-
-//JACK output to file input byte ratio
-static float out_to_in_byte_ratio=0;
-
-//if set to 1, print more information while startup
-static float is_verbose=0;
-
-//if set to 1, get files to play from given file, one song per line
-static int read_from_playlist=0;
-
-//if set to 1, dump usable files in playlist or args to stdout and quit
-static int dump_usable_files=0;
+static int bytes_per_sample=sizeof(float);
 
 #endif
 //EOF

@@ -763,7 +763,7 @@ Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus
 </li>
 <li>
 <p>
-High quality resampling to match JACK sample rate (can be turned off)
+High quality resampling to match JACK sample rate (supports custom SR)
 </p>
 </li>
 <li>
@@ -820,7 +820,7 @@ MP3 supports a maximum of two channels (no "MP3 Surround" support).
 </p>
 </li>
 </ul></div>
-<div class="paragraph"><p>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).</p></div>
+<div class="paragraph"><p>Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (no resampling involved).</p></div>
 <div class="paragraph"><p>Limitations:</p></div>
 <div class="paragraph"><p><em>jack_playfile</em> can read and play local audio files only. There is currently no support for standard playlists or extended metadata.
 No DSP except optional resampling and amplification is applied to the audio signal.
@@ -831,7 +831,7 @@ This plugin collection is a good starting point: <a href="https://github.com/x42
 <div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
-<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.88.</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.89.</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -910,17 +910,6 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         Disable keyboard control.
         <strong>Default:</strong> <em>jack_playfile</em> accepts keyboard input while playing.
         For a detailed overview on available control actions, see <em>KEYBOARD SHORTCUTS</em> below or hit <em>F1</em> or <em>h</em> while <em>jack_playfile</em> is started and control is enabled.
-</p>
-</dd>
-<dt class="hdlist1">
-<strong>-R, --noresampling</strong> (w/o argument)
-</dt>
-<dd>
-<p>
-        Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
-        <strong>Default:</strong> The samples read from given file are resampled to match JACK sample rate.
-        This makes files play at the expected pitch and tempo.
-        Best results are achieved when the file sample rate matches JACK&#8217;s.
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1468,7 +1457,7 @@ byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. F
 </li>
 <li>
 <p>
-resampler out_to_in ratio: JACK sample rate divided by file sample rate.
+resampler out_to_in ratio: JACK sample rate divided by file sample rate (file sample rate can be customized with -S).
 </p>
 </li>
 <li>
@@ -1486,16 +1475,16 @@ data_rate: Bytes to read from file per second to satisfy constant flow to JACK o
 </div></div>
 <div class="literalblock">
 <div class="content">
-<pre><code> 1): status playing '&gt;', paused '||' or seeking '...'
- 2): JACK transport on/off 'J' or ' '
- 3): mute on/off 'M' or ' '
- 4): amplification 'A', '!' (clipping) or ' ' (no amp.)
- 5): loop on/off 'L' or ' '
- 6): pause at end on/off 'P' or ' '
- 7): time and seek in seconds 'S' or frames 'F'
- 8): time indication 'rel' to frame_offset or 'abs'
+<pre><code> 1): status playing &gt; paused || or seeking ...
+ 2): JACK transport on/off J or ' '
+ 3): mute on/off M or ' '
+ 4): amplification A, ! (clipping) or ' ' (no amp.)
+ 5): loop on/off L or ' '
+ 6): pause at end on/off P or ' '
+ 7): time and seek in seconds S or frames F
+ 8): time indication rel to frame_offset or abs
  9): seek step size in seconds or frames
-10): time elapsed ' ' or remaining '-'
+10): time elapsed ' ' or remaining -
 11): time in seconds or frames
 12): time in HMS.millis
 13): keyboard input indication (i.e. seek)</code></pre>
@@ -1835,13 +1824,13 @@ libogg - <a href="http://xiph.org/ogg/">http://xiph.org/ogg/</a>
 <h2 id="_authors">AUTHORS</h2>
 <div class="sectionbody">
 <div class="paragraph"><p>Thomas Brand &lt;<a href="mailto:tom@trellis.ch">tom@trellis.ch</a>&gt;</p></div>
-<div class="paragraph"><p>Last Update: Mon Dec 21 18:40:54 CET 2015</p></div>
+<div class="paragraph"><p>Last Update: Sun Jan 10 20:19:26 CET 2016</p></div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="_copying">COPYING</h2>
 <div class="sectionbody">
-<div class="paragraph"><p>Copyright (C) 2015 Thomas Brand. Free use of this software is
+<div class="paragraph"><p>Copyright (C) 2015 - 2016 Thomas Brand. Free use of this software is
 granted under the terms of the GNU General Public License (GPL).</p></div>
 </div>
 </div>
@@ -1849,7 +1838,7 @@ granted under the terms of the GNU General Public License (GPL).</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2015-12-27 15:01:37 CET
+Last updated 2016-01-10 20:20:25 CET
 </div>
 </div>
 </body>

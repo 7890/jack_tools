@@ -17,7 +17,7 @@ DESCRIPTION
 Main features:
 
 - Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus and MP3 files
-- High quality resampling to match JACK sample rate (can be turned off)
+- High quality resampling to match JACK sample rate (supports custom SR)
 - Keyboard control while playing (can be turned off)
 - Fast and frame accurate seeking
 - Supports multichannel files
@@ -32,7 +32,7 @@ Please note:
 - FLAC files are limited to 8 channels per stream by spec.
 - MP3 supports a maximum of two channels (no "MP3 Surround" support).
 
-Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (without resampling).
+Best results are achieved when playing back 32-bit (IEEE 754 single-precision) floating-point RIFF wave files at JACK sample rate (no resampling involved).
 
 Limitations:
 
@@ -49,7 +49,7 @@ The term "frame" refers to samples of multiple channels i.e. one frame includes 
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see 'BUGS').
 
-This document refers to 'jack_playfile' version 0.88.
+This document refers to 'jack_playfile' version 0.89.
 
 OPTIONS
 -------
@@ -86,12 +86,6 @@ OPTIONS
 	Disable keyboard control.
 	*Default:* 'jack_playfile' accepts keyboard input while playing.
 	For a detailed overview on available control actions, see 'KEYBOARD SHORTCUTS' below or hit 'F1' or 'h' while 'jack_playfile' is started and control is enabled.
-
-*-R, --noresampling* (w/o argument)::
-	Disable resampling. If resampling is disabled, the samples read from given file are treated in the JACK sample rate domain without any modification.
-	*Default:* The samples read from given file are resampled to match JACK sample rate.
-	This makes files play at the expected pitch and tempo.
-	Best results are achieved when the file sample rate matches JACK's.
 
 *-S, --samplerate* (integer)::
 	Override file sample rate. This affects how the resampler is setup.
@@ -329,7 +323,7 @@ Example output of 'jack_playfile' using option -v:
 Note on ratios:
 
 - byte_out_to_in_ratio: Bytes delivered to JACK divided by bytes read from file. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
-- resampler out_to_in ratio: JACK sample rate divided by file sample rate.
+- resampler out_to_in ratio: JACK sample rate divided by file sample rate (file sample rate can be customized with -S).
 - data_rate: Bytes to read from file per second to satisfy constant flow to JACK output. For lossy compressed formats (Ogg, Opus, MP3), the total file size is used for calculation.
 
 Legend (example prompt):
@@ -338,7 +332,7 @@ Legend (example prompt):
         ^           ^^^^^  ^ ^   ^     ^     ^     ^ ^             ^
         1           23456  7 8   9     10    11   10 12           13
         
-          1): status playing > or paused ||
+          1): status playing > paused || or seeking ...
           2): JACK transport on/off J or ' '
           3): mute on/off M or ' '
           4): amplification A, ! (clipping) or ' ' (no amp.)
@@ -559,9 +553,9 @@ AUTHORS
 -------
 Thomas Brand <tom@trellis.ch>
 
-Last Update: Mon Dec 21 18:40:54 CET 2015
+Last Update: Sun Jan 10 20:19:26 CET 2016
 
 COPYING
 -------
-Copyright \(C) 2015 Thomas Brand. Free use of this software is
+Copyright \(C) 2015 - 2016 Thomas Brand. Free use of this software is
 granted under the terms of the GNU General Public License (GPL).

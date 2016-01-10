@@ -32,8 +32,8 @@ xxd -i jack_playfile_man_dump | sed 's/};/,0x00};\/\//g' | sed 's/;$/+1;/g' > bu
 //http://stackoverflow.com/questions/410980/include-a-text-file-in-a-c-program-as-a-char
 
 #ifdef STATIC_BUILD
-        #include "../build/manpage.data.h" //the fixed path is not nice (doesn't respect Makefile variables)
-        #include "../build/build_info.data.h"
+	#include "../build/manpage.data.h" //the fixed path is not nice (doesn't respect Makefile variables)
+	#include "../build/build_info.data.h"
 #endif
 
 #endif
