@@ -28,7 +28,6 @@
 #include <string>
 #include <vector>
 
-#include "jack_playfile.h"
 #include "sndin.h"
 
 static char *playlist_file;
@@ -40,11 +39,14 @@ using std::vector;
 using std::string;
 vector<string> files_to_play;
 
+static int PL_DIRECTION_FORWARD=0;
+static int PL_DIRECTION_BACKWARD=1;
+
 static int pl_create(int argc, char *argv[], int from_playlist, int dump);
 static int pl_create_vector_from_args(int argc, char *argv[], int dump);
 static int pl_create_vector_from_file(int dump);
-static int pl_open_init_file();
-static void pl_set_index(int direction);
+static int pl_open_check_file();
+static void pl_set_next_index(int direction);
 static int pl_check_file(const char *f);
 
 //wrapper to create playlist (vector of file uri strings) from file or from argv
@@ -151,7 +153,7 @@ static int pl_create_vector_from_file(int dump)
 }
 
 //=============================================================================
-static int pl_open_init_file()
+static int pl_open_check_file()
 {
 	if(current_playlist_index<0)
 	{
@@ -165,8 +167,9 @@ static int pl_open_init_file()
 	}
 
 	//open_init_file in jack_playfile.c
-	if(open_init_file(files_to_play[current_playlist_index].c_str()))
+	if(pl_check_file(files_to_play[current_playlist_index].c_str()))
 	{
+
 		return 1;
 	}
 	else
@@ -174,13 +177,14 @@ static int pl_open_init_file()
 		//remove bogus file (must have changed or was deleted since create_playlist_vector())
 		files_to_play.erase(files_to_play.begin() + current_playlist_index);
 		//recurse
-		return pl_open_init_file();
+		//return pl_open_check_file();
+		return 0;
 	}
 }
 
 //increment or decrement position in playlist depending on requested direction
 //=============================================================================
-static void pl_set_index(int direction)
+static void pl_set_next_index(int direction)
 {
 	if(direction)
 	{
@@ -196,16 +200,8 @@ static void pl_set_index(int direction)
 //=============================================================================
 static int pl_check_file(const char *f)
 {
-	//sf_info_generic in sndin.h
-	memset (&sf_info_generic, 0, sizeof (sf_info_generic)) ;
-
-	//sin_open in sndin.h
-	if(!(sin_open(f,&sf_info_generic,1)))
-	{
-		return 0;
-	}
-
-	if(sf_info_generic.frames<1)
+	//sin_open, sf_info_generic in sndin.h
+	if(!sin_open(f,1))
 	{
 		return 0;
 	}

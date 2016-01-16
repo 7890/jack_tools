@@ -24,7 +24,7 @@
 #ifndef BUFFERS_H_INC
 #define BUFFERS_H_INC
 
-#include "config.h"
+#include "rb.h"
 
 //ringbuffers
 //read from file, write to rb_interleaved (in case of resampling)
@@ -39,25 +39,30 @@ static rb_t *rb_deinterleaved=NULL;
 
 //read from rb_deinterleaved, write to jack output buffers in JACK process()
 
+//used for last few cycles
+static rb_t *rb_resampler_swingout=NULL;
+
 //don't operate on ringbuffers while reseting
 //simple "lock"
 static int reset_ringbuffers_in_progress=0;
 
-static void setup_ringbuffers();
+static void setup_ringbuffers(int channel_count, int file_sample_rate, int jack_sample_rate);
 static void free_ringbuffers();
 static void reset_ringbuffers();
 
 //=============================================================================
-static void setup_ringbuffers()
+static void setup_ringbuffers(int channel_count, int file_sample_rate, int jack_sample_rate)
 {
 //	fprintf(stderr,"setup_ringbuffers()\n");
 	rb_free(rb_interleaved);
 	rb_free(rb_resampled_interleaved);
 	rb_free(rb_deinterleaved);
+	rb_free(rb_resampler_swingout);
 
-	rb_interleaved                  =rb_new_audio_seconds(0.9,"interleaved",sf_info_generic.sample_rate,channel_count_use_from_file,sizeof(float));
-	rb_resampled_interleaved        =rb_new_audio_seconds(0.9,"resampled interleaved",jack->sample_rate,channel_count_use_from_file,sizeof(float));
-	rb_deinterleaved                =rb_new_audio_seconds(0.1,"deinterleaved",jack->sample_rate,channel_count_use_from_file,sizeof(float));
+	rb_interleaved                  =rb_new_audio_seconds(1.9,"interleaved",file_sample_rate,channel_count,sizeof(float));
+	rb_resampled_interleaved        =rb_new_audio_seconds(1.9,"resampled interleaved",jack_sample_rate,channel_count,sizeof(float));
+	rb_deinterleaved                =rb_new_audio_seconds(1.9,"deinterleaved",jack_sample_rate,channel_count,sizeof(float));
+	rb_resampler_swingout		=rb_new_audio_seconds(0.5,"resampler swingout",jack_sample_rate,channel_count,sizeof(float));
 }
 
 //=============================================================================
@@ -77,6 +82,11 @@ static void free_ringbuffers()
 	if(rb_deinterleaved!=NULL)
 	{
 		rb_free(rb_deinterleaved);
+	}
+
+	if(rb_resampler_swingout!=NULL)
+	{
+		rb_free(rb_resampler_swingout);
 	}
 }
 
@@ -103,6 +113,13 @@ static void reset_ringbuffers()
 		rb_drop(rb_interleaved);
 		rb_reset_stats(rb_interleaved);
 	}
+
+	if(rb_resampler_swingout!=NULL)
+	{
+		rb_drop(rb_resampler_swingout);
+		rb_reset_stats(rb_resampler_swingout);
+	}
+
 	reset_ringbuffers_in_progress=0;
 }
 

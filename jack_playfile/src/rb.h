@@ -59,6 +59,12 @@
 extern "C" {
 #endif
 
+//the first few bytes in a rb_t data block
+static const char RB_MAGIC[8]={'r','i','n','g','b','u','f','\0'};
+//followed by version
+static const float RB_VERSION=0.21;
+
+
 //#define RB_DISABLE_MLOCK
 
 /**< If defined (without value), do NOT provide POSIX memory locking (see rb_mlock(), rb_munlock()).*/
@@ -89,7 +95,7 @@ See also rb_new_shared(). */
 #include <string.h> //memcpy
 #include <sys/types.h> //size_t
 #include <stdio.h> //fprintf
-#include <math.h> //ceil
+#include <math.h> //ceil, floor
 
 #include <inttypes.h> //uint8_t
 
@@ -115,7 +121,7 @@ See also rb_new_shared(). */
 	#define MIN(a,b) (((a)<(b))?(a):(b))
 #endif
 
-static char *bar_string="============================================================";
+static const char *bar_string="============================================================";
 
 /**
  * Ringbuffers are of type rb_t.
@@ -133,6 +139,8 @@ static char *bar_string="=======================================================
  */
 typedef struct
 {
+  char magic[8];
+  float version;
   size_t size;			/**< \brief The size in bytes of the buffer as requested by caller. */
   volatile size_t read_index;	/**< \brief Absolute position (index) in the buffer for read operations. */
   volatile size_t write_index;	/**< \brief Abolute position (index) in the buffer for write operations. */
@@ -167,6 +175,7 @@ typedef struct
 rb_t;
 
 //make struct memebers accessible via function
+static inline int rb_version(rb_t *rb) {return rb->version;}
 static inline int rb_is_mlocked(rb_t *rb) {return rb->memory_locked;}
 static inline int rb_is_shared(rb_t *rb) {return rb->in_shared_memory;}
 static inline int rb_is_unlink_requested(rb_t *rb) {return rb->unlink_requested;}
@@ -203,13 +212,13 @@ rb_region_t;
 
 static inline void rb_set_common_init_values(rb_t *rb);
 static inline rb_t *rb_new(size_t size);
-static inline rb_t *rb_new_named(size_t size, char *name);
-static inline rb_t *rb_new_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample);
-static inline rb_t *rb_new_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_named(size_t size, const char *name);
+static inline rb_t *rb_new_audio(size_t size, const char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_audio_seconds(double seconds, const char *name, int sample_rate, int channel_count, int bytes_per_sample);
 static inline rb_t *rb_new_shared(size_t size);
-static inline rb_t *rb_new_shared_named(size_t size, char *name);
-static inline rb_t *rb_new_shared_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample);
-static inline rb_t *rb_new_shared_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_shared_named(size_t size, const char *name);
+static inline rb_t *rb_new_shared_audio(size_t size, const char *name, int sample_rate, int channel_count, int bytes_per_sample);
+static inline rb_t *rb_new_shared_audio_seconds(double seconds, const char *name, int sample_rate, int channel_count, int bytes_per_sample);
 
 static inline void rb_free(rb_t *rb);
 static inline int rb_mlock(rb_t *rb);
@@ -220,7 +229,9 @@ static inline size_t rb_size(rb_t *rb);
 static inline char *rb_get_shared_memory_handle(rb_t *rb);
 static inline void rb_reset(rb_t *rb);
 static inline size_t rb_can_read(const rb_t *rb);
+static inline size_t rb_can_read_frames(const rb_t *rb);
 static inline size_t rb_can_write(const rb_t *rb);
+static inline size_t rb_can_write_frames(const rb_t *rb);
 static inline size_t rb_generic_read(rb_t *rb, char *destination, size_t count, int over);
 static inline size_t rb_read(rb_t *rb, char *destination, size_t count);
 static inline size_t rb_overread(rb_t *rb, char *destination, size_t count);
@@ -235,6 +246,8 @@ static inline size_t rb_peek_byte(rb_t *rb, char *destination);
 static inline size_t rb_peek_byte_at(rb_t *rb, char *destination, size_t offset);
 static inline size_t rb_skip_byte(rb_t *rb);
 static inline size_t rb_write_byte(rb_t *rb, const char *source);
+static inline size_t rb_deinterleave_items(rb_t *rb, char *destination ,size_t item_count, size_t item_size, size_t initial_item_offset, size_t item_block_size);
+static inline size_t rb_deinterleave_audio(rb_t *rb, char *destination ,size_t frame_count, size_t frame_offset);
 static inline size_t rb_generic_advance_read_index(rb_t *rb, size_t count, int over);
 static inline size_t rb_advance_read_index(rb_t *rb, size_t count);
 static inline size_t rb_overadvance_read_index(rb_t *rb, size_t count);
@@ -261,6 +274,9 @@ static inline void rb_print_regions(const rb_t *rb);
 //=============================================================================
 static inline void rb_set_common_init_values(rb_t *rb)
 {
+	strncpy(rb->magic, RB_MAGIC, 8);
+	rb->version=RB_VERSION;
+
 	rb->write_index=0;
 	rb->read_index=0;
 	rb->last_was_write=0;
@@ -280,8 +296,8 @@ static inline void rb_set_common_init_values(rb_t *rb)
 		pthread_mutex_init(&rb->read_lock, &rb->mutex_attributes);
 		pthread_mutex_init(&rb->write_lock, &rb->mutex_attributes);
 	#else
-		pthread_mutex_init ( &rb->read_lock, NULL);
-		pthread_mutex_init ( &rb->write_lock, NULL);
+		pthread_mutex_init(&rb->read_lock, NULL);
+		pthread_mutex_init(&rb->write_lock, NULL);
 	#endif
 #endif
 }
@@ -302,14 +318,15 @@ static inline void rb_set_common_init_values(rb_t *rb)
 //=============================================================================
 static inline rb_t *rb_new(size_t size)
 {
-	return rb_new_audio(size,"anonymous",0,1,1);
+	const char *a="anonymous";
+	return rb_new_audio(size,a,0,1,1);
 }
 
 /**
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_named(size_t size, char *name)
+static inline rb_t *rb_new_named(size_t size, const char *name)
 {
 	return rb_new_audio(size,name,0,1,1);
 }
@@ -318,7 +335,7 @@ static inline rb_t *rb_new_named(size_t size, char *name)
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_audio_seconds(double seconds, const char *name, int sample_rate, int channel_count, int bytes_per_sample)
 {
 	size_t size=rb_second_to_byte_count(seconds,sample_rate,channel_count,bytes_per_sample);
 	return rb_new_audio(size,name,sample_rate,channel_count, bytes_per_sample);
@@ -328,7 +345,7 @@ static inline rb_t *rb_new_audio_seconds(double seconds, char *name, int sample_
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_audio(size_t size, const char *name, int sample_rate, int channel_count, int bytes_per_sample)
 {
 #ifndef RB_DISABLE_SHM
 	#ifdef RB_DEFAULT_USE_SHM
@@ -385,14 +402,15 @@ static inline rb_t *rb_new_audio(size_t size, char *name, int sample_rate, int c
 //=============================================================================
 static inline rb_t *rb_new_shared(size_t size)
 {
-	return rb_new_shared_audio(size,"anonymous",0,1,1);
+	const char *a="anonymous";
+	return rb_new_shared_audio(size,a,0,1,1);
 }
 
 /**
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_shared_named(size_t size, char *name)
+static inline rb_t *rb_new_shared_named(size_t size, const char *name)
 {
 	return rb_new_shared_audio(size,name,0,1,1);
 }
@@ -401,7 +419,7 @@ static inline rb_t *rb_new_shared_named(size_t size, char *name)
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_shared_audio_seconds(double seconds, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_shared_audio_seconds(double seconds, const char *name, int sample_rate, int channel_count, int bytes_per_sample)
 {
 	size_t size=rb_second_to_byte_count(seconds,sample_rate,channel_count,bytes_per_sample);
 	return rb_new_shared_audio(size,name,sample_rate,channel_count, bytes_per_sample);
@@ -411,7 +429,7 @@ static inline rb_t *rb_new_shared_audio_seconds(double seconds, char *name, int 
  * n/a
  */
 //=============================================================================
-static inline rb_t *rb_new_shared_audio(size_t size, char *name, int sample_rate, int channel_count, int bytes_per_sample)
+static inline rb_t *rb_new_shared_audio(size_t size, const char *name, int sample_rate, int channel_count, int bytes_per_sample)
 {
 #ifdef RB_DISABLE_SHM
 	return NULL;
@@ -431,7 +449,11 @@ static inline rb_t *rb_new_shared_audio(size_t size, char *name, int sample_rate
 	if(fd<0) {return NULL;}
 
 	int r=ftruncate(fd,sizeof(rb_t) + size);
-	if(r!=0) {return NULL;}
+	if(r!=0)
+	{	close(fd);
+		shm_unlink(shm_handle);
+		return NULL;
+	}
 
 	//void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 	rb=(rb_t*)mmap(0, sizeof(rb_t) + size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -486,10 +508,6 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 	return NULL;
 #else
 	rb_t *rb;
-
-	//create rb_t in shared memory
-	uuid_t uuid;
-
 	//O_TRUNC | O_CREAT | 
 	int fd=shm_open(shm_handle,O_RDWR, 0666);
 	if(fd<0) {return NULL;}
@@ -502,6 +520,24 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 	rb=(rb_t*)mmap(0, sizeof(rb_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
 	if(rb==NULL || rb==MAP_FAILED) {return NULL;}
+
+	if(strncmp(rb->magic,RB_MAGIC,8))
+	{
+		fprintf(stderr,"MAGIC did not match! Was looking for '%s', found '%s'\n"
+			,RB_MAGIC,rb->magic);
+		close(fd);
+		munmap(rb,sizeof(rb_t));
+		return NULL;
+	}
+
+	if(rb->version != RB_VERSION)
+	{
+		fprintf(stderr,"Version mismatch! Was looking for '%.3f', found '%.3f'\n"
+			,RB_VERSION,rb->version);
+		close(fd);
+		munmap(rb,sizeof(rb_t));
+		return NULL;
+	}
 
 //	fprintf(stderr,"size %zu\n",rb->size);
 	size_t size=rb->size;
@@ -649,6 +685,15 @@ static inline size_t rb_can_read(const rb_t *rb)
 }
 
 /**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_can_read_frames(const rb_t *rb)
+{
+	return floor((double)rb_can_read(rb)/rb->channel_count/rb->bytes_per_sample);
+}
+
+/**
  * Return the number of bytes available for writing.
  *
  * This is the number of bytes in front of the write index up to the read index.
@@ -670,6 +715,15 @@ static inline size_t rb_can_write(const rb_t *rb)
 	}
 	else if(r<w) {return rb->size-w+r;}
 	else {return r-w;} //r>w
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_can_write_frames(const rb_t *rb)
+{
+	return floor((double)rb_can_write(rb)/rb->channel_count/rb->bytes_per_sample);
 }
 
 /**
@@ -1091,6 +1145,51 @@ static inline size_t rb_skip_byte(rb_t *rb)
 static inline size_t rb_write_byte(rb_t *rb, const char *source)
 {
 	return rb_write(rb,source,1);
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_deinterleave_items(rb_t *rb, char *destination
+	,size_t item_count, size_t item_size, size_t initial_item_offset, size_t item_block_size)
+{
+/*
+              offset
+              |                       |                       |                        |
+              0                       8                       16                       24 
+can_read min one channel: initial_offset * item_size + (item_count -1 ) * item_size * block_size + item_size)
+              |  |  |  |  |           |  |  |  |  |           |  |  |  |  |
+
+                          |absolute min read (less than requested)        |request satisfied
+                                                                                       |for all channels in block
+*/
+
+	size_t initial_bytepos=initial_item_offset * item_size;
+	size_t concerned_block_size=(item_count - 1) * item_size * item_block_size + item_size;
+
+	if(rb_can_read(rb) < initial_bytepos + concerned_block_size) {return 0;}
+
+	char *destination_ptr=destination;
+
+	size_t bytepos=0;
+	for(bytepos=0;bytepos < initial_bytepos + concerned_block_size;bytepos+=item_size * item_block_size)
+	{
+//		fprintf(stderr,"offset + bytepos: %zu\n",initial_bytepos+bytepos);
+		rb_peek_at(rb, destination_ptr,item_size,initial_bytepos+bytepos);
+		destination_ptr+=item_size;
+	}
+	return item_count*item_size;
+}
+
+/**
+ * n/a
+ */
+//=============================================================================
+static inline size_t rb_deinterleave_audio(rb_t *rb, char *destination ,size_t frame_count, size_t frame_offset)
+{
+	return rb_deinterleave_items(rb, destination
+		,frame_count, rb->bytes_per_sample, frame_offset, rb->channel_count);
 }
 
 /*
@@ -1605,14 +1704,16 @@ static inline void rb_debug_linearbar(const rb_t *rb)
 		fprintf(stderr,"rb is NULL\n");
 		return;
 	}
-	fprintf(stderr,"%s: %s\n",rb->shm_handle, rb->human_name);
+	fprintf(stderr,"%s (v%.3f): %s\n",rb->shm_handle,rb->version,rb->human_name);
 	if(rb->sample_rate>0)
 	{
-		fprintf(stderr,"audio: %3d channels @ %6d Hz, %2d bytes per sample, capacity %9.3f s\n"
+		fprintf(stderr,"audio: %3d channels @ %6d Hz, %2d bytes per sample, capacity %9.3f s\nmultichannel frames can read: %8zu can write: %8zu\n"
 			,rb->channel_count
 			,rb->sample_rate
 			,rb->bytes_per_sample
 			,(float)rb->size/rb->bytes_per_sample/rb->sample_rate/rb->channel_count
+			,rb_can_read_frames(rb)
+			,rb_can_write_frames(rb)
 		);
 	}
 

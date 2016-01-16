@@ -25,6 +25,7 @@
 #define CONFIG_H_INC
 
 #include <stdio.h>
+#include <unistd.h>
 #include <inttypes.h>
 #include <string.h>
 #include <math.h>
@@ -51,8 +52,9 @@ typedef struct
 
 	int sample_rate;
 	int period_frames; //JACK -p option
-	float cycles_per_second;
-	float output_data_rate_bytes_per_second;
+	double period_duration; //calc
+	double cycles_per_second; //calc
+	double output_data_rate_bytes_per_second; //calc
 
 	int process_enabled;
 	int server_down;
@@ -69,7 +71,10 @@ typedef struct
 
 	int try_reconnect; //wait for JACK if not available, try reconnect if was shutdown
 	int autoconnect_ports; //connect output ports to available physical system:playback ports 
-	int use_transport; //set and follow JACK transport
+
+	//how many ports the JACK client will have. fixed count if given as argument
+	//derived from first file in playlist (# of channels) and offset if not explicitely given
+	int output_port_count; //jack client will have that many output ports
 
 	float volume_coefficient; //0 - 2
 	float volume_amplification_decibel; //-INF - 6 dBFS
@@ -104,12 +109,10 @@ typedef struct
 	int channel_count; //how many channels to read from offset (ignoring possible trailing channels)
 
 //	int use_resampling; //if set to 0, will not resample, even if file has different SR from JACK
-	int custom_file_sample_rate; //override file sample rate to change pitch and tempo
 
-	int is_playing; //if set to 0: prepare everything for playing but wait for user to toggle to play
-	int is_muted;
-	int loop_enabled;
-	int pause_at_end; //don't quit program when everything has played out
+	int resampler_filtersize; //filtersize (~quality) to use when setting up zita-resampler >=16, <=96, default 64
+
+	int custom_file_sample_rate; //override file sample rate to change pitch and tempo
 
 	int keyboard_control_enabled; //if set to 0, keyboard entry won't be used (except ctrl+c). also no clock or other running information is displayed.
 	int is_clock_displayed; //0: no running clock
@@ -143,25 +146,35 @@ typedef struct
 	int channel_count; //how many channels to read from offset (if argument not provided or 0: all (remaining) channels)
 
 	int seek_frames_in_progress; //if set to one, disk thread will seek on next chance
-	int is_idling_at_end; //status, kind of pause but locked (forward actions input ignored)
 
 	int shutdown_in_progress;
 	int shutdown_in_progress_signalled;
 
 	float out_to_in_byte_ratio; //JACK output to file input byte ratio
 
-	//how many ports the JACK client will have. fixed count if given as argument
-	//derived from first file in playlist (# of channels) and offset if not explicitely given
-	int output_port_count;
-
 	uint64_t last_seek_pos; //set file frame position on every seek
 } Running_Properties;
 
 static Running_Properties *running;
 
+//transport
+//=============================================================================
+typedef struct
+{
+	int is_playing; //if set to 0: prepare everything for playing but wait for user to toggle to play
+	int is_muted;
+	int loop_enabled;
+	int pause_at_end; //don't quit program when everything has played out
+	int is_idling_at_end; //status, kind of pause but locked (forward actions input ignored)
+	int use_jack_transport; //set and follow JACK transport
+} Transport;
 
-static const char *cisco_in1="Simple Scope (Stereo) GTK:in1";
-static const char *cisco_in2="Simple Scope (Stereo) GTK:in2";
+static Transport *transport;
+
+static const char *cisco_in1="Simple Scope (Stereo):in1";
+static const char *cisco_in2="Simple Scope (Stereo):in2";
+//static const char *cisco_in1="Simple Scope (Stereo) GTK:in1";
+//static const char *cisco_in2="Simple Scope (Stereo) GTK:in2";
 //static const char *cisco_in1="Simple Scope (3 channel) GTK:in1";
 //static const char *cisco_in2="Simple Scope (3 channel) GTK:in2";
 
@@ -170,6 +183,11 @@ static const char *filename=NULL;
 
 //float, 4 bytes per sample
 static int bytes_per_sample=sizeof(float);
+
+///
+static const char *clear_to_eol_seq=NULL;
+static const char *turn_on_cursor_seq=NULL;
+static const char *turn_off_cursor_seq=NULL;
 
 #endif
 //EOF

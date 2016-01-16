@@ -31,10 +31,7 @@
 	#include <termios.h>
 #endif
 
-#include "config.h"
 #include "control.h"
-#include "buffers.h"
-#include "jack_playfile.h"
 
 #ifndef WIN32
 	static struct termios term_initial_settings; //cooked
@@ -84,9 +81,11 @@ static int KEY_J=0;
 static int KEY_LT=0; //<
 static int KEY_GT=0; //>
 
+/*
 static const char *clear_to_eol_seq=NULL;
 static const char *turn_on_cursor_seq=NULL;
 static const char *turn_off_cursor_seq=NULL;
+*/
 
 //for displaying 'wheel' as progress indicator
 static int wheel_state=0;
@@ -245,8 +244,8 @@ static void kb_handle_key_hits()
 	else if(rawkey==KEY_0)
 	{
 		fprintf(stderr,"|< home pause");
-		settings->is_playing=0;
-		ctrl_seek_start_pause();
+		transport->is_playing=0;///
+		ctrl_seek_start_pause();///
 	}
 	//'>|' (end):
 	else if(rawkey==KEY_END)
@@ -260,19 +259,19 @@ static void kb_handle_key_hits()
 	else if(rawkey==KEY_M)
 	{
 		ctrl_toggle_mute();
-		fprintf(stderr,"mute %s",settings->is_muted ? "on " : "off ");
+		fprintf(stderr,"mute %s",transport->is_muted ? "on " : "off ");
 	}
 	//'l': loop
 	else if(rawkey==KEY_L)
 	{
 		ctrl_toggle_loop();
-		fprintf(stderr,"loop %s",settings->loop_enabled ? "on " : "off ");
+		fprintf(stderr,"loop %s",transport->loop_enabled ? "on " : "off ");
 	}
 	//'p': pause at end
 	else if(rawkey==KEY_P)
 	{
 		ctrl_toggle_pause_at_end();
-		fprintf(stderr,"pae %s",settings->pause_at_end ? "on " : "off ");
+		fprintf(stderr,"pae %s",transport->pause_at_end ? "on " : "off ");
 	}
 	//',':  toggle seconds/frames
 	else if(rawkey==KEY_COMMA)
@@ -311,7 +310,7 @@ static void kb_handle_key_hits()
 	else if(rawkey==KEY_J)
 	{
 		ctrl_toggle_jack_transport();
-		fprintf(stderr,"transport %s", jack->use_transport ? "on " : "off ");
+		fprintf(stderr,"transport %s", transport->use_jack_transport ? "on " : "off ");
 	}
 	//'<' load prev file
 	else if(rawkey==KEY_LT)
@@ -459,8 +458,8 @@ derive file pos from last seek pos (sr1) and playout count (sr2)
 	}
 }// end print_clock()
 
-//=============================================================================
 //-1: counter clockwise 1: clockwise
+//=============================================================================
 static void kb_print_next_wheel_state(int direction)
 {
 	wheel_state+=direction;
@@ -500,8 +499,8 @@ static void kb_print_next_wheel_state(int direction)
 	}
 }//end print_next_wheel_state()
 
-//=============================================================================
 //http://www.cplusplus.com/forum/articles/7312/#msg33734
+//=============================================================================
 static void kb_set_terminal_raw()
 {
 	if(!settings->keyboard_control_enabled)

@@ -29,14 +29,18 @@
 #endif
 
 //combine some files, order matters..
-#include "rb.h"
-#include "sndin.h"
-#include "kb_control.h"
-#include "resampler.h"
+//#include "rb.h"
+//#include "buffers.h"
+//#include "config.h"
+//#include "resampler.h"
+//#include "jack_playfile.h"
 #include "jackaudio.h"
-#include "playlist.h"
+//#include "sndin.h"
+//#include "playlist.h"
+//#include "control.h"
+#include "kb_control.h"
 
-static const float version=0.89;
+static const float version=0.90;
 
 static void init_settings();
 static void init_running_properties();
@@ -59,11 +63,14 @@ static void init_settings()
 	settings->channel_offset=0;
 	settings->channel_count=0;
 //	settings->use_resampling=1;
+	settings->resampler_filtersize=0; //use default
 	settings->custom_file_sample_rate=0;
+/*
 	settings->is_playing=1;
 	settings->is_muted=0;
 	settings->loop_enabled=0;
 	settings->pause_at_end=0;
+*/
 	settings->keyboard_control_enabled=1;
 	settings->is_clock_displayed=1;
 	settings->is_time_seconds=1;
@@ -87,13 +94,28 @@ static void init_running_properties()
 	running->frame_count=settings->frame_count;
 	running->channel_offset=settings->channel_offset;
 	running->channel_count=settings->channel_count;
-	running->output_port_count=0;
 	running->seek_frames_in_progress=0;
+/*
 	running->is_idling_at_end=0;
+*/
 	running->shutdown_in_progress=0;
 	running->shutdown_in_progress_signalled=0;
 	running->out_to_in_byte_ratio=0;
 	running->last_seek_pos=0;
+}
+
+//=============================================================================
+static void init_transport()
+{
+	transport=new Transport();
+
+	transport->is_playing=1;
+	transport->is_muted=0;
+	transport->loop_enabled=0;
+	transport->pause_at_end=0;
+	transport->is_idling_at_end=0;
+
+	transport->use_jack_transport=0;
 }
 
 //data structure for command line options parsing
@@ -106,25 +128,20 @@ static struct option long_options[] =
 	{"version",	no_argument,		0, 'V'},
 	{"name",	required_argument,	0, 'n'}, //JackServer
 	{"sname",	required_argument,	0, 's'}, //JackServer
-
+	{"ports",	required_argument,	0, 'w'}, //JackServer
 	{"offset",	required_argument,	0, 'o'}, //Settings
 	{"count",	required_argument,	0, 'c'}, //Settings
-
 	{"choffset",	required_argument,	0, 'O'}, //Settings
 	{"chcount",	required_argument,	0, 'C'}, //Settings
-
 	{"samplerate",	required_argument,	0, 'S'}, //Settings
-
 	{"amplify",	required_argument,	0, 'A'}, //JackServer
-
 	{"file",	required_argument,	0, 'F'},
 	{"dump",	no_argument,  0,	'd'},    //Settings
-
 	{"nocontrol",	no_argument,  0,	'D'},    //Settings
 /*	{"noresampling",no_argument,  0,	'R'},    //Settings */
+	{"filtersize",	required_argument,	0, 'Q'}, //Settings
 	{"noconnect",	no_argument,  0,	'N'},    //JackServer
 	{"noreconnect",	no_argument,  0,	'E'},    //JackServer
-
 	{"paused",	no_argument,  0,	'p'},    //Settings
 	{"muted",	no_argument,  0,	'm'},    //Settings
 	{"loop",	no_argument,  0,	'l'},    //Settings
@@ -134,7 +151,6 @@ static struct option long_options[] =
 	{"noclock",	no_argument,  0,	'k'},    //Settings
 	{"pae",		no_argument,  0,	'e'},    //Settings
 	{"transport",	no_argument,  0,	'j'},    //JackServer
-
 	{"verbose",	no_argument,  0,	'v'},    //Settings
 	{"libs",	no_argument,  0,	'L'},
 	{0, 0, 0, 0}
@@ -149,8 +165,7 @@ static void parse_cmdline_args(int argc, char *argv[])
 	{
 		//getopt_long stores the option index here
 		int option_index=0;
-
-		opt=getopt_long(argc, argv, "hHVn:s:o:c:O:C:DRS:A:F:dNEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:w:o:c:O:C:DQ:S:A:F:dNEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -187,6 +202,10 @@ static void parse_cmdline_args(int argc, char *argv[])
 				jack->server_name=optarg;
 				break;
 
+			case 'w':
+				jack->output_port_count=atoi(optarg);
+				break;
+
 			case 'o':
 				settings->frame_offset=strtoull(optarg, NULL, 10);
 				break;
@@ -207,8 +226,12 @@ static void parse_cmdline_args(int argc, char *argv[])
 				settings->keyboard_control_enabled=0;
 				break;
 
-			case 'R':
+//			case 'R':
 //				settings->use_resampling=0;
+//				break;
+
+			case 'Q':
+				settings->resampler_filtersize=atoi(optarg);
 				break;
 
 			case 'S':
@@ -239,15 +262,15 @@ static void parse_cmdline_args(int argc, char *argv[])
 				break;
 
 			case 'p':
-				settings->is_playing=0;
+				transport->is_playing=0;
 				break;
 
 			case 'm':
-				settings->is_muted=1;
+				transport->is_muted=1;
 				break;
 
 			case 'l':
-				settings->loop_enabled=1;
+				transport->loop_enabled=1;
 				break;
 
 			case 'f':
@@ -267,11 +290,11 @@ static void parse_cmdline_args(int argc, char *argv[])
 				break;
 
 			case 'e':
-				settings->pause_at_end=1;
+				transport->pause_at_end=1;
 				break;
 
 			case 'j':
-				jack->use_transport=1;
+				transport->use_jack_transport=1;
 				break;
 
 			case 'v':
@@ -305,10 +328,14 @@ static void print_main_help()
 	fprintf (stdout, "  -F, --file <string>       Get files to play from playlist file\n");
 	fprintf (stdout, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stdout, "  -s, --sname <string>      JACK server name  (\"default\") \n");
-	fprintf (stdout, "  -N, --noconnect           Don't connect JACK ports\n");
+
+	fprintf (stdout, "  -w, --ports <integer>     Number of output ports (automatic)\n");
+
+	fprintf (stdout, "  -N, --noconnect           Don't connect to default JACK ports\n");
 	fprintf (stdout, "  -E, --noreconnect         Don't wait for JACK to re-connect\n");
 	fprintf (stdout, "  -D, --nocontrol           Disable keyboard control\n");
 //	fprintf (stdout, "  -R, --noresampling        Disable resampling\n");
+	fprintf (stdout, "  -Q, --filtersize          Set custom resampler filtersize >=16,<=96)\n");
 	fprintf (stdout, "  -S, --samplerate          Override file sample rate (affects pitch & tempo)\n");
 	fprintf (stdout, "  -A, --amplify             Amplifcation in dB (Volume):  (0.0)\n");
 	fprintf (stdout, "  -p, --paused              Start paused\n");
@@ -322,8 +349,8 @@ static void print_main_help()
 	fprintf (stdout, "  -k, --noclock             Disable clock display\n");
 	fprintf (stdout, "  -o, --offset <integer>    Frame offset:  (0)\n");
 	fprintf (stdout, "  -c, --count <integer>     Frame count:  (all)\n");
-	fprintf (stdout, "  -O, --choffset <integer>  Channel offset:  (0)\n");
-	fprintf (stdout, "  -C, --chcount <integer>   Channel count:  (all)\n");
+	fprintf (stdout, "  -O, --choffset <integer>  Channel offset (in file):  (0)\n");
+	fprintf (stdout, "  -C, --chcount <integer>   Channel count  (in file):  (all)\n");
 	fprintf (stdout, "  -d, --dump                Print usable files to stdout and quit\n");
 	fprintf (stdout, "  -v, --verbose             Show more info about files, JACK settings\n");
 	fprintf (stdout, "  -L, --libs                Show license and library info\n\n");
@@ -343,6 +370,8 @@ static void print_manpage()
 {
 #ifdef STATIC_BUILD
 	fprintf(stdout,"%s",jack_playfile_man_dump);
+#else
+	fprintf(stderr,"-H is only available in static builds of jack_playfile, please use 'man jack_playfile' instead.\n");
 #endif
 	exit(0);
 }
