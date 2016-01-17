@@ -44,6 +44,8 @@ static const float version=0.90;
 
 static void init_settings();
 static void init_running_properties();
+static void init_transport();
+static void free_structs();
 
 static void parse_cmdline_args(int argc, char *argv[]);
 
@@ -116,6 +118,17 @@ static void init_transport()
 	transport->is_idling_at_end=0;
 
 	transport->use_jack_transport=0;
+}
+
+//================================================================
+static void free_structs()
+{
+	delete settings;
+	delete running;
+	delete transport;
+	free(jack->ioPortArray);
+	delete jack;
+	delete debug_marker;
 }
 
 //data structure for command line options parsing
