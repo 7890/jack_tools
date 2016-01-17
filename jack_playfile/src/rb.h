@@ -459,7 +459,11 @@ static inline rb_t *rb_new_shared_audio(size_t size, const char *name, int sampl
 	rb=(rb_t*)mmap(0, sizeof(rb_t) + size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	close(fd);
 
-	if(rb==NULL || rb==MAP_FAILED) {return NULL;}
+	if(rb==NULL || rb==MAP_FAILED)
+	{
+		shm_unlink(shm_handle);
+		return NULL;
+	}
 //	fprintf(stderr,"rb address %lu\n",(unsigned long int)rb);
 	memcpy(rb->shm_handle,shm_handle,37);
 //	fprintf(stderr,"buffer address %lu\n",(unsigned long int)buf_ptr(rb));
@@ -519,7 +523,12 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 	//void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
 	rb=(rb_t*)mmap(0, sizeof(rb_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
-	if(rb==NULL || rb==MAP_FAILED) {return NULL;}
+	if(rb==NULL || rb==MAP_FAILED)
+	{
+		close(fd);
+		shm_unlink(shm_handle);
+		return NULL;
+	}
 
 	if(strncmp(rb->magic,RB_MAGIC,8))
 	{
@@ -527,6 +536,7 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 			,RB_MAGIC,rb->magic);
 		close(fd);
 		munmap(rb,sizeof(rb_t));
+		shm_unlink(shm_handle);
 		return NULL;
 	}
 
@@ -536,6 +546,7 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 			,RB_VERSION,rb->version);
 		close(fd);
 		munmap(rb,sizeof(rb_t));
+		shm_unlink(shm_handle);
 		return NULL;
 	}
 
@@ -547,7 +558,11 @@ static inline rb_t *rb_open_shared(const char *shm_handle)
 	rb=(rb_t*)mmap(0, sizeof(rb_t) + size , PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	close(fd);
 
-	if(rb==NULL || rb==MAP_FAILED) {return NULL;}
+	if(rb==NULL || rb==MAP_FAILED)
+	{
+		shm_unlink(shm_handle);
+		return NULL;
+	}
 
 //	fprintf(stderr,"rb address %lu\n",(unsigned long int)rb);
 //	fprintf(stderr,"buffer address %lu\n",(unsigned long int)buf_ptr(rb));
@@ -578,7 +593,13 @@ static inline void rb_free(rb_t *rb)
 #ifndef RB_DISABLE_SHM
 	if(rb->in_shared_memory)
 	{
-		shm_unlink(rb->shm_handle);
+		//shm_unlink(rb->shm_handle);
+		char handle[255];
+		strncpy(handle,rb->shm_handle,255);
+		size_t size=rb->size;
+		munmap(rb,sizeof(rb_t)+size);
+		shm_unlink(handle);
+		rb=NULL;
 		return;
 	}
 #endif
