@@ -255,14 +255,16 @@ S_IFIFO    0010000   FIFO
 			if(ret == MPG123_OK)
 			{
 				long rate=0;
-				int channels=format=0;
+				int channels=0;
+				int format=0;
 				mpg123_getformat(soundfile_123, &rate, &channels, &format);
 
 				///problems with some files (?)
 				//struct mpg123_frameinfo mp3info;
 				//mpg123_info(soundfile_123, &mp3info);
 
-				if(format==0 || mpg123_length(soundfile_123)<=0)
+				///if(format==0 || 
+				if(mpg123_length(soundfile_123)<=0)
 				{
 					mpg123_close(soundfile_123);
 					mpg123_delete(soundfile_123);
