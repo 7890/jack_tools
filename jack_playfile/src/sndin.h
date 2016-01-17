@@ -125,8 +125,6 @@ int closing_file_in_progress=0;
 
 static float *tmp_buffer=new float[10000000]; ///
 
-//static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet);
-
 static int sin_open(const char *fileuri, int quiet);
 
 static int sin_check_if_mp3_file(const char *filename);
@@ -147,7 +145,6 @@ static int sin_file_info(SF_INFO_GENERIC sf_info, int print);
 
 //return 0 on error, 1 on success
 //=============================================================================
-//static int sin_open(const char *fileuri, SF_INFO_GENERIC *sf_info, int quiet)
 static int sin_open(const char *fileuri, int quiet)
 {
 	is_opus=0;
