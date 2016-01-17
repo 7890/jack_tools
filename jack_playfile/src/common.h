@@ -346,7 +346,9 @@ static void print_main_help()
 	fprintf (stdout, "  -h, --help                Display this text and quit\n");
 	fprintf (stdout, "  -V, --version             Show program version and quit\n");
 	fprintf (stdout, "  -F, --file <string>       Get files to play from playlist file\n");
+#ifndef WIN32
 	fprintf (stdout, "  -R, --recurse             Scan directories recursively\n");
+#endif
 	fprintf (stdout, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stdout, "  -s, --sname <string>      JACK server name  (\"default\") \n");
 	fprintf (stdout, "  -w, --ports <integer>     Number of output ports (automatic)\n");

@@ -165,7 +165,9 @@ S_IFIFO    0010000   FIFO
 */
 	//ignore if not a regular file or a symbolic link
 	if((st.st_mode & S_IFMT) != S_IFREG
+#ifndef WIN32
 		&& (st.st_mode & S_IFMT) != S_IFLNK
+#endif
 	)
 	{
 		return 0;

@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#ifndef WIN32
 //http://stackoverflow.com/questions/8436841/how-to-recursively-list-directories-in-c-on-linux
 /* We want POSIX.1-2008 + XSI, i.e. SuSv4, features */
 #define _XOPEN_SOURCE 700
@@ -52,6 +53,7 @@
 */
 #ifndef USE_FDS
 	#define USE_FDS 15
+#endif
 #endif
 
 #include "sndin.h"
@@ -249,6 +251,7 @@ static int pl_check_file(const char *filepath)
 static int pl_directory_scanner_callback(
 	const char *filepath, const struct stat *info, const int typeflag, struct FTW *pathinfo)
 {
+#ifndef WIN32
 	if (typeflag == FTW_SL)
 	{
 		pl_eventually_put_file_to_playlist(filepath);
@@ -264,15 +267,18 @@ static int pl_directory_scanner_callback(
 	else if (typeflag == FTW_DNR) {fprintf(stderr," %s/ (unreadable)\n", filepath);}
 	else {fprintf(stderr," %s (unknown)\n", filepath);}
 */
+#endif
 	return 0;
 }
 
 //=============================================================================
 static void pl_handle_directory(const char *const dirpath)
 {
+#ifndef WIN32
 	/* Invalid directory path? */
 	if (dirpath == NULL || *dirpath == '\0') {return;}
 	int result = nftw(dirpath, pl_directory_scanner_callback, USE_FDS, FTW_PHYS);
+#endif
 }
 
 #endif
