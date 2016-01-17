@@ -255,8 +255,8 @@ S_IFIFO    0010000   FIFO
 			int ret = mpg123_open(soundfile_123, fileuri);
 			if(ret == MPG123_OK)
 			{
-				long rate;
-				int channels, format;
+				long rate=0;
+				int channels=format=0;
 				mpg123_getformat(soundfile_123, &rate, &channels, &format);
 
 				///problems with some files (?)
@@ -350,11 +350,10 @@ static const unsigned char mpeg25_L3_header2[2]={0xFF, 0xE3};
 	unsigned char bytes_pattern_with_id3[3]={0x49,0x44,0x33}; //ID3
 	unsigned char bytes_header[3];
 
-	size_t size;
+	size_t size=0;
 	unsigned char c='\0';
-	int i;
 	//find first non-zero byte in the first 1000 bytes
-	for(i=0;i<1000;i++)
+	for(int i=0;i<1000;i++)
 	{
 		size=fread(&c, 1, 1, f);
 //		fprintf(stderr,"%d %zu %X\n",i,size,c);
