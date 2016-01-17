@@ -414,6 +414,7 @@ static int jack_register_output_ports()
 		char* portName;
 		if (asprintf(&portName, "output_%d", (port+1)) < 0) 
 		{
+			free(portName);
 			fprintf(stderr, "/!\\ could not create portname for port %d\n", port);
 			return 0;
 		}
@@ -422,9 +423,11 @@ static int jack_register_output_ports()
 		jack->ioPortArray[port] = jack_port_register(jack->client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
 		if (jack->ioPortArray[port] == NULL) 
 		{
+			free(portName);
 			fprintf(stderr, "/!\\ could not create output port %d\n", (port+1));
 			return 0;
 		}
+		free(portName);
 	}
 	return 1;
 }
