@@ -129,6 +129,7 @@ static void free_structs()
 	free(jack->ioPortArray);
 	delete jack;
 	delete debug_marker;
+	free(r1);
 }
 
 //data structure for command line options parsing

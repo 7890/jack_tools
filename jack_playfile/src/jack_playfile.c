@@ -1200,12 +1200,12 @@ static void signal_handler(int sig)
 	free_ringbuffers();
 	kb_reset_terminal();
 
+//////
+	delete[] frames_from_file_buffer;
 	///in sndfile.h
 	delete[] tmp_buffer;
 
-	///in playlist.h
-	//"The simplest way to deallocate all the storage in a vector, without destroying the vector object itself, is"
-	files_to_play = std::vector<string>();
+	free_structs();
 
 	fprintf(stderr,"jack_playfile done.\n");
 	fprintf(stderr,"%s",turn_on_cursor_seq);
