@@ -763,7 +763,7 @@ Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus
 </li>
 <li>
 <p>
-High quality resampling to match JACK sample rate (supports custom SR)
+High quality resampling to match JACK sample rate (custom SR supported)
 </p>
 </li>
 <li>
@@ -831,7 +831,7 @@ This plugin collection is a good starting point: <a href="https://github.com/x42
 <div class="paragraph"><p>/!\ <em>jack_playfile</em> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <em>BUGS</em>).</p></div>
-<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.89.</p></div>
+<div class="paragraph"><p>This document refers to <em>jack_playfile</em> version 0.91.</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -865,6 +865,15 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </p>
 </dd>
 <dt class="hdlist1">
+<strong>-R, --recurse</strong>
+</dt>
+<dd>
+<p>
+        If a given argument looks like a directory, recursively scan it for playable audio files.
+        See also --dump, --file.
+</p>
+</dd>
+<dt class="hdlist1">
 <strong>-n, --name</strong> (string)
 </dt>
 <dd>
@@ -880,6 +889,21 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <p>
         JACK server name to start <em>jack_playfile</em> in a specific JACK server.
         <strong>Default:</strong> "default"
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-w, --ports</strong> (integer)
+</dt>
+<dd>
+<p>
+        The port count defines how many output ports <em>jack_playfile</em> will expose to JACK, independently of other variables.
+        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --ports.
+        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
+        A fixed port count i.e. --port 4 will ensure that even if a first file would initialize <em>jack_playfile</em> with only one JACK output channel (mono file),
+        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
+        <strong>Default:</strong> Dynamically set, all available channels (respecting given offset). This means the file channel count (-offset)
+        of the first file sets the number of JACK output ports <em>jack_playfile</em> will have.
+        See also --choffset, --chcount.
 </p>
 </dd>
 <dt class="hdlist1">
@@ -900,16 +924,30 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         <strong>Default:</strong> If JACK goes down, <em>jack_playfile</em> waits for the server to come back and then continues operation.
         If <em>jack_playfile</em> was playing when JACK went down, it will continue right at the position where it was before JACK went down.
         If JACK settings were changed between a restart, <em>jack_playfile</em> tries to adapt to the new settings as good as possible.
+        If <em>jack_playfile</em> is started and no JACK server is availabe, it will wait until it is ready.
+        Reconnecting to JACK means switching the hard- or software playout "backend" <em>jack_playfile</em> is using via JACK.
+        JACK supports a variety of backends, including ALSA (Advanced Linux Sound Architecture) (jackd -dalsa),
+        FFADO (Free Firewire Audio Drivers) (jackd -dfirewire), dummy (not attached to any hardware) (jackd -ddummy) and more.
 </p>
 </dd>
 <dt class="hdlist1">
-<strong>-D, --nocontrol</strong>:: (w/o argument)
+<strong>-D, --nocontrol</strong> (w/o argument)
 </dt>
 <dd>
 <p>
         Disable keyboard control.
         <strong>Default:</strong> <em>jack_playfile</em> accepts keyboard input while playing.
         For a detailed overview on available control actions, see <em>KEYBOARD SHORTCUTS</em> below or hit <em>F1</em> or <em>h</em> while <em>jack_playfile</em> is started and control is enabled.
+</p>
+</dd>
+<dt class="hdlist1">
+<strong>-Q, --filtersize</strong> (integer)
+</dt>
+<dd>
+<p>
+        Manually set the resampler filter size. This value must be one of 16, &#8230; 96.
+        A high value means more use of CPU power.
+        <strong>Default:</strong> 64
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1060,12 +1098,8 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <dd>
 <p>
         Channel count: How many channels to read from file, counting from offset (--choffset).
-        The channel count defines how many output ports <em>jack_playfile</em> will expose to JACK.
-        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --chcount.
-        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
-        A fixed channel count i.e. --chcount 4 will ensure that even if the first file initializes <em>jack_playfile</em> with only one JACK output channel (mono file),
-        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
-        <strong>Default:</strong> All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports <em>jack_playfile</em> will have.
+        This value could be limited by --ports.
+        <strong>Default:</strong> All available channels (respecting given offset).
 </p>
 </dd>
 <dt class="hdlist1">
@@ -1111,6 +1145,18 @@ and if <em>"</em> is part of the filename, it needs escaping like <em>\"</em>.</
 <pre><code>$ jack_playfile *.wav 0??.ogg</code></pre>
 </div></div>
 <div class="paragraph"><p>will play all files matching the patterns.</p></div>
+<div class="paragraph"><p>Playing directories recursively:</p></div>
+<div class="paragraph"><p>With Bash globstar:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ shopt -s globstar; jack_playfile music/**</code></pre>
+</div></div>
+<div class="paragraph"><p>If your shell supports this syntax, it will play any file in music/ and all subdirectories therein.</p></div>
+<div class="paragraph"><p>Without Bash globstar:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile --recurse music/</code></pre>
+</div></div>
 <div class="paragraph"><p>Attention: reading file arguments from STDIN will only work if keyboard control is off!</p></div>
 <div class="literalblock">
 <div class="content">
@@ -1140,6 +1186,12 @@ This is done by trying to open and read (up to a certain degree) every file. If 
 <div class="literalblock">
 <div class="content">
 <pre><code>$ jack_playfile --dump a.wav a.txt a.ogg</code></pre>
+</div></div>
+<div class="paragraph"><p>Other examples:</p></div>
+<div class="literalblock">
+<div class="content">
+<pre><code>$ jack_playfile --dump --recurse /music
+$ jack_playfile -dF files.txt</code></pre>
 </div></div>
 <div class="paragraph"><p>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
@@ -1824,7 +1876,7 @@ libogg - <a href="http://xiph.org/ogg/">http://xiph.org/ogg/</a>
 <h2 id="_authors">AUTHORS</h2>
 <div class="sectionbody">
 <div class="paragraph"><p>Thomas Brand &lt;<a href="mailto:tom@trellis.ch">tom@trellis.ch</a>&gt;</p></div>
-<div class="paragraph"><p>Last Update: Sun Jan 10 20:19:26 CET 2016</p></div>
+<div class="paragraph"><p>Last Update: Sun Jan 17 12:31:03 CET 2016</p></div>
 </div>
 </div>
 <div class="sect1">
@@ -1838,7 +1890,7 @@ granted under the terms of the GNU General Public License (GPL).</p></div>
 <div id="footnotes"><hr /></div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2016-01-10 20:20:25 CET
+Last updated 2016-01-17 12:33:49 CET
 </div>
 </div>
 </body>

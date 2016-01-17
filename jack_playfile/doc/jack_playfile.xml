@@ -31,7 +31,7 @@ Plays most RIFF, AIFF and CAFF PCM WAVE files, also plays FLAC, Ogg Vorbis, Opus
 </listitem>
 <listitem>
 <simpara>
-High quality resampling to match JACK sample rate (supports custom SR)
+High quality resampling to match JACK sample rate (custom SR supported)
 </simpara>
 </listitem>
 <listitem>
@@ -99,7 +99,7 @@ This plugin collection is a good starting point: <ulink url="https://github.com/
 <simpara>/!\ <emphasis>jack_playfile</emphasis> is still work in progress. It can happen that output is of
 unexpected nature (i.e. noise, unaligned buffers etc.) in special circumstances due to bugs in the code.
 If you find such cases that can be reproduced, please consider reporting a bug (see <emphasis>BUGS</emphasis>).</simpara>
-<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.89.</simpara>
+<simpara>This document refers to <emphasis>jack_playfile</emphasis> version 0.91.</simpara>
 </refsect1>
 <refsect1 id="_options">
 <title>OPTIONS</title>
@@ -138,6 +138,17 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 </varlistentry>
 <varlistentry>
 <term>
+<emphasis role="strong">-R, --recurse</emphasis>
+</term>
+<listitem>
+<simpara>
+        If a given argument looks like a directory, recursively scan it for playable audio files.
+        See also --dump, --file.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
 <emphasis role="strong">-n, --name</emphasis> (string)
 </term>
 <listitem>
@@ -155,6 +166,23 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <simpara>
         JACK server name to start <emphasis>jack_playfile</emphasis> in a specific JACK server.
         <emphasis role="strong">Default:</emphasis> "default"
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-w, --ports</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        The port count defines how many output ports <emphasis>jack_playfile</emphasis> will expose to JACK, independently of other variables.
+        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --ports.
+        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
+        A fixed port count i.e. --port 4 will ensure that even if a first file would initialize <emphasis>jack_playfile</emphasis> with only one JACK output channel (mono file),
+        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
+        <emphasis role="strong">Default:</emphasis> Dynamically set, all available channels (respecting given offset). This means the file channel count (-offset)
+        of the first file sets the number of JACK output ports <emphasis>jack_playfile</emphasis> will have.
+        See also --choffset, --chcount.
 </simpara>
 </listitem>
 </varlistentry>
@@ -179,18 +207,34 @@ If you find such cases that can be reproduced, please consider reporting a bug (
         <emphasis role="strong">Default:</emphasis> If JACK goes down, <emphasis>jack_playfile</emphasis> waits for the server to come back and then continues operation.
         If <emphasis>jack_playfile</emphasis> was playing when JACK went down, it will continue right at the position where it was before JACK went down.
         If JACK settings were changed between a restart, <emphasis>jack_playfile</emphasis> tries to adapt to the new settings as good as possible.
+        If <emphasis>jack_playfile</emphasis> is started and no JACK server is availabe, it will wait until it is ready.
+        Reconnecting to JACK means switching the hard- or software playout "backend" <emphasis>jack_playfile</emphasis> is using via JACK.
+        JACK supports a variety of backends, including ALSA (Advanced Linux Sound Architecture) (jackd -dalsa),
+        FFADO (Free Firewire Audio Drivers) (jackd -dfirewire), dummy (not attached to any hardware) (jackd -ddummy) and more.
 </simpara>
 </listitem>
 </varlistentry>
 <varlistentry>
 <term>
-<emphasis role="strong">-D, --nocontrol</emphasis>:: (w/o argument)
+<emphasis role="strong">-D, --nocontrol</emphasis> (w/o argument)
 </term>
 <listitem>
 <simpara>
         Disable keyboard control.
         <emphasis role="strong">Default:</emphasis> <emphasis>jack_playfile</emphasis> accepts keyboard input while playing.
         For a detailed overview on available control actions, see <emphasis>KEYBOARD SHORTCUTS</emphasis> below or hit <emphasis>F1</emphasis> or <emphasis>h</emphasis> while <emphasis>jack_playfile</emphasis> is started and control is enabled.
+</simpara>
+</listitem>
+</varlistentry>
+<varlistentry>
+<term>
+<emphasis role="strong">-Q, --filtersize</emphasis> (integer)
+</term>
+<listitem>
+<simpara>
+        Manually set the resampler filter size. This value must be one of 16, &#8230; 96.
+        A high value means more use of CPU power.
+        <emphasis role="strong">Default:</emphasis> 64
 </simpara>
 </listitem>
 </varlistentry>
@@ -371,12 +415,8 @@ If you find such cases that can be reproduced, please consider reporting a bug (
 <listitem>
 <simpara>
         Channel count: How many channels to read from file, counting from offset (--choffset).
-        The channel count defines how many output ports <emphasis>jack_playfile</emphasis> will expose to JACK.
-        If the file can deliver less channels than offset+count, the remaining JACK output channels will be filled with zero to match given --chcount.
-        This can be handy if files with different channel counts are played in a row (no port recreation or reconnection involved).
-        A fixed channel count i.e. --chcount 4 will ensure that even if the first file initializes <emphasis>jack_playfile</emphasis> with only one JACK output channel (mono file),
-        a following 4-channel file can still play all its 4 channels through the available JACK output ports.
-        <emphasis role="strong">Default:</emphasis> All available channels (respecting given offset). This means the file channel count (-offset) sets the number of JACK output ports <emphasis>jack_playfile</emphasis> will have.
+        This value could be limited by --ports.
+        <emphasis role="strong">Default:</emphasis> All available channels (respecting given offset).
 </simpara>
 </listitem>
 </varlistentry>
@@ -423,6 +463,12 @@ and if <emphasis>"</emphasis> is part of the filename, it needs escaping like <e
 <simpara>Of course all the shell filename expansion mechanisms can be used, so that</simpara>
 <literallayout class="monospaced">$ jack_playfile *.wav 0??.ogg</literallayout>
 <simpara>will play all files matching the patterns.</simpara>
+<simpara>Playing directories recursively:</simpara>
+<simpara>With Bash globstar:</simpara>
+<literallayout class="monospaced">$ shopt -s globstar; jack_playfile music/**</literallayout>
+<simpara>If your shell supports this syntax, it will play any file in music/ and all subdirectories therein.</simpara>
+<simpara>Without Bash globstar:</simpara>
+<literallayout class="monospaced">$ jack_playfile --recurse music/</literallayout>
 <simpara>Attention: reading file arguments from STDIN will only work if keyboard control is off!</simpara>
 <literallayout class="monospaced">#THIS WILL FAIL
 $ ls -1 *.wav | ... | while read line; do jack_playfile "$line"; done</literallayout>
@@ -438,6 +484,9 @@ This is done by trying to open and read (up to a certain degree) every file. If 
 <simpara>Please note that using the environment variable <emphasis>$PWD</emphasis> will make the list more robust (i.e. to play it from another path) since every file in the list is relative to root (<emphasis>/</emphasis>).</simpara>
 <simpara>In the following example, <emphasis>a.txt</emphasis> will be sorted out:</simpara>
 <literallayout class="monospaced">$ jack_playfile --dump a.wav a.txt a.ogg</literallayout>
+<simpara>Other examples:</simpara>
+<literallayout class="monospaced">$ jack_playfile --dump --recurse /music
+$ jack_playfile -dF files.txt</literallayout>
 <simpara>If multiple files are available as arguments or from a playlist file, they will be played in a row without recreating or reconnecting JACK ports.
 Using keyboard control &lt; and &gt; will browse through the list of files. If a file can&#8217;t be played, the next
 file will be tried until there is a valid file or no more files left to try.</simpara>
@@ -1086,7 +1135,7 @@ libogg - <ulink url="http://xiph.org/ogg/">http://xiph.org/ogg/</ulink>
 <refsect1 id="_authors">
 <title>AUTHORS</title>
 <simpara>Thomas Brand &lt;<ulink url="mailto:tom@trellis.ch">tom@trellis.ch</ulink>&gt;</simpara>
-<simpara>Last Update: Sun Jan 10 20:19:26 CET 2016</simpara>
+<simpara>Last Update: Sun Jan 17 12:31:03 CET 2016</simpara>
 </refsect1>
 <refsect1 id="_copying">
 <title>COPYING</title>
