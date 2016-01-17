@@ -72,7 +72,7 @@ if [ "$(id -u)" != "0" -a -z "$SUDO" ]; then
 	exit 1
 fi
 
-echo "??? create build stack for win32 dependencies of audio_rxtx and create executables?"
+echo "??? create build stack for win32 dependencies of jack_playfile and create executables?"
 echo "(this command must be started from inside (--login) the minimal system or VM)"
 echo "please see comments in the script header how to bootstrap a minimal build system."
 echo "   do you want to continue? (ctrl+c to abort)"
@@ -228,17 +228,17 @@ cp -vf pthread.h sched.h ${PREFIX}/include
 src libogg-1.3.2 tar.gz http://downloads.xiph.org/releases/ogg/libogg-1.3.2.tar.gz
 autoconfbuild
 
-src libvorbis-1.3.4 tar.gz http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.4.tar.gz
+src libvorbis-1.3.5 tar.gz http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.5.tar.gz
 autoconfbuild --disable-examples --with-ogg=${PREFIX}
 
-src flac-1.3.0 tar.xz http://downloads.xiph.org/releases/flac/flac-1.3.0.tar.xz
+src flac-1.3.1 tar.xz http://downloads.xiph.org/releases/flac/flac-1.3.1.tar.xz
 ed Makefile.in << EOF
 %s/examples / /
 wq
 EOF
 autoconfbuild --enable-static --disable-xmms-plugin --disable-cpplibs --disable-doxygen-docs 
 
-src libsndfile-1.0.25 tar.gz http://www.mega-nerd.com/libsndfile/files/libsndfile-1.0.25.tar.gz
+src libsndfile-1.0.26 tar.gz http://www.mega-nerd.com/libsndfile/files/libsndfile-1.0.26.tar.gz
 ed Makefile.in << EOF
 %s/ examples regtest tests programs//
 wq
