@@ -439,7 +439,6 @@ static int jack_activate_client()
 	if (jack_activate (jack->client)) 
 	{
 		fprintf (stderr, "/!\\ cannot activate client\n\n");
-		free_ringbuffers();
 		return 0;
 	}
 	return 1;
