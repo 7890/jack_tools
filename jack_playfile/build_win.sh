@@ -37,8 +37,29 @@
 # then call this (the one you read) script
 #
 # time /var/tmp/build_win.sh
-# -> if the build proceeds well there will be /tmp/audio_rxtx_(number).tar
+# -> if the build proceeds well there will be /tmp/jack_playfile_(number).zip
 #
+#  adding: jack_playfile_1453032072/ (stored 0%)
+#  adding: jack_playfile_1453032072/bin/ (stored 0%)
+#  adding: jack_playfile_1453032072/bin/libvorbisenc-2.dll (deflated 79%)
+#  adding: jack_playfile_1453032072/bin/libopus-0.dll (deflated 62%)
+#  adding: jack_playfile_1453032072/bin/libopusfile-0.dll (deflated 59%)
+#  adding: jack_playfile_1453032072/bin/libsndfile-1.dll (deflated 65%)
+#  adding: jack_playfile_1453032072/bin/libgcc_s_sjlj-1.dll (deflated 70%)
+#  adding: jack_playfile_1453032072/bin/libstdc++-6.dll (deflated 69%)
+#  adding: jack_playfile_1453032072/bin/libogg-0.dll (deflated 62%)
+#  adding: jack_playfile_1453032072/bin/libmpg123-0.dll (deflated 57%)
+#  adding: jack_playfile_1453032072/bin/libFLAC-8.dll (deflated 58%)
+#  adding: jack_playfile_1453032072/bin/jack_playfile.exe (deflated 62%)
+#  adding: jack_playfile_1453032072/bin/libvorbis-0.dll (deflated 58%)
+#  adding: jack_playfile_1453032072/bin/pthreadGC2.dll (deflated 65%)
+#  adding: jack_playfile_1453032072/bin/libvorbisfile-3.dll (deflated 60%)
+#  adding: jack_playfile_1453032072/bin/libwinpthread-1.dll (deflated 62%)
+#  adding: jack_playfile_1453032072/doc/ (stored 0%)
+#  adding: jack_playfile_1453032072/doc/jack_playfile.pdf (deflated 6%)
+#-rw-r--r-- 1 root root 5394106 Jan 17 12:01 jack_playfile_1453032072.zip
+#(in /tmp)
+#done!
 
 ###############################################################################
 
