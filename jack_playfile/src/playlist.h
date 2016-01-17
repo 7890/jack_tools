@@ -28,6 +28,32 @@
 #include <string>
 #include <vector>
 
+//http://stackoverflow.com/questions/8436841/how-to-recursively-list-directories-in-c-on-linux
+/* We want POSIX.1-2008 + XSI, i.e. SuSv4, features */
+#define _XOPEN_SOURCE 700
+
+#include <stdlib.h>
+#include <unistd.h>
+#include <ftw.h>
+#include <stdio.h>
+#include <string.h>
+
+/* POSIX.1 says each process has at least 20 file descriptors.
+ * Three of those belong to the standard streams.
+ * Here, we use a conservative estimate of 15 available;
+ * assuming we use at most two for other uses in this program,
+ * we should never run into any problems.
+ * Most trees are shallower than that, so it is efficient.
+ * Deeper trees are traversed fine, just a bit slower.
+ * (Linux allows typically hundreds to thousands of open files,
+ *  so you'll probably never see any issues even if you used
+ *  a much higher value, say a couple of hundred, but
+ *  15 is a safe, reasonable value.)
+*/
+#ifndef USE_FDS
+	#define USE_FDS 15
+#endif
+
 #include "sndin.h"
 
 static char *playlist_file;
@@ -42,17 +68,28 @@ vector<string> files_to_play;
 static int PL_DIRECTION_FORWARD=0;
 static int PL_DIRECTION_BACKWARD=1;
 
-static int pl_create(int argc, char *argv[], int from_playlist, int dump);
-static int pl_create_vector_from_args(int argc, char *argv[], int dump);
-static int pl_create_vector_from_file(int dump);
+static int pl_create(int argc, char *argv[], int from_playlist, int dump, int recurse);
+static int pl_create_vector_from_args(int argc, char *argv[]);
+static int pl_create_vector_from_file();
 static int pl_open_check_file();
 static void pl_set_next_index(int direction);
-static int pl_check_file(const char *f);
+static int pl_check_file(const char *filepath);
+static int pl_eventually_put_file_to_playlist(const char *filepath);
+
+static void pl_handle_directory(const char *const dirpath);
+static int pl_directory_scanner_callback(const char *filepath, const struct stat *info, const int typeflag, struct FTW *pathinfo);
+
+///
+static int pl_dump=0;
+static int pl_recurse=0;
+static int pl_test_number=0;
 
 //wrapper to create playlist (vector of file uri strings) from file or from argv
 //=============================================================================
-static int pl_create(int argc, char *argv[], int from_playlist, int dump)
+static int pl_create(int argc, char *argv[], int from_playlist, int dump, int recurse)
 {
+	pl_dump=dump;
+	pl_recurse=recurse;
 	if(!from_playlist)
 	{
 		//remaining non optional parameters must be at least one file
@@ -62,7 +99,7 @@ static int pl_create(int argc, char *argv[], int from_playlist, int dump)
 			return 0;
 		}
 
-		if(!pl_create_vector_from_args(argc,argv,dump))
+		if(!pl_create_vector_from_args(argc,argv))
 		{
 			fprintf(stderr,"/!\\ could not create playlist\n");
 			return 0;
@@ -76,7 +113,7 @@ static int pl_create(int argc, char *argv[], int from_playlist, int dump)
 			return 0;
 		}
 
-		if(!pl_create_vector_from_file(dump))
+		if(!pl_create_vector_from_file())
 		{
 			fprintf(stderr,"/!\\ could not create playlist\n");
 			return 0;
@@ -86,27 +123,41 @@ static int pl_create(int argc, char *argv[], int from_playlist, int dump)
 }
 
 //=============================================================================
-static int pl_create_vector_from_args(int argc, char *argv[], int dump)
+static int pl_eventually_put_file_to_playlist(const char *filepath)
+{
+	fprintf(stderr,"\r%s\rparsing arguments file # %d ",clear_to_eol_seq,pl_test_number);
+	if(pl_check_file(filepath))
+	{
+		files_to_play.push_back(filepath);
+		if(pl_dump)
+		{
+			fprintf(stdout,"%s\n",filepath);
+			fflush(stdout);
+		}
+		pl_test_number++;
+		return 1;
+	}
+	pl_test_number++;
+	return 0;
+}
+
+//=============================================================================
+static int pl_create_vector_from_args(int argc, char *argv[])
 {
 	fprintf(stderr,"%s",turn_off_cursor_seq);
-	int test_number=1;
+	pl_test_number=1;
+
 	while(argc-optind>0)
 	{
-		fprintf(stderr,"\r%s\rparsing arguments file # %d ",clear_to_eol_seq,test_number);
-		if(pl_check_file(argv[optind]))
+		if(!pl_eventually_put_file_to_playlist(argv[optind]))
 		{
-			if(!dump)
+			if(pl_recurse)
 			{
-				files_to_play.push_back(argv[optind]);
-			}
-			else
-			{
-				fprintf(stdout,"%s\n",argv[optind]);
-				fflush(stdout);
+				pl_test_number--;
+				pl_handle_directory(argv[optind]);
 			}
 		}
 		optind++;
-		test_number++;
 	}
 
 	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
@@ -115,35 +166,21 @@ static int pl_create_vector_from_args(int argc, char *argv[], int dump)
 }
 
 //=============================================================================
-static int pl_create_vector_from_file(int dump)
+static int pl_create_vector_from_file()
 {
 	ifstream ifs(playlist_file);
 	string line;
 
 	fprintf(stderr,"%s",turn_off_cursor_seq);
-	int test_number=1;
+	pl_test_number=1;
+
 	while ( std::getline(ifs, line) )
 	{
 		if (line.empty())
 		{
 			continue;
 		}
-
-		fprintf(stderr,"\r%s\rparsing playlist file # %d ",clear_to_eol_seq,test_number);
-
-		if(pl_check_file(line.c_str()))
-		{
-			if(!dump)
-			{
-				files_to_play.push_back(line);
-			}
-			else
-			{
-				fprintf(stdout,"%s\n",line.c_str());
-				fflush(stdout);
-			}
-		}
-		test_number++;
+		pl_eventually_put_file_to_playlist(line.c_str());
 	}
 
 	fprintf(stderr,"\r%s\r",clear_to_eol_seq);
@@ -166,10 +203,8 @@ static int pl_open_check_file()
 		return 0;
 	}
 
-	//open_init_file in jack_playfile.c
 	if(pl_check_file(files_to_play[current_playlist_index].c_str()))
 	{
-
 		return 1;
 	}
 	else
@@ -198,16 +233,46 @@ static void pl_set_next_index(int direction)
 
 //test quietly if a file can be opened as playable audio file
 //=============================================================================
-static int pl_check_file(const char *f)
+static int pl_check_file(const char *filepath)
 {
 	//sin_open, sf_info_generic in sndin.h
-	if(!sin_open(f,1))
+	if(!sin_open(filepath,1))
 	{
 		return 0;
 	}
 
 	sin_close();
 	return 1;
+}
+
+//=============================================================================
+static int pl_directory_scanner_callback(
+	const char *filepath, const struct stat *info, const int typeflag, struct FTW *pathinfo)
+{
+	if (typeflag == FTW_SL)
+	{
+		pl_eventually_put_file_to_playlist(filepath);
+	} 
+//	else if (typeflag == FTW_SLN) {fprintf(stderr," %s (dangling symlink)\n", filepath);}
+	else if (typeflag == FTW_F)
+	{
+//		fprintf(stderr," %s\n", filepath);
+                pl_eventually_put_file_to_playlist(filepath);
+	}
+/*
+	else if (typeflag == FTW_D || typeflag == FTW_DP) {fprintf(stderr," %s/\n", filepath);}
+	else if (typeflag == FTW_DNR) {fprintf(stderr," %s/ (unreadable)\n", filepath);}
+	else {fprintf(stderr," %s (unknown)\n", filepath);}
+*/
+	return 0;
+}
+
+//=============================================================================
+static void pl_handle_directory(const char *const dirpath)
+{
+	/* Invalid directory path? */
+	if (dirpath == NULL || *dirpath == '\0') {return;}
+	int result = nftw(dirpath, pl_directory_scanner_callback, USE_FDS, FTW_PHYS);
 }
 
 #endif

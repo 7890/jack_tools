@@ -34,7 +34,6 @@ static pthread_t disk_thread={0};
 static pthread_mutex_t disk_thread_lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t ok_to_read=PTHREAD_COND_INITIALIZER;
 static int disk_thread_initialized=0;
-static int disk_thread_finished=0;
 
 //disk reads
 //first cycle indicated as 1
@@ -92,7 +91,7 @@ int main(int argc, char *argv[])
 		kb_set_terminal_raw();
 	}
 
-	if(!pl_create(argc,argv,settings->read_from_playlist,settings->dump_usable_files))
+	if(!pl_create(argc,argv,settings->read_from_playlist,settings->dump_usable_files,settings->read_recursively))
 	{
 		//clean up / reset and quit
 		signal_handler(44);
@@ -100,6 +99,7 @@ int main(int argc, char *argv[])
 	//all done
 	if(settings->dump_usable_files)
 	{
+		fprintf(stderr,"total files in playlist: %d\n",(int)files_to_play.size());
 		signal_handler(42); //quit nicely
 	}
 
@@ -178,9 +178,7 @@ while(true)
 	//-----------------
 	setup_ringbuffers(running->channel_count,sf_info_generic.sample_rate,jack->sample_rate);
 
-
 	rs_free(r1);
-
 	//setup resampler (filtsize=0 for default)
 	r1=rs_new(settings->resampler_filtersize,rb_interleaved,rb_resampled_interleaved,jack->period_frames);
 	//-----------------
@@ -457,15 +455,15 @@ static int open_init_file(const char *f)
 		sin_close();
 		return 0;
 	}
-
+/*
 	//"kill" thread
 	pthread_mutex_unlock(&disk_thread_lock);
 	pthread_cond_signal(&ok_to_read);
 	pthread_join(disk_thread, NULL);
 	pthread_cancel(disk_thread);
-
-	//reset some variables
 	disk_thread_initialized=0;
+*/
+	//reset some variables
 	set_all_frames_read(0);
 	total_frames_read_from_file=0;
 	transport->is_idling_at_end=0;
@@ -475,6 +473,8 @@ static int open_init_file(const char *f)
 
 	running->channel_offset=settings->channel_offset;
 	running->channel_count=settings->channel_count;
+
+	running->last_seek_pos=running->frame_offset;
 
 	struct stat st;
 	stat(filename, &st);
@@ -686,6 +686,7 @@ static int open_init_file(const char *f)
 		frames_to_seek=0;
 		running->seek_frames_in_progress=0;
 	}
+
 //	fprintf(stderr,"seek frames %"PRId64"\n",seek_frames_per_hit);
 
 	return 1;
@@ -805,9 +806,6 @@ static void *disk_thread_func(void *arg)
 {
 	//assume soundfile not null
 
-	//seek to given offset position
-	running->last_seek_pos=sin_seek(running->frame_offset,SEEK_SET);
-
 	//===main disk loop
 	for(;;)
 	{
@@ -893,35 +891,28 @@ static void *disk_thread_func(void *arg)
 		//for both resampling, non-resampling
 		//disk_read() returns 0 on EOF
 		if(!disk_read_frames())
-		{
-			if(!transport->is_idling_at_end)
-			{
-				//not idling so eof
-				goto done;
-			}
-			//idling so continuing
+		{///
 		}
 
 		//===wait here until process() requests to continue
 		pthread_cond_wait (&ok_to_read, &disk_thread_lock);
 	}//end main loop
-done:
-//	sf_close_();//close in shutdown handler
-
+//done:
+/*
 	pthread_mutex_unlock (&disk_thread_lock);
 	pthread_join(disk_thread, NULL);
 	pthread_cancel(disk_thread);
-
+*/
 //	fprintf(stderr,"\ndisk_thread_func(): disk thread finished\n");
 
-	disk_thread_finished=1;
+	///never reached
 	return 0;
 }//end disk_thread_func()
 
 //=============================================================================
 static void setup_disk_thread()
 {
-	disk_thread_finished=0;
+	//__disk_thread_finished=0;
 	if(disk_thread_initialized)
 	{
 //		fprintf(stderr,"/!\\ already have disk_thread, using that one\n");
@@ -1155,7 +1146,7 @@ static void print_stats()
 	{
 		return;
 	}
-	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %lu resampled %lu deinterleaved %lu resampling finished %d all frames read %d disk thread finished %d\n"
+	fprintf(stderr,"-stats: proc cycles %"PRId64" read cycles %"PRId64" proc underruns %"PRId64" bytes from file %"PRId64"\n-stats: frames: from file %"PRId64" input resampled %"PRId64" pushed to JACK %"PRId64"\n-stats: interleaved %lu resampled %lu deinterleaved %lu resampling finished %d all frames read %d\n"
 		,jack->process_cycle_count
 		,disk_read_cycle_count
 		,jack->process_cycle_underruns
@@ -1171,7 +1162,7 @@ static void print_stats()
 
 		,r1->resampling_finished
 		,all_frames_read()
-		,disk_thread_finished
+/*		,disk_thread_finished*/
 	);
 }//end print_stats()
 

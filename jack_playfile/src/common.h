@@ -40,7 +40,7 @@
 //#include "control.h"
 #include "kb_control.h"
 
-static const float version=0.90;
+static const float version=0.91;
 
 static void init_settings();
 static void init_running_properties();
@@ -79,6 +79,7 @@ static void init_settings()
 	settings->is_time_absolute=0;
 	settings->is_time_elapsed=1;
 	settings->read_from_playlist=0;
+	settings->read_recursively=0;
 	settings->dump_usable_files=0;
 	settings->is_verbose=0;
 	settings->debug=0;
@@ -129,7 +130,7 @@ static void free_structs()
 	free(jack->ioPortArray);
 	delete jack;
 	delete debug_marker;
-	free(r1);
+	rs_free(r1);
 }
 
 //data structure for command line options parsing
@@ -150,6 +151,7 @@ static struct option long_options[] =
 	{"samplerate",	required_argument,	0, 'S'}, //Settings
 	{"amplify",	required_argument,	0, 'A'}, //JackServer
 	{"file",	required_argument,	0, 'F'},
+	{"recurse",	no_argument,  0,	'R'},    //Settings
 	{"dump",	no_argument,  0,	'd'},    //Settings
 	{"nocontrol",	no_argument,  0,	'D'},    //Settings
 /*	{"noresampling",no_argument,  0,	'R'},    //Settings */
@@ -179,7 +181,7 @@ static void parse_cmdline_args(int argc, char *argv[])
 	{
 		//getopt_long stores the option index here
 		int option_index=0;
-		opt=getopt_long(argc, argv, "hHVn:s:w:o:c:O:C:DQ:S:A:F:dNEpmlfarkejvL", long_options, &option_index);
+		opt=getopt_long(argc, argv, "hHVn:s:w:o:c:O:C:DQ:S:A:F:RdNEpmlfarkejvL", long_options, &option_index);
 
 		//Detect the end of the options
 		if(opt==-1)
@@ -263,6 +265,10 @@ static void parse_cmdline_args(int argc, char *argv[])
 				playlist_file=optarg;
 				break;
 
+			case 'R':
+				settings->read_recursively=1;
+				break;
+
 			case 'd':
 				settings->dump_usable_files=1;
 				break;
@@ -340,11 +346,10 @@ static void print_main_help()
 	fprintf (stdout, "  -h, --help                Display this text and quit\n");
 	fprintf (stdout, "  -V, --version             Show program version and quit\n");
 	fprintf (stdout, "  -F, --file <string>       Get files to play from playlist file\n");
+	fprintf (stdout, "  -R, --recurse             Scan directories recursively\n");
 	fprintf (stdout, "  -n, --name <string>       JACK client name  (\"jack_playfile\") \n");
 	fprintf (stdout, "  -s, --sname <string>      JACK server name  (\"default\") \n");
-
 	fprintf (stdout, "  -w, --ports <integer>     Number of output ports (automatic)\n");
-
 	fprintf (stdout, "  -N, --noconnect           Don't connect to default JACK ports\n");
 	fprintf (stdout, "  -E, --noreconnect         Don't wait for JACK to re-connect\n");
 	fprintf (stdout, "  -D, --nocontrol           Disable keyboard control\n");

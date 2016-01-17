@@ -121,6 +121,7 @@ typedef struct
 	int is_time_elapsed; //0: time remaining (-), 1: time elapsed
 
 	int read_from_playlist; //if set to 1, get files to play from given file, one song per line
+	int read_recursively;
 	int dump_usable_files; //if set to 1, dump usable files in playlist or args to stdout and quit
 
 	float is_verbose; //if set to 1, print more information while starting up
