@@ -37,29 +37,8 @@
 # then call this (the one you read) script
 #
 # time /var/tmp/build_win.sh
-# -> if the build proceeds well there will be /tmp/jack_playfile_(number).zip
-#
-#  adding: jack_playfile_1453032072/ (stored 0%)
-#  adding: jack_playfile_1453032072/bin/ (stored 0%)
-#  adding: jack_playfile_1453032072/bin/libvorbisenc-2.dll (deflated 79%)
-#  adding: jack_playfile_1453032072/bin/libopus-0.dll (deflated 62%)
-#  adding: jack_playfile_1453032072/bin/libopusfile-0.dll (deflated 59%)
-#  adding: jack_playfile_1453032072/bin/libsndfile-1.dll (deflated 65%)
-#  adding: jack_playfile_1453032072/bin/libgcc_s_sjlj-1.dll (deflated 70%)
-#  adding: jack_playfile_1453032072/bin/libstdc++-6.dll (deflated 69%)
-#  adding: jack_playfile_1453032072/bin/libogg-0.dll (deflated 62%)
-#  adding: jack_playfile_1453032072/bin/libmpg123-0.dll (deflated 57%)
-#  adding: jack_playfile_1453032072/bin/libFLAC-8.dll (deflated 58%)
-#  adding: jack_playfile_1453032072/bin/jack_playfile.exe (deflated 62%)
-#  adding: jack_playfile_1453032072/bin/libvorbis-0.dll (deflated 58%)
-#  adding: jack_playfile_1453032072/bin/pthreadGC2.dll (deflated 65%)
-#  adding: jack_playfile_1453032072/bin/libvorbisfile-3.dll (deflated 60%)
-#  adding: jack_playfile_1453032072/bin/libwinpthread-1.dll (deflated 62%)
-#  adding: jack_playfile_1453032072/doc/ (stored 0%)
-#  adding: jack_playfile_1453032072/doc/jack_playfile.pdf (deflated 6%)
-#-rw-r--r-- 1 root root 5394106 Jan 17 12:01 jack_playfile_1453032072.zip
-#(in /tmp)
-#done!
+# -> if the build proceeds well the dependency stack is ready
+# then call ./build_win32_bundle.sh
 
 ###############################################################################
 
@@ -344,6 +323,7 @@ cd ${BUILDD}
 if [ -e jack_tools ]
 then
 	cd jack_tools/jack_playfile
+	git reset --hard HEAD
 	git pull
 else
 	git clone https://github.com/7890/jack_tools.git jack_tools
@@ -351,63 +331,11 @@ else
 fi
 
 ###
-make -f Makefile.win
-
-EXT="`date +%s`"
-
-APPSTRING=jack_playfile_$EXT
-DESTDIR=/tmp/$APPSTRING/
-
-mkdir -p $DESTDIR/bin
-mkdir -p $DESTDIR/doc
-
-cp jack_playfile.exe $DESTDIR/bin
-cp doc/jack_playfile.pdf $DESTDIR/doc
-
-cp /usr/i686-w64-mingw32/lib/libwinpthread-1.dll $DESTDIR/bin
-cp /usr/lib/gcc/i686-w64-mingw32/4.8/libgcc_s_sjlj-1.dll $DESTDIR/bin
-cp /usr/lib/gcc/i686-w64-mingw32/4.8/libstdc++-6.dll $DESTDIR/bin
-#cp ${PREFIX}/bin/liblo-7.dll $DESTDIR/bin
-#cp ${PREFIX}/bin/pthreadGC2.dll $DESTDIR/bin
-#cp ${PREFIX}/bin/oscdump.exe $DESTDIR/bin
-#cp ${PREFIX}/bin/oscsend.exe $DESTDIR/bin
-
-cp ${PREFIX}/bin/* $DESTDIR/bin
-
-#ls -1 /home/winbuild/win-stack-w32/bin/
-#x flac.exe
-#libFLAC-8.dll
-#libmpg123-0.dll
-#libogg-0.dll
-#libopus-0.dll
-#libopusfile-0.dll
-#x libopusurl-0.dll
-#libsndfile-1.dll
-#libvorbis-0.dll
-#libvorbisenc-2.dll
-#libvorbisfile-3.dll
-#libzita-resampler.dll
-#x metaflac.exe
-#pthreadGC2.dll
-
-rm -f $DESTDIR/bin/flac.exe
-rm -f $DESTDIR/bin/libopusurl-0.dll
-rm -f $DESTDIR/bin/metaflac.exe
-#rm -f $DESTDIR/bin/libFLAC++-6.dll
-#rm -f $DESTDIR/bin/libvorbisfile-3.dll
-
-chmod 700 $DESTDIR/bin/*
-
-ls -l $DESTDIR/bin
-
-cd $DESTDIR
-cd ..
-#tar cvf $APPSTRING.tar $APPSTRING/
-zip -r $APPSTRING.zip $APPSTRING/
-
-ls -l $APPSTRING.zip
-echo "(in `pwd`)"
+#make -f Makefile.win
 
 updatedb
 
-echo "done!"
+echo "stack is ready!"
+#echo "now call 'build_win32_bundle.sh' manually."
+
+./build_win32_bundle.sh

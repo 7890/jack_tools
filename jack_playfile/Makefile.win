@@ -14,6 +14,20 @@ ARCHIVE = archive
 
 INSTALLPATH=/usr/local/bin/
 
+LOCAL_LIBS_DIR          =$(BUILD_LIB)
+
+STATIC_LIB_VORBISFILE   =$(LOCAL_LIBS_DIR)/libvorbisfile.a
+STATIC_LIB_SNDFILE      =$(LOCAL_LIBS_DIR)/libsndfile.a
+STATIC_LIB_VORBIS       =$(LOCAL_LIBS_DIR)/libvorbis.a
+STATIC_LIB_VORBISENC    =$(LOCAL_LIBS_DIR)/libvorbisenc.a
+STATIC_LIB_OGG          =$(LOCAL_LIBS_DIR)/libogg.a
+STATIC_LIB_FLAC         =$(LOCAL_LIBS_DIR)/libFLAC.a
+STATIC_LIB_OPUSFILE     =$(LOCAL_LIBS_DIR)/libopusfile.a
+STATIC_LIB_OPUS         =$(LOCAL_LIBS_DIR)/libopus.a
+STATIC_LIB_LIBMPG123    =$(BUILD)/mpg123-1.22.0-x86/libmpg123-0.dll
+
+STATIC_LIBS = $(STATIC_LIB_LIBMPG123) $(STATIC_LIB_OPUSFILE) $(STATIC_LIB_OPUS) $(STATIC_LIB_VORBISFILE) $(STATIC_LIB_SNDFILE) $(STATIC_LIB_VORBIS) $(STATIC_LIB_VORBISENC) $(STATIC_LIB_OGG) $(STATIC_LIB_FLAC)
+
 $(shell mkdir -p $(BUILD))
 
 all:	jack_playfile
@@ -46,7 +60,10 @@ mpg123_fake:
 jack_playfile: zita_resampler mpg123_fake $(SRC)/jack_playfile.c $(SRC)/weak_libjack.c $(SRC)/common.h $(SRC)/buffers.h $(SRC)/config.h $(SRC)/control.h $(SRC)/jackaudio.h $(SRC)/resampler.h $(SRC)/sndin.h $(SRC)/weak_libjack.c $(SRC)/weak_libjack.h
 	$(CC) -c -o $(BUILD)/weak_libjack.o $(SRC)/weak_libjack.c $(CFLAGS) `pkg-config --cflags --libs jack` -DNDEBUG
 	$(CC) -c -o $(BUILD)/jack_playfile.o $(SRC)/jack_playfile.c $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile`
-	$(CC) -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags --libs sndfile opusfile vorbisfile` -lpthread -lmpg123
+	$(CC) -static-libstdc++ -o jack_playfile.exe $(BUILD)/jack_playfile.o $(BUILD)/weak_libjack.o $(BUILD)/resampler.o $(BUILD)/resampler-table.o $(CFLAGS) `pkg-config --cflags sndfile opusfile vorbisfile` -lpthread $(STATIC_LIBS)
+
+#/home/winbuild/win-stack-w32/lib/libpthread.a
+#/home/winbuild/win-stack-w32/lib/libopusurl.a
 
 clean:
 	rm jack_playfile.exe
