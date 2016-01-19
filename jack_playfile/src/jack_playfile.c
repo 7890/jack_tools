@@ -100,6 +100,10 @@ int main(int argc, char *argv[])
 	if(settings->dump_usable_files)
 	{
 		fprintf(stderr,"total files in playlist: %d\n",(int)files_to_play.size());
+		if(files_to_play.size()<1)
+		{
+			signal_handler(44); //quit with error
+		}
 		signal_handler(42); //quit nicely
 	}
 
