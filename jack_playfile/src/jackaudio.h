@@ -632,7 +632,7 @@ static int jack_xrun_handler(void *)
 //=============================================================================
 static int jack_sync_handler(jack_transport_state_t state, jack_position_t *pos, void *arg)
 {
-	fprintf(stderr,"\ndebug: JACK TRANSPORT SYNC %"PRId64"\n",(uint64_t)pos->frame);
+//	fprintf(stderr,"\ndebug: JACK TRANSPORT SYNC %"PRId64"\n",(uint64_t)pos->frame);
 	//return 0 if not ready
 	return 1;
 }
