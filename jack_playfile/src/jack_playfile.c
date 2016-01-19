@@ -219,7 +219,10 @@ while(true)
 		sndfile_request_frames+=additional;
 	}
 
-	fprintf(stderr,"sndfile_request_frames: %d\n",sndfile_request_frames);
+	if(settings->is_verbose)
+	{
+		fprintf(stderr,"sndfile_request_frames: %d\n",sndfile_request_frames);
+	}
 
 	delete[] frames_from_file_buffer;
 	frames_from_file_buffer=new float[sndfile_request_frames*running->channel_count];
@@ -358,6 +361,7 @@ _main_loop:
 			if(jack->clipping_detected)
 			{
 				fprintf(stderr,"!");
+				//reset
 				jack->clipping_detected=0;
 			}
 			else if(jack->volume_amplification_decibel!=0)
@@ -588,7 +592,10 @@ static int open_init_file(const char *f)
 	if(running->channel_count==0) //automatically use all channels from offset to end
 	{
 		running->channel_count=sf_info_generic.channels - running->channel_offset;
-		fprintf(stderr,"channel count automatically set to %d\n",running->channel_count);
+		if(settings->is_verbose)
+		{
+			fprintf(stderr,"channel count automatically set to %d\n",running->channel_count);
+		}
 	}
 	//else explicit file channel count requested
 
@@ -897,13 +904,6 @@ static void *disk_thread_func(void *arg)
 		//===wait here until process() requests to continue
 		pthread_cond_wait (&ok_to_read, &disk_thread_lock);
 	}//end main loop
-//done:
-/*
-	pthread_mutex_unlock (&disk_thread_lock);
-	pthread_join(disk_thread, NULL);
-	pthread_cancel(disk_thread);
-*/
-//	fprintf(stderr,"\ndisk_thread_func(): disk thread finished\n");
 
 	///never reached
 	return 0;
@@ -933,21 +933,6 @@ static void setup_disk_thread()
 //=============================================================================
 static void req_buffer_from_disk_thread()
 {
-	if((all_frames_read() && !running->seek_frames_in_progress)
-	|| reset_ringbuffers_in_progress)
-	{
-//		fprintf(stderr,"\nin req_buffer_from_disk_thread(): (all read, not seeking) or reset in progress\n");
-		return;
-	}
-
-//	fprintf(stderr,"req_buffer_from_disk_thread()\n");
-
-	if(rb_can_write_frames(rb_interleaved)<sndfile_request_frames)
-	{
-//		fprintf(stderr,"req_buffer_from_disk_thread(): /!\\ not enough write space in rb_interleaved\n");
-		return;
-	}
-
 	//if possible to lock the disk_thread_lock mutex
 	if(!pthread_mutex_trylock(&disk_thread_lock))
 	{
@@ -957,7 +942,6 @@ static void req_buffer_from_disk_thread()
 		//unlock again
 		pthread_mutex_unlock (&disk_thread_lock);
 	}
-
 }//end req_buffer_from_disk_thread()
 
 //>=0
@@ -1034,81 +1018,6 @@ static void seek_frames(int64_t frames_rel)
 	//seek in disk_thread, always seek absolute
 	seek_frames_absolute(current_read_pos+seek);
 }
-
-//=============================================================================
-static void deinterleave()
-{
-//	fprintf(stderr,"deinterleave called\n");
-	if(all_frames_read() && !rb_can_read(rb_resampled_interleaved))
-	{
-		//nothing to do
-//		fprintf(stderr,"deinterleave(): disk thread finished and no more data in rb_resampled_interleaved\n");
-		return;
-	}
-
-	int resampled_frames_avail=rb_can_read_frames(rb_resampled_interleaved);
-
-	//if not limited, deinterleaved block align borked
-	int resampled_frames_use=MIN(resampled_frames_avail,jack->period_frames);
-//	fprintf(stderr,"deinterleave(): resampled frames avail: %d use: %d\n",resampled_frames_avail,resampled_frames_use);
-
-	//deinterleave from resampled
-	if((resampled_frames_use >= 1)
-		&& (rb_can_write_frames(rb_deinterleaved) >=jack->period_frames)
-	)
-	{
-//		fprintf(stderr,"deinterleave(): deinterleaving\n");
-
-		void *data_resampled_interleaved;
-		data_resampled_interleaved=malloc(resampled_frames_use * running->channel_count * bytes_per_sample);
-
-		rb_read(rb_resampled_interleaved
-			,(char*)data_resampled_interleaved
-			,rb_frame_to_byte_count(rb_resampled_interleaved,resampled_frames_use));
-
-		int bytepos_channel=0;
-
-		for(int channel_loop=0; channel_loop < running->channel_count; channel_loop++)
-		{
-			bytepos_channel=channel_loop * bytes_per_sample;
-			int bytepos_frame=0;
-
-			for(int frame_loop=0; frame_loop < resampled_frames_use; frame_loop++)
-			{
-				bytepos_frame=bytepos_channel + frame_loop * running->channel_count * bytes_per_sample;
-				//read 1 sample
-
-				float f1=*( (float*)(data_resampled_interleaved + bytepos_frame) );
-
-				if(jack->volume_coefficient!=1.0)
-				{
-						//apply amplification to change volume
-						//===
-						f1*=jack->volume_coefficient;
-				}
-
-				//show clipping even if muted
-				if(f1>=1 && !jack->clipping_detected)
-				{
-					jack->clipping_detected=1;
-				}
-
-				if(transport->is_muted)
-				{
-					f1=0;
-				}
-
-				//put to ringbuffer
-				rb_write(rb_deinterleaved
-					,(char*)&f1
-					,bytes_per_sample);
-			}//frame
-		}//channel
-
-		free(data_resampled_interleaved);
-//		fprintf(stderr,"===deinterleave(): done\n");
-	}//end if enough data to deinterleave
-}//end deinterleave()
 
 //=============================================================================
 static void set_all_frames_read(int all_read)

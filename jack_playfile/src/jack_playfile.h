@@ -36,8 +36,6 @@ static void req_buffer_from_disk_thread();
 static void seek_frames_absolute(int64_t frames_abs);
 static void seek_frames(int64_t frames_rel);
 
-static void deinterleave();
-
 static void set_all_frames_read(int all_read);
 static int all_frames_read();
 static uint64_t get_current_play_position_in_file();

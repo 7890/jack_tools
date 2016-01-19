@@ -37,6 +37,7 @@ static int jack_init();
 static void jack_error(const char* err);
 static int jack_wait_connect();
 static void jack_post_init();
+static void jack_deinterleave();
 static int jack_process(jack_nframes_t nframes, void *arg);
 static int jack_open_client();
 static int jack_register_output_ports();
@@ -45,11 +46,14 @@ static void jack_connect_output_ports();
 static void jack_fill_output_buffers_zero();
 static void jack_register_callbacks();
 static int jack_xrun_handler(void *);
+static int jack_sync_handler(jack_transport_state_t state,jack_position_t *pos, void *arg);
 static void jack_close_down();
 static void jack_shutdown_handler(void *arg);
 
 ///hack, resampler
-rs_t *r1;
+static rs_t *r1;
+
+static float data_resampled_deinterleaved_one_channel_one_period[4096];
 
 //=============================================================================
 static void init_jack_struct()
@@ -200,6 +204,46 @@ static void jack_post_init()
 }//end jack_post_init()
 
 //=============================================================================
+static void jack_deinterleave()
+{
+//	fprintf(stderr,"deinterleave called\n");
+	if(all_frames_read() && !rb_can_read(rb_resampled_interleaved))
+	{
+		//nothing to do
+//		fprintf(stderr,"deinterleave(): disk thread finished and no more data in rb_resampled_interleaved\n");
+		return;
+	}
+
+	int resampled_frames_avail=rb_can_read_frames(rb_resampled_interleaved);
+	//if not limited, deinterleaved block align borked
+	int resampled_frames_use=MIN(resampled_frames_avail,jack->period_frames);
+//	fprintf(stderr,"deinterleave(): resampled frames avail: %d use: %d\n",resampled_frames_avail,resampled_frames_use);
+
+	//deinterleave from resampled
+	if((resampled_frames_use >= 1)
+		&& (rb_can_write_frames(rb_deinterleaved) >= resampled_frames_use) //>=jack->period_frames)
+	)
+	{
+		for(int channel_loop=0; channel_loop < running->channel_count; channel_loop++)
+		{
+			//this does not advance the read index of rb_resampled_interleaved
+			size_t count=rb_deinterleave_audio(rb_resampled_interleaved
+				,(char *)data_resampled_deinterleaved_one_channel_one_period
+				,resampled_frames_use, channel_loop);
+
+			//write 
+			rb_write(rb_deinterleaved
+				,(const char *)data_resampled_deinterleaved_one_channel_one_period
+				,resampled_frames_use * bytes_per_sample);
+		}//end for every channel
+
+		//finaly advance read index
+		rb_advance_read_index(rb_resampled_interleaved
+			,resampled_frames_use * running->channel_count * bytes_per_sample);
+	}//end if enough data to deinterleave
+}//end deinterleave()
+
+//=============================================================================
 static int jack_process(jack_nframes_t nframes, void *arg) 
 {
 	if(running->shutdown_in_progress || !jack->process_enabled)
@@ -247,7 +291,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 	if(transport->is_playing || transport->loop_enabled)
 	{
 		rs_process(r1);
-		deinterleave();
+		jack_deinterleave();
 	}
 
 	if(
@@ -290,6 +334,26 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 				rb_read(rb_deinterleaved
 					,(char*)o1
 					,jack->period_frames * bytes_per_sample);
+
+				//apply per sample foo
+				for(int i=0;i< jack->period_frames;i++)
+				{
+					if(jack->volume_coefficient!=1.0)
+					{
+						//apply amplification to change volume
+						//===
+						o1[i]*=jack->volume_coefficient;
+					}
+					//show clipping even if muted
+					if(o1[i]>=1)
+					{
+						jack->clipping_detected=1;
+					}
+					if(transport->is_muted)
+					{
+						o1[i]=0;
+					}
+				}//end for every sample
 			}
 			else
 			{
@@ -298,6 +362,7 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 				memset(o1, 0, jack->period_frames*bytes_per_sample);
 			}
 
+			//place markers over anything else
 			if(settings->add_markers)
 			{
 				o1[0]=debug_marker->first_sample_normal_jack_period;
@@ -335,6 +400,26 @@ static int jack_process(jack_nframes_t nframes, void *arg)
 				rb_read(rb_deinterleaved
 					,(char*)o1
 					,remaining_frames * bytes_per_sample);
+					//apply per sample foo
+
+				for(int i=0;i< remaining_frames;i++)
+				{
+					if(jack->volume_coefficient!=1.0)
+					{
+						//apply amplification to change volume
+						//===
+						o1[i]*=jack->volume_coefficient;
+					}
+					//show clipping even if muted
+					if(o1[i]>=1)
+					{
+						jack->clipping_detected=1;
+					}
+					if(transport->is_muted)
+					{
+						o1[i]=0;
+					}
+				}//end for every sample
 			}
 			else
 			{
@@ -535,12 +620,21 @@ static void jack_register_callbacks()
 	jack_set_process_callback (jack->client, jack_process, NULL);
 	jack_on_shutdown(jack->client, jack_shutdown_handler, 0);
 	jack_set_xrun_callback(jack->client, jack_xrun_handler, NULL);
+	jack_set_sync_callback(jack->client, jack_sync_handler, NULL);
 }
 
 //=============================================================================
 static int jack_xrun_handler(void *)
 {
 	fprintf(stderr,"!!!!XRUN\n");
+}
+
+//=============================================================================
+static int jack_sync_handler(jack_transport_state_t state, jack_position_t *pos, void *arg)
+{
+	fprintf(stderr,"\ndebug: JACK TRANSPORT SYNC %"PRId64"\n",(uint64_t)pos->frame);
+	//return 0 if not ready
+	return 1;
 }
 
 //=============================================================================
