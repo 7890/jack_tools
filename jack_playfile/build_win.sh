@@ -102,7 +102,7 @@ apt-get -y install build-essential \
 	${DEBIANPKGS} \
 	git autoconf automake libtool pkg-config \
 	curl unzip ed yasm cmake ca-certificates \
-	ne dos2unix locate zip
+	ne dos2unix locate zip rsync
 
 cat /root/.bashrc | sed "s/alias l='ls -CF'/alias l='ls -ltr'/g" > /tmp/bashrc
 cp /tmp/bashrc /root/.bashrc
@@ -250,9 +250,7 @@ ed $PREFIX/lib/pkgconfig/sndfile.pc << EOF
 wq
 EOF
 
-
 #inlined
-
 #src zita-resampler-1.3.0 tar.bz2 http://kokkinizita.linuxaudio.org/linuxaudio/downloads/zita-resampler-1.3.0.tar.bz2
 #cd libs
 
@@ -274,12 +272,10 @@ autoconfbuild --disable-doc --disable-extra-programs
 src opusfile-0.6 tar.gz https://ftp.mozilla.org/pub/mozilla.org/opus/opusfile-0.6.tar.gz
 autoconfbuild --disable-doc --disable-http #this is to prevent need for ssl
 
-
-#dont build, use pre-made win32 binaries
-#src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.22.3.tar.bz2
-#autoconfbuild --enable-static --disable-id3v2 --with-module-suffix=.dll --enable-gapless=no --enable-fifo=no --enable-ipv6=no --enable-network=no --disable-messages
+src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.23.4.tar.bz2
+autoconfbuild ./configure --enable-static --with-module-suffix=.dll --enable-network=no --disable-id3v2 --with-default-audio=dummy --disable-messages
 #set -e temporary off
-#make install
+make install
 #ls -1 /home/winbuild/win-stack-w32/lib/libmpg123*
 #/home/winbuild/win-stack-w32/lib/libmpg123.a
 #/home/winbuild/win-stack-w32/lib/libmpg123.dll.a

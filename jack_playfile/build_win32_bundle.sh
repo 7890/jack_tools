@@ -25,8 +25,8 @@ cp /usr/lib/gcc/i686-w64-mingw32/4.8/libgcc_s_sjlj-1.dll $DESTDIR/bin
 
 #ls -1 "$PREFIX"/bin
 
-cp "$PREFIX"/bin/libmpg123-0.dll $DESTDIR/bin
 cp "$PREFIX"/bin/pthreadGC2.dll $DESTDIR/bin
+#cp "$PREFIX"/bin/libmpg123-0.dll $DESTDIR/bin
 #cp ${PREFIX}/bin/liblo-7.dll $DESTDIR/bin
 #cp ${PREFIX}/bin/oscdump.exe $DESTDIR/bin
 #cp ${PREFIX}/bin/oscsend.exe $DESTDIR/bin
