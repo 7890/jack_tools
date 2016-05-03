@@ -272,7 +272,7 @@ autoconfbuild --disable-doc --disable-extra-programs
 src opusfile-0.6 tar.gz https://ftp.mozilla.org/pub/mozilla.org/opus/opusfile-0.6.tar.gz
 autoconfbuild --disable-doc --disable-http #this is to prevent need for ssl
 
-src mpg123-1.22.3 tar.bz2 http://mpg123.org/download/mpg123-1.23.4.tar.bz2
+src mpg123-1.23.3 tar.bz2 http://mpg123.org/download/mpg123-1.23.3.tar.bz2
 autoconfbuild ./configure --enable-static --with-module-suffix=.dll --enable-network=no --disable-id3v2 --with-default-audio=dummy --disable-messages
 #set -e temporary off
 make install
