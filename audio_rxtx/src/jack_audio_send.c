@@ -18,7 +18,6 @@
 #include <signal.h>
 //#include <jack/jack.h>//weak
 #include <lo/lo.h>
-#include <sys/time.h>
 #include <getopt.h>
 #include <unistd.h>
 
@@ -61,8 +60,6 @@ float expected_network_data_rate=0;
 
 //0: receiver denied 1: receiver accepted
 int receiver_accepted=-1;
-
-struct timeval tv;
 
 int drop_every_nth_message=0; //param
 int drop_counter=0;
@@ -683,10 +680,8 @@ int process(jack_nframes_t nframes, void *arg)
 		lo_message_add_int64(msg,local_xrun_counter);
 
 		//current timestamp
-		gettimeofday(&tv, NULL);
 		lo_timetag tt;
-		tt.sec=(long)tv.tv_sec;
-		tt.frac=(long)tv.tv_usec;
+		lo_timetag_now(&tt);
 		lo_message_add_timetag(msg,tt);
 		lo_message_add_int32(msg,sample_rate);
 
@@ -1096,10 +1091,8 @@ int message_size()
 	lo_message_add_int64(msg,msg_sequence_number);
 	lo_message_add_int64(msg,local_xrun_counter);
 
-	gettimeofday(&tv, NULL);
 	lo_timetag tt;
-	tt.sec=tv.tv_sec;
-	tt.frac=tv.tv_usec;
+	lo_timetag_now(&tt);
 	lo_message_add_timetag(msg,tt);
 	lo_message_add_int32(msg,1111);
 
