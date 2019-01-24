@@ -116,16 +116,17 @@ int main(int argc, char *argv[])
 {
 	quit_program=0;
 	char cn[64];
-	strcpy(cn,default_name);
-	strcat(cn,"_");
+	memset(cn, 0, sizeof(cn));
+	strncpy(cn, default_name, sizeof(cn)-1);
+	strcat(cn, "_");
 
 	if(argc>1)
 	{
-		strcat(cn,argv[1]);
+		strcat(cn, argv[1]);
 	}
 	else
 	{
-		strcat(cn,default_port);
+		strcat(cn, default_port);
 	}
 
 	client_name=cn;

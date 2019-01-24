@@ -33,7 +33,7 @@
 #include <inttypes.h>
 #include <jack/jack.h>
 
-char * my_name;
+char *my_name;
 
 static int version=150831;
 
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 	int show_type=0;
 	int c;
 	int option_index;
-	char* aliases[2];
+	char *aliases[2];
 	char *server_name=NULL;
 	jack_port_t *port;
 
@@ -128,13 +128,13 @@ int main(int argc, char *argv[])
 		switch(c)
 		{
 		case 's':
-			server_name=(char *) malloc(sizeof(char) * strlen(optarg));
-			strcpy(server_name, optarg);
+			server_name=(char*)calloc(1, 256+1);
+			strncpy(server_name, optarg, strlen(server_name)-1);
 			options |= JackServerName;
 			break;
 		case 'A':
-			aliases[0]=(char *) malloc(jack_port_name_size());
-			aliases[1]=(char *) malloc(jack_port_name_size());
+			aliases[0]=(char*)calloc(1, jack_port_name_size());
+			aliases[1]=(char*)calloc(1, jack_port_name_size());
 			show_aliases=1;
 			break;
 		case 'c':
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
 			show_type=1;
 			break;
 		case 'a':
-			aliases[0]=(char *) malloc(jack_port_name_size());
-			aliases[1]=(char *) malloc(jack_port_name_size());
+			aliases[0]=(char*)calloc(1, jack_port_name_size());
+			aliases[1]=(char*)calloc(1, jack_port_name_size());
 			show_aliases=1;
 			show_con=1;
 			show_port_latency=1;
@@ -212,7 +212,9 @@ int main(int argc, char *argv[])
 	printf("</server>\n");
 
 	char cname[256];
+	memset(cname, 0, sizeof(cname));
 	char cname_prev[256];
+	memset(cname_prev, 0, sizeof(cname_prev));
 
 	int unit_unclosed=0;
 
@@ -230,7 +232,8 @@ int main(int argc, char *argv[])
 		if(skip_port) continue;
 
 		//save old client name
-		strcpy(cname_prev,cname);
+		memset(cname_prev, 0, sizeof(cname_prev));
+		strncpy(cname_prev, cname, sizeof(cname_prev)-1);
 
 		//get clientname from portname
 		//all: clientname:portname
@@ -241,7 +244,7 @@ int main(int argc, char *argv[])
 		int nlen=alen-plen-1;
 
 		//copy first part (client name)
-		strncpy(cname,aname,nlen);
+		strncpy(cname, aname, nlen);
 		cname[nlen]='\0'; //terminate with null
 
 //		fprintf(stderr,"%s %d %d %d %s\n", pname, alen, plen, nlen, cname);

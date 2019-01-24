@@ -34,8 +34,8 @@ static jack_port_t *port_in;
 static jack_port_t *port_out_positive;
 static jack_port_t *port_out_negative;
 jack_client_t *client;
-char const client_name[32]="osc_filter";
-char osc_client_id[32]="/osc_filter/";
+char const client_name[64]="osc_filter";
+char osc_client_id[128]="/osc_filter/";
 
 char *path;
 char *types;

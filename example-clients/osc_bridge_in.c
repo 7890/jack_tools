@@ -159,7 +159,8 @@ int main(int argc, char *argv[])
 {
 	quit_program=0;
 	char cn[64];
-	strcpy(cn, default_name);
+	memset(cn, 0, sizeof(cn));
+	strncpy(cn, default_name, sizeof(cn)-1);
 	strcat(cn, "_");
 
 	if(argc>1)
