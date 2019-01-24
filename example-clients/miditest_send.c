@@ -3,7 +3,8 @@
 #include <signal.h>
 #include <unistd.h>
 #include <jack/jack.h>
-#include <stdlib.h>
+#include <jack/midiport.h>
+//#include <stdlib.h>
 
 //gcc -o miditest_send miditest_send.c `pkg-config --libs jack`
 //tb/14re19
