@@ -30,7 +30,6 @@ typedef jack_default_audio_sample_t sample_t;
 
 static jack_client_t *client;
 
-static const char **ports;
 static jack_port_t **ioPortArray;
 
 static jack_port_t* port_out_midi;
