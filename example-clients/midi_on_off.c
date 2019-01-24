@@ -26,8 +26,6 @@ static void signal_handler(int sig);
 
 static jack_client_t *client;
 
-static const char **ports;
-
 static jack_port_t* port_in_midi;
 static jack_port_t* port_out_midi;
 
