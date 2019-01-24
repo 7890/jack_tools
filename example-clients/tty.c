@@ -56,7 +56,7 @@ https://ccrma.stanford.edu/~craig/articles/linuxmidi/misc/essenmidi.html
 -----------------------------------------------------------------------------------------.
 
 A MIDI message always starts with a command byte. Here is a table of the MIDI messages 
-that are possible in the MIDI protocol: 
+that are possible in the MIDI protocol:
 
 Command Meaning 		# parameters 	param 1 	param 2
 0x80 	Note-off 		2 		key 		velocity
@@ -77,7 +77,7 @@ Command Meaning 				# param
 0xF5 	???
 0xF6 	Tune Request (Sys Common)
 0xF7 	end of system exclusive message 	0
-0xF8 	Timing Clock (Sys Realtime) 
+0xF8 	Timing Clock (Sys Realtime)
 0xFA 	Start (Sys Realtime)
 0xFB 	Continue (Sys Realtime)
 0xFC 	Stop (Sys Realtime)	
@@ -90,11 +90,11 @@ Command Meaning 				# param
 //tty.c uses (altered) parts of com.c, see below
 //to retrieve original com.c from this file:
 //cat tty.c | tail -100 | grep -A100 "/*__com.c" | grep -v "^/\*__com.c$" | grep -v "^*/$" | base64 -d | gunzip -
-/* 
+/*
   com.c
   Homepage: http://tinyserial.sourceforge.net
   Version : 2009-03-05
- 
+
   Ivan Tikhonov, http://www.brokestream.com, kefeer@brokestream.com
   Patches by Jim Kou, Henry Nestler, Jon Miner, Alan Horstmann
 
@@ -200,7 +200,7 @@ int main(int argc, char *argv[])
 	setbuf(stderr, NULL);
 
 	if(argc >= 2 &&
-		(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
+		(strcmp(argv[1], "-h")==0 || strcmp(argv[1], "--help")==0))
 	{
 		printf("connect JACK client to serial device\n\n");
 		printf("syntax: jack_tty <serial device> <speed>\n\n");
@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
 			case 38400: speed=B38400; break;
 			case 57600: speed=57600; break;
 			case 115200: speed=B115200; break;
-			default: speed=B115200; speed_int=115200; fprintf(stderr,"invalid speed, using default %d\n",speed_int); break;
+			default: speed=B115200; speed_int=115200; fprintf(stderr, "invalid speed, using default %d\n", speed_int); break;
 		}
 	}
 
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
 	{
 		devicename=argv[1];
 	}
- 
+
 	setup_serial_thread();
 	while(!serial_thread_initialized)
 	{
@@ -267,8 +267,8 @@ int main(int argc, char *argv[])
 	while(1==1)
 	{
 	connection_to_jack_down=1;
-	fprintf(stderr,"\r\n");
-	fprintf(stderr,"waiting for connection to JACK...\n\r");
+	fprintf(stderr, "\r\n");
+	fprintf(stderr, "waiting for connection to JACK...\n\r");
 	while(connection_to_jack_down)
 	{
 		if((client=jack_client_open("tty", options, &status, NULL))==0)
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
 		else
 		{
 			connection_to_jack_down=0;
-			fprintf(stderr,"connected to JACK.\n\r");
+			fprintf(stderr, "connected to JACK.\n\r");
 		}
 	}
 
@@ -368,10 +368,10 @@ static void *serial_thread_func(void *arg)
 
 _init:
 
-	fprintf(stderr,"CTRL+c to quit\n");
+	fprintf(stderr, "CTRL+c to quit\n");
 
-//	fprintf(stderr,"serial_thread_func() start\n");
-	fprintf(stderr,"waiting for serial device '%s' @ %d baud...\n",devicename,speed_int);
+//	fprintf(stderr, "serial_thread_func() start\n");
+	fprintf(stderr, "waiting for serial device '%s' @ %d baud...\n", devicename, speed_int);
 
 	//(re)try open serial device
 	while(1)
@@ -389,10 +389,10 @@ _init:
 		}
 	}
 
-	fprintf(stderr,"connected to serial device.\n");
-	fprintf(stderr,"CTRL+a+c to quit\n");
+	fprintf(stderr, "connected to serial device.\n");
+	fprintf(stderr, "CTRL+a+c to quit\n");
 
-	tcgetattr(STDIN_FILENO,&oldkey);
+	tcgetattr(STDIN_FILENO, &oldkey);
 	newkey.c_cflag = B9600 | CRTSCTS | CS8 | CLOCAL | CREAD;
 	newkey.c_iflag = IGNPAR;
 	newkey.c_oflag = 0;
@@ -400,9 +400,9 @@ _init:
 	newkey.c_cc[VMIN]=1;
 	newkey.c_cc[VTIME]=0;
 	tcflush(STDIN_FILENO, TCIFLUSH);
-	tcsetattr(STDIN_FILENO,TCSANOW,&newkey);
+	tcsetattr(STDIN_FILENO, TCSANOW, &newkey);
 
-	tcgetattr(comfd,&oldtio); // save current port settings 
+	tcgetattr(comfd, &oldtio); // save current port settings
 	newtio.c_cflag = speed | CS8 | CLOCAL | CREAD;
 	newtio.c_iflag = IGNPAR;
 	newtio.c_oflag = 0;
@@ -410,7 +410,7 @@ _init:
 	newtio.c_cc[VMIN]=1;
 	newtio.c_cc[VTIME]=0;
 	tcflush(comfd, TCIFLUSH);
-	tcsetattr(comfd,TCSANOW,&newtio);
+	tcsetattr(comfd, TCSANOW, &newtio);
 
 	print_status(comfd);
 
@@ -440,7 +440,7 @@ _init:
 		}
 		else if (ret > 0)
 		{
-			if(FD_ISSET(STDIN_FILENO, &fds)) 
+			if(FD_ISSET(STDIN_FILENO, &fds))
 			{
 //				fprintf(stderr,"SERIAL< ");//going to serial
 				need_exit = transfer_byte(STDIN_FILENO, comfd, 1);
@@ -468,16 +468,16 @@ _init:
 	}//end while(!need_exit)
 
 	close(comfd);
-	tcsetattr(comfd,TCSANOW,&oldtio);
-	tcsetattr(STDIN_FILENO,TCSANOW,&oldkey);
+	tcsetattr(comfd, TCSANOW, &oldtio);
+	tcsetattr(STDIN_FILENO, TCSANOW, &oldkey);
 
 	usleep(1000000);
 	need_exit=0;
 	goto _init;
 
-_done:
-	tcsetattr(comfd,TCSANOW,&oldtio);
-	tcsetattr(STDIN_FILENO,TCSANOW,&oldkey);
+//_done:
+	tcsetattr(comfd, TCSANOW, &oldtio);
+	tcsetattr(STDIN_FILENO, TCSANOW, &oldkey);
 
 	pthread_mutex_unlock (&serial_thread_lock);
 
@@ -530,7 +530,7 @@ static int process(jack_nframes_t nframes, void *arg)
 
 	int i;
 	//iterate over encapsulated osc messages
-	for (i = 0; i < msgCount; ++i) 
+	for (i = 0; i < msgCount; ++i)
 	{
 		jack_midi_event_t event;
 		int r;
@@ -544,7 +544,7 @@ static int process(jack_nframes_t nframes, void *arg)
 				char* path;
 				char* types;
 
-				path=lo_get_path(event.buffer,event.size);
+				path=lo_get_path(event.buffer, event.size);
 
 				int result;
 				//some magic happens here
@@ -554,54 +554,53 @@ static int process(jack_nframes_t nframes, void *arg)
 				lo_arg **argv = lo_message_get_argv(msg);
 				int argc=lo_message_get_argc(msg);
 
-//				fprintf(stdout,"\n\rosc message (%i) size: %lu argc: %d path: %s\r",i+1,event.size,lo_message_get_argc(msg),path);
+//				fprintf(stdout,"\n\rosc message (%i) size: %lu argc: %d path: %s\r", i+1, event.size, lo_message_get_argc(msg), path);
 
-				if(!strcmp(path,"/midi"))
+				if(!strcmp(path, "/midi"))
 				{
 					if(argc>3)
 					{
 						return 0;
 					}
 
-					int pos=i;///////
 					jack_midi_data_t *buffer;
 
 					//176: b0 (cc on channel 0)
 					//oscsend localhost 3344 /midi iii 176 40 1
 
-					if(argc==1 && !strcmp(types,"i"))
+					if(argc==1 && !strcmp(types, "i"))
 					{
 						buffer=malloc(1);
 						buffer[0]=argv[0]->i;
-						int x=write(comfd,(void*)buffer,argc);
+						int x=write(comfd, (void*)buffer, argc);
 					}
-					else if(argc==2 && !strcmp(types,"ii"))
+					else if(argc==2 && !strcmp(types, "ii"))
 					{
 						buffer=malloc(2);
 						buffer[0]=argv[0]->i;
 						buffer[1]=argv[1]->i;
-						int x=write(comfd,(void*)buffer,argc);
+						int x=write(comfd, (void*)buffer, argc);
 					}
-					else if(argc==3 && !strcmp(types,"iii"))
+					else if(argc==3 && !strcmp(types, "iii"))
 					{
 						buffer=malloc(3);
 						buffer[0]=argv[0]->i;
 						buffer[1]=argv[1]->i;
 						buffer[2]=argv[2]->i;
-						int x=write(comfd,(void*)buffer,argc);
+						int x=write(comfd, (void*)buffer, argc);
 					}
-					if(argc==1 && !strcmp(types,"b"))
+					if(argc==1 && !strcmp(types, "b"))
 					{
-						fprintf(stderr,"\r\nsysex midi (blob) not implemented.\n");
+						fprintf(stderr, "\r\nsysex midi (blob) not implemented.\n");
 					}
 				}//end /midi message
 				lo_message_free(msg);
 			}//end if osc message
 			else //assume "normal" midi
 			{
-//				fprintf(stderr,"MIDI> #%d len %lu\n\r",msgCount,event.size);//,event.buffer);
+//				fprintf(stderr, "MIDI> #%d len %lu\n\r", msgCount, event.size);//, event.buffer);
 				//write to serial
-				int x=write(comfd,(void*)event.buffer,event.size);
+				int x=write(comfd, (void*)event.buffer, event.size);
 			}
 		}
 	}
@@ -614,10 +613,10 @@ static int process(jack_nframes_t nframes, void *arg)
 	void *buf=malloc(3);
 
 	size_t m_count=0;
-	while( (m_count=rb_read_next_midi_message(rb,buf)) > 0 )
+	while( (m_count=rb_read_next_midi_message(rb, buf)) > 0 )
 	{
 		//put to JACK MIDI out
-		jack_midi_event_write(buffer_out_midi,pos,(const jack_midi_data_t *)buf,m_count);
+		jack_midi_event_write(buffer_out_midi, pos, (const jack_midi_data_t *)buf, m_count);
 		pos++; //pseudo timing
 	}
 
