@@ -38,34 +38,34 @@ static inline int rb_find_next_midi_message(rb_t *rb, size_t *offset, size_t *co
  * MIDI commands and data are distinguished according to the most significant bit of the byte. 
  * If there is a zero in the top bit, then the byte is a data byte, and if there is a one 
  * in the top bit, then the byte is a command byte. Here is how they are separated: 
- *@code
- *     decimal     hexadecimal          binary
- * =======================================================
- * DATA bytes:
- *        0               0          00000000
- *      ...             ...               ...
- *      127              7F          01111111
- * 
- * COMMAND bytes:
- *      128              80          10000000
- *      ...             ...               ...
- *      255              FF          11111111
- *@endcode
+\verbatim
+      decimal     hexadecimal          binary
+  =======================================================
+  DATA bytes:
+         0               0          00000000
+       ...             ...               ...
+       127              7F          01111111
+  
+  COMMAND bytes:
+       128              80          10000000
+       ...             ...               ...
+       255              FF          11111111
+\endverbatim
  * Furthermore, command bytes are split into half. The most significant half contains the 
  * actual MIDI command, and the second half contains the MIDI channel for which the command 
  * is for. For example, 0x91 is the note-on command for the second MIDI channel. the 9 
  * digit is the actual command for note-on and the digit 1 specifies the second channel 
  * (the first channel being 0). The 0xF0 set of commands do not follow this convention. 
- *@code 
- *    0x80     Note Off
- *    0x90     Note On
- *    0xA0     Aftertouch
- *    0xB0     Continuous controller
- *    0xC0     Patch change
- *    0xD0     Channel Pressure
- *    0xE0     Pitch bend
- *    0xF0     (non-musical commands)
- *@endcode
+\verbatim
+     0x80     Note Off
+     0x90     Note On
+     0xA0     Aftertouch
+     0xB0     Continuous controller
+     0xC0     Patch change
+     0xD0     Channel Pressure
+     0xE0     Pitch bend
+     0xF0     (non-musical commands)
+\endverbatim
  * The messages from 0x80 to 0xEF are called Channel Messages because the second four bits 
  * of the command specify which channel the message affects. 
  * The messages from 0xF0 to 0xFF are called System Messages; they do not affect any particular channel. 
@@ -78,17 +78,17 @@ static inline int rb_find_next_midi_message(rb_t *rb, size_t *offset, size_t *co
  *
  * A MIDI message always starts with a command byte. Here is a table of the MIDI messages 
  * that are possible in the MIDI protocol: 
- *@code 
- * Command Meaning                 # parameters    param 1         param 2
- * 0x80    Note-off                2               key             velocity
- * 0x90    Note-on                 2               key             veolcity
- * 0xA0    Aftertouch              2               key             touch
- * 0xB0    Control Change          2               controller #    controller value
- * 0xC0    Program Change          1               instrument #
- * 0xD0    Channel Pressure        1               pressure
- * 0xE0    Pitch bend              2               lsb (7 bits)    msb (7 bits)
- * 0xF0    (non-musical commands)
- *@endcode 
+\verbatim
+  Command Meaning                 # parameters    param 1         param 2
+  0x80    Note-off                2               key             velocity
+  0x90    Note-on                 2               key             veolcity
+  0xA0    Aftertouch              2               key             touch
+  0xB0    Control Change          2               controller #    controller value
+  0xC0    Program Change          1               instrument #
+  0xD0    Channel Pressure        1               pressure
+  0xE0    Pitch bend              2               lsb (7 bits)    msb (7 bits)
+  0xF0    (non-musical commands)
+\endverbatim
  * 
  * @param rb a pointer to the ringbuffer structure.
  * @param offset a pointer to a variable of type size_t.
@@ -174,6 +174,7 @@ static inline size_t rb_read_next_midi_message(rb_t *rb, char *destination)
 	}
 	else
 	{
+		rb->total_underflows++;
 		return 0;
 	}
 }
