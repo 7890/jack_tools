@@ -528,6 +528,8 @@ static int process(jack_nframes_t nframes, void *arg)
 	//process incoming messages from JACK
 	int msgCount = jack_midi_get_event_count (buffer_in_midi);
 
+	int x=0; //return value of write
+
 	int i;
 	//iterate over encapsulated osc messages
 	for (i = 0; i < msgCount; ++i)
@@ -567,19 +569,18 @@ static int process(jack_nframes_t nframes, void *arg)
 
 					//176: b0 (cc on channel 0)
 					//oscsend localhost 3344 /midi iii 176 40 1
-
 					if(argc==1 && !strcmp(types, "i"))
 					{
 						buffer=malloc(1);
 						buffer[0]=argv[0]->i;
-						int x=write(comfd, (void*)buffer, argc);
+						x=write(comfd, (void*)buffer, argc);
 					}
 					else if(argc==2 && !strcmp(types, "ii"))
 					{
 						buffer=malloc(2);
 						buffer[0]=argv[0]->i;
 						buffer[1]=argv[1]->i;
-						int x=write(comfd, (void*)buffer, argc);
+						x=write(comfd, (void*)buffer, argc);
 					}
 					else if(argc==3 && !strcmp(types, "iii"))
 					{
@@ -587,8 +588,9 @@ static int process(jack_nframes_t nframes, void *arg)
 						buffer[0]=argv[0]->i;
 						buffer[1]=argv[1]->i;
 						buffer[2]=argv[2]->i;
-						int x=write(comfd, (void*)buffer, argc);
+						x=write(comfd, (void*)buffer, argc);
 					}
+
 					if(argc==1 && !strcmp(types, "b"))
 					{
 						fprintf(stderr, "\r\nsysex midi (blob) not implemented.\n");
@@ -600,9 +602,10 @@ static int process(jack_nframes_t nframes, void *arg)
 			{
 //				fprintf(stderr, "MIDI> #%d len %lu\n\r", msgCount, event.size);//, event.buffer);
 				//write to serial
-				int x=write(comfd, (void*)event.buffer, event.size);
+				x=write(comfd, (void*)event.buffer, event.size);
 			}
 		}
+		if(x==0){}//satisfy unused var
 	}
 
 	//put MIDI bytes from serial to JACK
@@ -627,9 +630,9 @@ static int process(jack_nframes_t nframes, void *arg)
 //=============================================================================
 static void print_status(int fd)
 {
-	int status;
 	unsigned int arg;
-	status = ioctl(fd, TIOCMGET, &arg);
+	//int status=
+	ioctl(fd, TIOCMGET, &arg);
 	fprintf(stderr, "[STATUS]: ");
 	if(arg & TIOCM_RTS) fprintf(stderr, "RTS ");
 	if(arg & TIOCM_CTS) fprintf(stderr, "CTS ");
