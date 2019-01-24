@@ -16,13 +16,13 @@ int main(int argc, char *argv[]);
 static void signal_handler(int sig);
 static void shutdown_callback(void *arg);
 static void jack_error(const char* err);
-static void send_midi_note(int channel,int pitch,int velocity,int ison,int pos);
-static void send_midi_controller(int channel,int controller_number,int controller_value,int pos);
-static void send_midi_aftertouch(int channel,int pitch,int touch,int pos);
-static void send_midi_pitchbend(int channel,int lsb,int msb,int pos);
-static void send_midi_program_change(int channel,int program,int pos);
-static void send_midi_channel_pressure(int channel,int pressure,int pos);
-static void send_midi_realtime(int number,int pos);
+static void send_midi_note(int channel, int pitch, int velocity, int ison, int pos);
+static void send_midi_controller(int channel, int controller_number, int controller_value, int pos);
+static void send_midi_aftertouch(int channel, int pitch, int touch, int pos);
+static void send_midi_pitchbend(int channel, int lsb, int msb, int pos);
+static void send_midi_program_change(int channel, int program, int pos);
+static void send_midi_channel_pressure(int channel, int pressure, int pos);
+static void send_midi_realtime(int number, int pos);
 
 static int process(jack_nframes_t nframes, void *arg);
 
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
 	setbuf(stderr, NULL);
 
 	if(argc >= 2 &&
-		(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
+		(strcmp(argv[1], "-h")==0 || strcmp(argv[1], "--help")==0))
 	{
 		printf("connect JACK client that sends MIDI on/off events\n\n");
 		printf("syntax: jack_midi_heartbeat <interval in samples>\n\n");
@@ -71,15 +71,15 @@ int main(int argc, char *argv[])
 	if(argc >= 2)
 	{
 		frames_between_on_off=strtoull(argv[1], NULL, 10);
-		fprintf(stderr,"setting interval to %"PRId64" frames.\n"
-			,frames_between_on_off);
+		fprintf(stderr, "setting interval to %"PRId64" frames.\n"
+			, frames_between_on_off);
 	}
 
 	//jack_options_t options=JackNullOption;
 	jack_options_t options=JackNoStartServer;
 	jack_status_t status;
 
-	ioPortArray = (jack_port_t**) calloc(
+	ioPortArray=(jack_port_t**) calloc(
 		output_port_count * sizeof(jack_port_t*), sizeof(jack_port_t*));
 
 	jack_set_error_function(jack_error);
@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
 	while(1==1)
 	{
 	connection_to_jack_down=1;
-	fprintf(stderr,"\r\n");
-	fprintf(stderr,"waiting for connection to JACK...\n\r");
+	fprintf(stderr, "\r\n");
+	fprintf(stderr, "waiting for connection to JACK...\n\r");
 	while(connection_to_jack_down)
 	{
 		if((client=jack_client_open("midi_heartbeat", options, &status, NULL))==0)
@@ -104,31 +104,31 @@ int main(int argc, char *argv[])
 		else
 		{
 			connection_to_jack_down=0;
-			fprintf(stderr,"connected to JACK.\n\r");
+			fprintf(stderr, "connected to JACK.\n\r");
 		}
 	}
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
-	jack_set_process_callback (client, process, NULL);
+	jack_set_process_callback(client, process, NULL);
 
-	port_out_midi = jack_port_register (client, "out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_out_midi=jack_port_register(client, "out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
 
 	//register each audio output port
 	int port_=0;
-	for (port_=0 ; port_<output_port_count ; port_ ++)
+	for(port_=0; port_<output_port_count; port_ ++)
 	{
 		//create port name
 		char* portName;
-		if (asprintf(&portName, "output_%d", (port_+1)) < 0) 
+		if(asprintf(&portName, "output_%d", (port_+1)) < 0)
 		{
 			fprintf(stderr, "/!\\ a could not create portname for port %d\n", port_);
 			exit(1);
 		}
 
 		//register the output port
-		ioPortArray[port_] = jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
-		if (ioPortArray[port_] == NULL) 
+		ioPortArray[port_]=jack_port_register(client, portName, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput, 0);
+		if(ioPortArray[port_]==NULL)
 		{
 			fprintf(stderr, "/!\\ b could not create output port %d\n", (port_+1));
 			exit(1);
@@ -192,76 +192,76 @@ static void jack_error(const char* err)
 }
 
 //===================================================================
-static void send_midi_note(int channel,int pitch,int velocity,int ison,int pos)
+static void send_midi_note(int channel, int pitch, int velocity, int ison, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-		buffer[2] = velocity,
-		buffer[1] = pitch;
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+	buffer[2]=velocity;
+	buffer[1]=pitch;
 	if(ison)
 	{
-		buffer[0] = (0x90 | channel);       /* note on */
+		buffer[0]=(0x90 | channel);       /* note on */
 	}
 	else
 	{
-		buffer[0] = (0x80 | channel);       /* note off */
+		buffer[0]=(0x80 | channel);       /* note off */
 	}
 }
 
 //===================================================================
-static void send_midi_controller(int channel,int controller_number,int controller_value,int pos)
+static void send_midi_controller(int channel, int controller_number, int controller_value, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-		buffer[2] = controller_value,
-		buffer[1] = controller_number;
-		buffer[0] = (0xB0 | channel);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+	buffer[2]=controller_value,
+	buffer[1]=controller_number;
+	buffer[0]=(0xB0 | channel);
 }
 
 //===================================================================
-static void send_midi_aftertouch(int channel,int pitch,int touch,int pos)
+static void send_midi_aftertouch(int channel, int pitch, int touch, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-		buffer[2] = touch,
-		buffer[1] = pitch;
-		buffer[0] = (0xA0 | channel);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+	buffer[2]=touch,
+	buffer[1]=pitch;
+	buffer[0]=(0xA0 | channel);
 }
 
 //===================================================================
-static void send_midi_pitchbend(int channel,int lsb,int msb,int pos)
+static void send_midi_pitchbend(int channel, int lsb, int msb, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-		buffer[2] = msb,
-		buffer[1] = lsb;
-		buffer[0] = (0xE0 | channel);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+	buffer[2]=msb,
+	buffer[1]=lsb;
+	buffer[0]=(0xE0 | channel);
 }
 
 //===================================================================
-static void send_midi_program_change(int channel,int program,int pos)
+static void send_midi_program_change(int channel, int program, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 2);
-		buffer[1] = program;
-		buffer[0] = (0xC0 | channel);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 2);
+	buffer[1]=program;
+	buffer[0]=(0xC0 | channel);
 }
 
 //===================================================================
-static void send_midi_channel_pressure(int channel,int pressure,int pos)
+static void send_midi_channel_pressure(int channel, int pressure, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 2);
-		buffer[1] = pressure;
-		buffer[0] = (0xD0 | channel);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 2);
+	buffer[1]=pressure;
+	buffer[0]=(0xD0 | channel);
 }
 
 //===================================================================
-static void send_midi_realtime(int number,int pos)
+static void send_midi_realtime(int number, int pos)
 {
 	jack_midi_data_t *buffer;
-	buffer = jack_midi_event_reserve(buffer_out_midi, pos, 1);
-		buffer[0] = (0xF0 | number);
+	buffer=jack_midi_event_reserve(buffer_out_midi, pos, 1);
+	buffer[0]=(0xF0 | number);
 }
 
 //=============================================================================
@@ -273,7 +273,7 @@ static int process(jack_nframes_t nframes, void *arg)
 	}
 
 	//prepare receive buffer
-	buffer_out_midi = jack_port_get_buffer (port_out_midi, nframes);
+	buffer_out_midi=jack_port_get_buffer(port_out_midi, nframes);
 	jack_midi_clear_buffer(buffer_out_midi);
 
 	sample_t *o1;
@@ -284,12 +284,12 @@ static int process(jack_nframes_t nframes, void *arg)
 	memset(o1, 0, nframes*4);
 
 	int k=0;
-	for(k=0;k<nframes;k++)
+	for(k=0; k<nframes; k++)
 	{
-		if(frame_counter % frames_between_on_off == 0)
+		if(frame_counter % frames_between_on_off==0)
 		{
-			fprintf(stderr,".");
-			send_midi_note			(channel_counter,pitch_counter, velocity_counter,is_on,k);
+			fprintf(stderr, ".");
+			send_midi_note			(channel_counter, pitch_counter, velocity_counter, is_on, k);
 /*
 			send_midi_controller		(channel_counter,pitch_counter,	velocity_counter,k);
 			send_midi_aftertouch		(channel_counter,pitch_counter,	velocity_counter,k);
@@ -360,7 +360,7 @@ jack_midi_dump output
 	{
 		sample_t *o1;
 		//get output buffer from JACK for that channel
-		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i],nframes);
+		o1=(sample_t*)jack_port_get_buffer(ioPortArray[i], nframes);
 
 		//set all samples zero
 //		memset(o1, 0, nframes*4);
