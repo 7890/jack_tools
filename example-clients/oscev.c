@@ -229,6 +229,7 @@ static void shutdown_callback(void *arg)
 	fprintf(stderr, "JACK server down!\n");
 }
 
+/*
 //===================================================================
 static int graph_callback(void* arg)
 {
@@ -239,6 +240,7 @@ static int graph_callback(void* arg)
 	fprintf(stderr,"graph reordered\n");
 	return 0;
 }
+*/
 
 //===================================================================
 static void jack_error(const char* err)
