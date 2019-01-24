@@ -214,6 +214,7 @@ static int xrun_callback(void *arg)
 	lo_message_free(reply);
 
 	fprintf(stderr, "xrun!\n");
+	return 0;
 }
 
 //================================================================
