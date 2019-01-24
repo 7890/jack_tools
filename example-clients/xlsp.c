@@ -38,7 +38,7 @@ char * my_name;
 static int version=150831;
 
 //===================================================================
-static void show_version (void)
+static void show_version(void)
 {
 	fprintf(stderr,"%d\n",version);
 }
@@ -46,7 +46,7 @@ static void show_version (void)
 //===================================================================
 static void show_usage(void)
 {
-	//show_version ();
+	//show_version();
 	fprintf(stderr, "\nUsage: %s [options] [filter string]\n", my_name);
 	fprintf(stderr, "Dump active Jack ports, and optionally display extra information as XML.\n");
 	fprintf(stderr, "Optionally filter ports which match ALL strings provided after any options.\n\n");
@@ -76,7 +76,6 @@ static void show_usage(void)
 	fprintf(stderr, "jack_xlsp source at https://github.com/7890/jack_tools\n\n");
 
 	//jack_xlsp -AclLpt | xmlstarlet sel -t -m '//port' -s D:T:L 'count(.//connection)' --if  'position()<10' -o '==[' -v '@name' -o ': ' -v 'count(.//connection)' -nl -m ".//connection" -o '  |__' -v . -nl  -b -nl --else -b
-
 }
 
 //===================================================================
@@ -207,9 +206,9 @@ int main(int argc, char *argv[])
 
 	//generic JACK info
 	printf("<server frame_time=\"%" PRId64 "\">\n",(uint64_t)jack_frame_time(client));
-		printf("<sample_rate>%d</sample_rate>\n",(int)jack_get_sample_rate(client));
-		printf("<period_size>%d</period_size>\n",(int)jack_get_buffer_size(client));
-		printf("<cpu_load>%f</cpu_load>\n",jack_cpu_load(client)/100);
+	printf("<sample_rate>%d</sample_rate>\n",(int)jack_get_sample_rate(client));
+	printf("<period_size>%d</period_size>\n",(int)jack_get_buffer_size(client));
+	printf("<cpu_load>%f</cpu_load>\n",jack_cpu_load(client)/100);
 	printf("</server>\n");
 
 	char cname[256];
@@ -245,7 +244,7 @@ int main(int argc, char *argv[])
 		strncpy(cname,aname,nlen);
 		cname[nlen]='\0'; //terminate with null
 
-//		fprintf(stderr,"%s %d %d %d %s\n",pname,alen,plen,nlen,cname);
+//		fprintf(stderr,"%s %d %d %d %s\n", pname, alen, plen, nlen, cname);
 
 		//if not the same as before, start new <unit>...</unit>
 		if(strcmp(cname,cname_prev)) //if not equal
@@ -275,65 +274,20 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		if(show_properties)
+		if(show_properties && port)
 		{
-			if(port)
-			{
-				int flags=jack_port_flags(port);
-				printf("<properties ");
-				if(flags & JackPortIsInput)
-				{
-					printf("input=\"1\" ");
-				}
-				else
-				{
-					printf("input=\"0\" ");
-				}
-				if(flags & JackPortIsOutput)
-				{
-					printf("output=\"1\" ");
-				}
-				else
-				{
-					printf("output=\"0\" ");
-				}
-				if(flags & JackPortCanMonitor)
-				{
-					printf("can_monitor=\"1\" ");
-				}
-				else
-				{
-					printf("can_monitor=\"0\" ");
-				}
-				if(flags & JackPortIsPhysical)
-				{
-					printf("physical=\"1\" ");
-				}
-				else
-				{
-					printf("physical=\"0\" ");
-				}
-				if(flags & JackPortIsTerminal)
-				{
-					printf("terminal=\"1\" ");
-				}
-				else
-				{
-					printf("terminal=\"0\"");
-				}
-				//end properties
-				printf("/>\n");
-			}
+			int flags=jack_port_flags(port);
+			printf("<properties ");
+			printf("input=\"%d\" ", (flags & JackPortIsInput) ? 1 : 0);
+			printf("output=\"%d\" ", (flags & JackPortIsOutput) ? 1 : 0);
+			printf("can_monitor=\"%d\" ", (flags & JackPortCanMonitor) ? 1 : 0);
+			printf("physical=\"%d\" ", (flags & JackPortIsPhysical) ? 1 : 0);
+			printf("terminal=\"%d\" ", (flags & JackPortIsTerminal) ? 1 : 0);
+			printf("/>\n");//end properties
 		}
-		if(show_type) 
+		if(show_type && port)
 		{
-			if(port)
-			{
-				//putc('\t', stdout);
-				//fputs(jack_port_type (port), stdout);
-				//putc('\n', stdout);
-				printf("<description>%s</description>\n",jack_port_type(port));
-			}
+			printf("<description>%s</description>\n", jack_port_type(port));
 		}
 		if(show_con)
 		{
@@ -349,30 +303,24 @@ int main(int argc, char *argv[])
 			}
 			printf("</connections>\n");
 		}
-		if(show_port_latency)
+		if(show_port_latency && port)
 		{
-			if(port)
-			{
-				jack_latency_range_t range;
-				printf("<latency_frames value=\"%" PRIu32 "\"/>\n",
-					jack_port_get_latency(port));
+			jack_latency_range_t range;
+			printf("<latency_frames value=\"%" PRIu32 "\"/>\n",
+				jack_port_get_latency(port));
 
-				jack_port_get_latency_range(port, JackPlaybackLatency, &range);
-				printf("<playback_latency_frames min=\"%" PRIu32 "\" max=\"%" PRIu32 "\"/>\n",
-					range.min, range.max);
+			jack_port_get_latency_range(port, JackPlaybackLatency, &range);
+			printf("<playback_latency_frames min=\"%" PRIu32 "\" max=\"%" PRIu32 "\"/>\n",
+				range.min, range.max);
 
-				jack_port_get_latency_range(port, JackCaptureLatency, &range);
-				printf("<capture_latency min=\"%" PRIu32 "\" max=\"%" PRIu32 "\"/>\n",
-					range.min, range.max);
-			}
+			jack_port_get_latency_range(port, JackCaptureLatency, &range);
+			printf("<capture_latency min=\"%" PRIu32 "\" max=\"%" PRIu32 "\"/>\n",
+				range.min, range.max);
 		}
-		if(show_total_latency)
+		if(show_total_latency && port)
 		{
-			if(port)
-			{
-				printf("<total_latency_frames value=\"%d\"/>\n",
-					jack_port_get_total_latency(client, port));
-			}
+			printf("<total_latency_frames value=\"%d\"/>\n",
+				jack_port_get_total_latency(client, port));
 		}
 		printf("</port>\n");
 	}
@@ -389,5 +337,5 @@ error:
 		jack_free(ports);
 	}
 	jack_client_close(client);
-	exit(0);
+	return 0;
 }//end main
