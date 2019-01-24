@@ -9,7 +9,6 @@ gcc -o jack_midi_on_off midi_on_off.c  `pkg-config --libs liblo` `pkg-config --l
 //tb/150908
 */
 
-
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -20,17 +19,17 @@ gcc -o jack_midi_on_off midi_on_off.c  `pkg-config --libs liblo` `pkg-config --l
 
 int main(int argc, char *argv[]);
 static void shutdown_callback(void *arg);
-static void jack_error(const char* err);
+static void jack_error(const char *err);
 static int process(jack_nframes_t nframes, void *arg);
 static void signal_handler(int sig);
 
 static jack_client_t *client;
 
-static jack_port_t* port_in_midi;
-static jack_port_t* port_out_midi;
+static jack_port_t *port_in_midi;
+static jack_port_t *port_out_midi;
 
-void* buffer_in_midi;
-void* buffer_out_midi;
+void *buffer_in_midi;
+void *buffer_out_midi;
 
 static int process_enabled=0;
 static int connection_to_jack_down=1;
@@ -57,7 +56,7 @@ int main(int argc, char *argv[])
 	setbuf(stderr, NULL);
 
 	if(argc >= 2 &&
-		(strcmp(argv[1],"-h")==0 || strcmp(argv[1],"--help")==0))
+		(strcmp(argv[1], "-h")==0 || strcmp(argv[1], "--help")==0))
 	{
 		printf("connect JACK client\n\n");
 		printf("syntax: jack_midi_on_off\n\n");
@@ -76,8 +75,8 @@ int main(int argc, char *argv[])
 	while(1==1)
 	{
 	connection_to_jack_down=1;
-	fprintf(stderr,"\r\n");
-	fprintf(stderr,"waiting for connection to JACK...\n\r");
+	fprintf(stderr, "\r\n");
+	fprintf(stderr, "waiting for connection to JACK...\n\r");
 	while(connection_to_jack_down)
 	{
 		if((client=jack_client_open("midi_on_off", options, &status, NULL))==0)
@@ -92,16 +91,16 @@ int main(int argc, char *argv[])
 		else
 		{
 			connection_to_jack_down=0;
-			fprintf(stderr,"connected to JACK.\n\r");
+			fprintf(stderr, "connected to JACK.\n\r");
 		}
 	}
 
 	jack_on_shutdown(client, shutdown_callback, NULL);
 
-	jack_set_process_callback (client, process, NULL);
+	jack_set_process_callback(client, process, NULL);
 
-	port_in_midi = jack_port_register (client, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
-	port_out_midi = jack_port_register (client, "out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
+	port_in_midi=jack_port_register(client, "in", JACK_DEFAULT_MIDI_TYPE, JackPortIsInput, 0);
+	port_out_midi=jack_port_register(client, "out", JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
 
 	if(jack_activate(client))
 	{
@@ -155,7 +154,7 @@ static void shutdown_callback(void *arg)
 }
 
 //===================================================================
-static void jack_error(const char* err)
+static void jack_error(const char *err)
 {
 	//suppress for now
 }
@@ -169,80 +168,80 @@ static int process(jack_nframes_t nframes, void *arg)
 	}
 
 	//prepare receive buffer
-	buffer_in_midi = jack_port_get_buffer (port_in_midi, nframes);
-	buffer_out_midi = jack_port_get_buffer (port_out_midi, nframes);
+	buffer_in_midi=jack_port_get_buffer(port_in_midi, nframes);
+	buffer_out_midi=jack_port_get_buffer(port_out_midi, nframes);
 	jack_midi_clear_buffer(buffer_out_midi);
 
 	//process incoming messages from JACK
-	int msgCount = jack_midi_get_event_count (buffer_in_midi);
+	int msg_counter=jack_midi_get_event_count(buffer_in_midi);
 
 	int i;
 	//iterate over encapsulated osc messages
-	for (i = 0; i < msgCount; ++i) 
+	for(i=0; i<msg_counter; ++i)
 	{
 		jack_midi_event_t event;
 		int r;
 
-		r = jack_midi_event_get (&event, buffer_in_midi, i);
-		if (r == 0)
+		r=jack_midi_event_get(&event, buffer_in_midi, i);
+		if(r==0)
 		{
 			//check if midi data, skip if other
 			if(*event.buffer=='/')
 			{
-//				fprintf(stderr,"OSC> #%d / %d len %lu\n\r",i,msgCount,event.size);
+//				fprintf(stderr, "OSC> #%d / %d len %lu\n\r", i, msg_counter, event.size);
 				//do stuff here
 			}
 			else
 			{
-//				fprintf(stderr,"MIDI> #%d / %d len %lu\n\r",i,msgCount,event.size);//,event.buffer);
+//				fprintf(stderr, "MIDI> #%d / %d len %lu\n\r", i, msg_counter, event.size);//, event.buffer);
 
-				int pos=0; //!! all events at pos 0 in cycle
+				int pos=0; ///!! all events at pos 0 in cycle !!! work here
 
 				midi_events_received++;
 
-				uint8_t type = event.buffer[0] & 0xf0;
-				uint8_t channel = event.buffer[0] & 0xf;
+				uint8_t type=event.buffer[0] & 0xf0;
+				uint8_t channel=event.buffer[0] & 0xf;
 
 				//if note on, send note off and vice versa
-				if(type == 0x80) //off
+				if(type==0x80) //off
 				{
 					midi_off_events_received++;
-					//fprintf(stderr,"X");
+					//fprintf(stderr, "X");
 
 					jack_midi_data_t *buffer;
-					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-					buffer[2] = event.buffer[2],
-					buffer[1] = event.buffer[1];
+					buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+					buffer[2]=event.buffer[2],
+					buffer[1]=event.buffer[1];
 
 					if(mode==MODE_PASSTHRU)
 					{
-						buffer[0] = event.buffer[0];
+						buffer[0]=event.buffer[0];
 						midi_off_events_sent++;
 					}
 					else if(mode==MODE_TOGGLE)
 					{
-						buffer[0] = 0x90 | (event.buffer[0] & 0xf); //on + channel
+						buffer[0]=0x90 | channel; //on + channel
 						midi_on_events_sent++;
 					}
 					midi_events_sent++;
 				}
-				else if(type == 0x90) //on
+				else if(type==0x90) //on
 				{
 					midi_on_events_received++;
-					//fprintf(stderr,"_");
+					//fprintf(stderr,  "_");
 					jack_midi_data_t *buffer;
-					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-					buffer[2] = event.buffer[2],
-					buffer[1] = event.buffer[1];
+					buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+					buffer[2]=event.buffer[2],
+					buffer[1]=event.buffer[1];
 
 					if(mode==MODE_PASSTHRU)
 					{
-						buffer[0] = event.buffer[0];
+						buffer[0]=event.buffer[0];
 						midi_on_events_sent++;
 					}
 					else if(mode==MODE_TOGGLE)
 					{
-						buffer[0] = 0x80 | (event.buffer[0] & 0xf); //off + channel
+						buffer[0]=0x80 | channel; //off + channel
 						midi_off_events_sent++;
 					}
 
@@ -251,21 +250,21 @@ static int process(jack_nframes_t nframes, void *arg)
 				else if(mode==MODE_PASSTHRU)
 				{
 					jack_midi_data_t *buffer;
-					buffer = jack_midi_event_reserve(buffer_out_midi, pos, 3);
-					buffer[2] = event.buffer[2],
-					buffer[1] = event.buffer[1];
-					buffer[0] = event.buffer[0];
+					buffer=jack_midi_event_reserve(buffer_out_midi, pos, 3);
+					buffer[2]=event.buffer[2],
+					buffer[1]=event.buffer[1];
+					buffer[0]=event.buffer[0];
 					midi_events_sent++;
 				}
 			}
 		}
 	}//end while has MIDI messages
 
-	fprintf(stderr,"\r                                                                 \rin %" PRId64 " on %" PRId64 " off %" PRId64 " out %" PRId64 " on %" PRId64 " off %" PRId64 ""
-		,midi_events_received
-		,midi_on_events_received,midi_on_events_sent
-		,midi_events_sent
-		,midi_off_events_received,midi_off_events_sent);
+	fprintf(stderr, "\r                                                                 \rin %" PRId64 " on %" PRId64 " off %" PRId64 " out %" PRId64 " on %" PRId64 " off %" PRId64 ""
+		, midi_events_received
+		, midi_on_events_received, midi_on_events_sent
+		, midi_events_sent
+		, midi_off_events_received, midi_off_events_sent);
 
 	return 0;
 }//end process()
@@ -307,7 +306,7 @@ void handleNoteOn(byte inChannel, byte inNote, byte inVelocity)
 void handleNoteOff(byte inChannel, byte inNote, byte inVelocity)
 {
   digitalWrite(LED, LOW);
-  MIDI_.sendNoteOn(inNote,inVelocity,inChannel);  
+  MIDI_.sendNoteOn(inNote,inVelocity,inChannel);
 }
 void loop()
 {
