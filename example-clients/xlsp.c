@@ -128,8 +128,8 @@ int main(int argc, char *argv[])
 		switch(c)
 		{
 		case 's':
-			server_name=(char*)calloc(1, 256+1);
-			strncpy(server_name, optarg, strlen(server_name)-1);
+			server_name=(char*)calloc(1, 256);
+			strncpy(server_name, optarg, 255);
 			options |= JackServerName;
 			break;
 		case 'A':
